@@ -14,16 +14,60 @@
         
         /* 💡 비디오 플레이어 및 도트 픽셀 유지 스타일 */
         #playerArea { margin-top: 30px; display: none; }
+        
+        /* 비디오와 오버레이 버튼을 묶어주는 래퍼 */
+        .player-wrapper {
+            position: relative;
+            display: inline-block; /* 비디오 크기에 맞춰 래퍼 크기 자동 조절 */
+            box-shadow: 0 4px 15px rgba(0,0,0,0.8); 
+        }
+
         #player { 
             background: #000; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.8); 
+            display: block;
             /* 화면이 부드럽게 커지도록 애니메이션 효과 */
             transition: width 0.3s ease, height 0.3s ease; 
             /* 💡 핵심: 레트로 픽셀이 뭉개지지 않고 선명하게 확대되게 함 */
             image-rendering: pixelated; 
         }
+        
         .scale-btn { background: #444; font-size: 14px; padding: 6px 15px; }
         .scale-btn:hover { background: #666; }
+
+        /* 💡 글래스모피즘 스타일 Unmute 버튼 (우측 상단 배치) */
+        .unmute-btn {
+            position: absolute;
+            top: 20px; /* 하단 컨트롤 바와 겹치지 않도록 상단으로 이동 */
+            right: 20px;
+            padding: 10px 16px;
+            background: rgba(0, 0, 0, 0.4); 
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s ease;
+            z-index: 10;
+            margin: 0;
+        }
+
+        .unmute-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.05);
+        }
+
+        /* 소리 켜기 후 부드럽게 사라지는 효과 */
+        .fade-out {
+            opacity: 0;
+            visibility: hidden;
+            transform: scale(0.9);
+        }
     </style>
     
     <script src="ffmpeg.js"></script>
@@ -45,7 +89,18 @@
             <button class="scale-btn" id="btn4x">4x (1024x768)</button>
         </div>
         <br>
-        <video id="player" controls></video>
+        <div class="player-wrapper">
+            <video id="player" controls autoplay muted playsinline></video>
+            
+            <button id="unmuteBtn" class="unmute-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                    <line x1="23" y1="9" x2="17" y2="15"></line>
+                    <line x1="17" y1="9" x2="23" y2="15"></line>
+                </svg>
+                소리 켜기
+            </button>
+        </div>
     </div>
 
     <div class="box" style="margin-top: 30px;">
@@ -61,6 +116,14 @@
         const downloadBtn = document.getElementById('downloadBtn');
         const playerArea = document.getElementById('playerArea');
         const player = document.getElementById('player');
+        const unmuteBtn = document.getElementById('unmuteBtn');
+
+        // Unmute 버튼 클릭 이벤트 처리
+        unmuteBtn.addEventListener('click', () => {
+            player.muted = false;
+            player.play().catch(e => console.error("재생 에러:", e));
+            unmuteBtn.classList.add('fade-out');
+        });
 
         // 스케일 조절 버튼 이벤트 연결
         document.getElementById('btn1x').addEventListener('click', () => setPlayerSize(256, 192));
@@ -164,7 +227,12 @@
             startBtn.disabled = true;
             downloadBtn.style.display = "none";
             playerArea.style.display = "none";
+            
+            // 변환 재시작 시 플레이어 및 버튼 상태 초기화
             player.pause();
+            player.muted = true; 
+            unmuteBtn.classList.remove('fade-out');
+            
             logEl.textContent = "변환 시작...";
 
             try {
@@ -210,9 +278,11 @@
                 
                 // 플레이어 표시 및 자동 재생 (기본 2x 크기로 설정)
                 player.src = url;
-                setPlayerSize(512, 384); 
+                setPlayerSize(512, 384);  
                 playerArea.style.display = "block";
-                player.play();
+                
+                // Safari/Chrome 정책에 맞춰 muted 상태로 먼저 재생
+                player.play().catch(e => log(`자동 재생 정책 차단: ${e}`));
                 
                 downloadBtn.href = url;
                 downloadBtn.download = file.name.replace(/\.[^/.]+$/, "") + ".mp4";

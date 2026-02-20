@@ -36,6 +36,6 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
 PORT = 8000
-with socketserver.TCPServer(("", PORT), SecureHTTPRequestHandler) as httpd:
+with socketserver.TCPServer(("0.0.0.0", PORT), SecureHTTPRequestHandler) as httpd:
     print(f"\n[*] 완벽 준비! 브라우저에서 http://localhost:{PORT} 에 접속하세요.")
     httpd.serve_forever()
