@@ -3,32 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <title>MSX MV2 to MP4 Web Demuxer</title>
-
-    <script src="coi-serviceworker.js"></script>
-    
     <style>
-        body { font-family: -apple-system, sans-serif; background: #1e1e1e; color: #fff; padding: 40px; max-width: 800px; margin: 0 auto; }
-        .box { background: #2d2d2d; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-        button { background: #0078D7; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        body { font-family: -apple-system, sans-serif; background: #1e1e1e; color: #fff; padding: 40px; max-width: 1200px; margin: 0 auto; text-align: center; }
+        .box { background: #2d2d2d; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); text-align: left; }
+        button { background: #0078D7; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 16px; margin-top: 10px; margin-right: 5px; }
         button:hover { background: #005a9e; }
         button:disabled { background: #555; cursor: not-allowed; }
-        pre { background: #000; padding: 15px; border-radius: 4px; overflow-y: auto; max-height: 300px; color: #00ff00; font-family: monospace; }
+        pre { background: #000; padding: 15px; border-radius: 4px; overflow-y: auto; max-height: 200px; color: #00ff00; font-family: monospace; }
         #downloadBtn { display: inline-block; background: #28a745; text-decoration: none; color: white; padding: 10px 20px; border-radius: 4px; display: none; margin-top: 10px; }
+        
+        /* 💡 비디오 플레이어 및 도트 픽셀 유지 스타일 */
+        #playerArea { margin-top: 30px; display: none; }
+        #player { 
+            background: #000; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.8); 
+            /* 화면이 부드럽게 커지도록 애니메이션 효과 */
+            transition: width 0.3s ease, height 0.3s ease; 
+            /* 💡 핵심: 레트로 픽셀이 뭉개지지 않고 선명하게 확대되게 함 */
+            image-rendering: pixelated; 
+        }
+        .scale-btn { background: #444; font-size: 14px; padding: 6px 15px; }
+        .scale-btn:hover { background: #666; }
     </style>
     
     <script src="ffmpeg.js"></script>
 </head>
 <body>
 
-    <h1>🎬 MV2 Web Demuxer</h1>
+    <h1>🎬 MSX MV2 Web Demuxer & Player</h1>
     <div class="box">
         <input type="file" id="mv2file" accept=".MV2,.mv2" />
         <br>
-        <button id="startBtn">변환 시작 (MP4)</button>
-        <a id="downloadBtn" download="output.mp4">↓ MP4 다운로드</a>
+        <button id="startBtn">변환 및 재생 시작</button>
+        <a id="downloadBtn" download="output.mp4">↓ MP4 저장하기</a>
     </div>
 
-    <div class="box">
+    <div id="playerArea">
+        <div>
+            <button class="scale-btn" id="btn1x">1x (256x192)</button>
+            <button class="scale-btn" id="btn2x">2x (512x384)</button>
+            <button class="scale-btn" id="btn4x">4x (1024x768)</button>
+        </div>
+        <br>
+        <video id="player" controls></video>
+    </div>
+
+    <div class="box" style="margin-top: 30px;">
         <h3>진행 상황 로그</h3>
         <pre id="log">대기 중...</pre>
     </div>
@@ -39,6 +59,18 @@
         const logEl = document.getElementById('log');
         const startBtn = document.getElementById('startBtn');
         const downloadBtn = document.getElementById('downloadBtn');
+        const playerArea = document.getElementById('playerArea');
+        const player = document.getElementById('player');
+
+        // 스케일 조절 버튼 이벤트 연결
+        document.getElementById('btn1x').addEventListener('click', () => setPlayerSize(256, 192));
+        document.getElementById('btn2x').addEventListener('click', () => setPlayerSize(512, 384));
+        document.getElementById('btn4x').addEventListener('click', () => setPlayerSize(1024, 768));
+
+        function setPlayerSize(w, h) {
+            player.style.width = w + 'px';
+            player.style.height = h + 'px';
+        }
 
         function log(msg) {
             logEl.textContent += `\n[System] ${msg}`;
@@ -131,6 +163,8 @@
             }
             startBtn.disabled = true;
             downloadBtn.style.display = "none";
+            playerArea.style.display = "none";
+            player.pause();
             logEl.textContent = "변환 시작...";
 
             try {
@@ -139,19 +173,16 @@
 
                 log("1. MV2 파일 파싱 및 Raw 데이터 추출 중...");
                 const { videoBuffer, audioBuffer } = await demuxMV2(arrayBuffer);
-                log(`=> 비디오 Raw 추출 완료: ${(videoBuffer.length/1024/1024).toFixed(2)} MB`);
-                log(`=> 오디오 MP3 추출 완료: ${(audioBuffer.length/1024).toFixed(2)} KB`);
 
-                log("2. FFmpeg.wasm 로컬 코어 로딩 중...");
+                log("2. FFmpeg.wasm 로컬 엔진 로딩 중...");
                 if (!ffmpeg.loaded) {
-                    // 💡 핵심: 외부 CDN 주소 없이 무조건 로컬의 파일로 구동합니다.
                     await ffmpeg.load({
                         coreURL: 'ffmpeg-core.js',
                         wasmURL: 'ffmpeg-core.wasm'
                     });
                 }
 
-                log("3. 브라우저 가상 파일 시스템(MEMFS)에 기록 중...");
+                log("3. 브라우저 가상 메모리(MEMFS)에 기록 중...");
                 await ffmpeg.writeFile('video.raw', videoBuffer);
                 await ffmpeg.writeFile('audio.mp3', audioBuffer);
 
@@ -171,10 +202,17 @@
                     'output.mp4'
                 ]);
 
-                log("5. 파일 변환 완료! 다운로드 버튼을 클릭하세요.");
+                log("5. 변환 완료! 웹 플레이어에서 재생을 시작합니다.");
+                
                 const data = await ffmpeg.readFile('output.mp4');
                 const blob = new Blob([data.buffer], { type: 'video/mp4' });
                 const url = URL.createObjectURL(blob);
+                
+                // 플레이어 표시 및 자동 재생 (기본 2x 크기로 설정)
+                player.src = url;
+                setPlayerSize(512, 384); 
+                playerArea.style.display = "block";
+                player.play();
                 
                 downloadBtn.href = url;
                 downloadBtn.download = file.name.replace(/\.[^/.]+$/, "") + ".mp4";
