@@ -324,6 +324,11 @@
         <div class="panel"
             style="width: 100%; max-width: 600px; display: flex; align-items: center; justify-content: space-between; padding: 10px 0;">
             <span id="time-current" style="font-family: monospace;">00:00</span>
+            <div style="display: flex; gap: 5px; margin-left: 10px;">
+                <button id="btn-prev-frame" title="Previous Frame"
+                    style="padding: 2px 8px; font-size: 12px;">-1F</button>
+                <button id="btn-next-frame" title="Next Frame" style="padding: 2px 8px; font-size: 12px;">+1F</button>
+            </div>
             <input type="range" id="seek-slider" min="0" max="100" value="0" step="0.1"
                 style="flex-grow: 1; margin: 0 10px;" disabled>
             <span id="time-total" style="font-family: monospace;">00:00</span>
@@ -924,6 +929,34 @@
             if (document.hidden && player.isPlaying && !allowBg) {
                 player.pause();
             }
+        });
+
+        document.getElementById('btn-prev-frame').addEventListener('click', () => {
+            if (!player.frames || player.frames.length === 0) return;
+            if (player.isPlaying) {
+                player.pause();
+            }
+            player.isScrubbing = true;
+            let targetFrame = player.currentFrame - 1;
+            if (targetFrame < 0) targetFrame = 0;
+            player.renderFrame(targetFrame);
+            const targetTime = targetFrame / player.fps;
+            document.getElementById('time-current').innerText = player.formatTime(targetTime);
+            document.getElementById('seek-slider').value = (targetTime / player.duration) * 100;
+        });
+
+        document.getElementById('btn-next-frame').addEventListener('click', () => {
+            if (!player.frames || player.frames.length === 0) return;
+            if (player.isPlaying) {
+                player.pause();
+            }
+            player.isScrubbing = true;
+            let targetFrame = player.currentFrame + 1;
+            if (targetFrame >= player.totalFrames) targetFrame = player.totalFrames - 1;
+            player.renderFrame(targetFrame);
+            const targetTime = targetFrame / player.fps;
+            document.getElementById('time-current').innerText = player.formatTime(targetTime);
+            document.getElementById('seek-slider').value = (targetTime / player.duration) * 100;
         });
     </script>
 </body>
