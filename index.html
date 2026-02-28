@@ -444,6 +444,7 @@
                 this.reset();
 
                 document.getElementById('canvas-msg-overlay').style.display = 'none';
+                document.getElementById('status').innerText = "Loading new file...";
 
                 let data;
                 try {
@@ -459,124 +460,124 @@
                         data = new Uint8Array(await file.arrayBuffer());
                     }
                     await this.processData(data);
-                    // } catch (e) {
-                    //     document.getElementById('status').innerText = "Error: " + e.message;
-                    // }
-                }
-
-            async processData(data) {
-                    const sig = String.fromCharCode(...data.slice(0, 8));
-                    const ver = String.fromCharCode(...data.slice(16, 21));
-
-                    // 1. 포맷에 따른 파싱 수행
-                    if (sig === "MMCSD_MV" && ver === "v1.00") {
-                        this.fps = 12;
-                        this.isMV1 = true;
-                        await this.parseMV1(data);
-                    } else {
-                        this.fps = 15;
-                        this.isMV1 = false;
-                        await this.parseMV2(data, sig.startsWith("MV2") ? 512 : 16384);
-                    }
-
-                    // 2. 시간 및 UI 설정
-                    this.duration = this.totalFrames / this.fps;
-                    document.getElementById('osd-time-total').innerText = this.formatTime(this.duration);
-                    document.getElementById('osd-seek-slider').disabled = false;
-                    document.getElementById('status').innerText = "Loaded: " + this.totalFrames + " frames";
-
-                    // 3. [핵심] 로딩 완료 후 즉시 재생 시작
-                    await this.play();
-                }
-
-            async parseMV1(data) {
-                    this.frames = []; let off = 16384; let pcm = [];
-                    while (off + 16384 <= data.length) {
-                        const b = data.subarray(off, off + 16384);
-                        this.frames.push({ pgt: b.slice(0, 6144), ct: b.slice(6144, 12288), palette: [[0, 0, 0], ...this.extractPal(b.slice(13232, 13262), 15)], eqRaw: b.slice(13264, 13273) });
-                        pcm.push(b.slice(12288, 13232)); off += 16384;
-                    }
-                    this.totalFrames = this.frames.length;
-                    this.rawAudio = new Uint8Array(pcm.length * 944); pcm.forEach((c, i) => this.rawAudio.set(c, i * 944));
-                    this.audioBuffer = this.audioCtx.createBuffer(1, this.rawAudio.length, 944 * 12);
-                    const ch = this.audioBuffer.getChannelData(0); for (let i = 0; i < this.rawAudio.length; i++) ch[i] = (this.rawAudio[i] - 128) / 128;
-                }
-
-            async parseMV2(data, head) {
-                    this.frames = []; let off = head; let mp3 = [];
-                    while (off < data.length) {
-                        const sz = (head === 512 && off === 512) ? 15872 : 16384; if (off + sz > data.length) break;
-                        const b = data.subarray(off, off + sz);
-                        this.frames.push({ pgt: b.slice(0, 6144), ct: b.slice(6144, 12288), palette: [[0, 0, 0], ...this.extractPal(b.slice(12288, 12318), 15)], eqRaw: b.slice(12320, 12329) });
-                        mp3.push(b.slice(12801, 12801 + (b[12800] * 32))); off += sz;
-                    }
-                    this.totalFrames = this.frames.length;
-                    const total = mp3.reduce((a, c) => a + c.length, 0); this.rawAudio = new Uint8Array(total);
-                    let cur = 0; mp3.forEach(c => { this.rawAudio.set(c, cur); cur += c.length; });
-                    this.audioBuffer = await this.audioCtx.decodeAudioData(this.rawAudio.buffer.slice(0));
-                }
-
-                extractPal(d, n) {
-                    let p = []; for (let i = 0; i < n; i++) p.push([Math.round(((d[i * 2] >> 4) & 7) * 255 / 7), Math.round((d[i * 2 + 1] & 7) * 255 / 7), Math.round((d[i * 2] & 7) * 255 / 7)]); return p;
-                }
-
-                renderFrame(idx) {
-                    const frame = this.frames[idx];
-                    const img = this.ctx.createImageData(256, 192);
-                    const counts = new Array(16).fill(0);
-
-                    for (let y = 0; y < 192; y++) {
-                        for (let cx = 0; cx < 32; cx++) {
-                            const off = (Math.floor(y / 8) * 32 + cx) * 8 + (y % 8);
-                            const p = frame.pgt[off], c = frame.ct[off], fg = c >> 4, bg = c & 15;
-                            for (let px = 0; px < 8; px++) {
-                                const cIdx = (p & (1 << (7 - px))) ? fg : bg; counts[cIdx]++;
-                                const rgb = frame.palette[cIdx], i = (y * 256 + (cx * 8 + px)) * 4;
-                                img.data[i] = rgb[0]; img.data[i + 1] = rgb[1]; img.data[i + 2] = rgb[2]; img.data[i + 3] = 255;
-                            }
-                        }
-                    }
-                    this.ctx.putImageData(img, 0, 0);
-
-                    if (!document.getElementById('palette-histogram').classList.contains('hidden')) {
-                        const maxLog = Math.log10(256 * 192 + 1);
-                        for (let i = 0; i < 16; i++) {
-                            const rgb = frame.palette[i];
-                            document.getElementById(`hist-clr-${i}`).style.backgroundColor = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
-                            document.getElementById(`hist-bar-${i}`).style.width = `${(Math.log10(counts[i] + 1) / maxLog) * 100}%`;
-                        }
-                    }
-
-                    // 온 스크린 EQ 바 업데이트
-                    const bars = document.getElementById('eq-overlay').children;
-                    for (let i = 0; i < 9; i++) {
-                        const h = ((15 - Math.min(frame.eqRaw[i], 15)) / 15) * 100;
-                        if (document.getElementById('eq-overlay').style.display !== 'none') bars[i].style.height = h + '%';
-                    }
-                }
-
-                togglePlay() { this.isPlaying ? this.pause() : this.play(); }
-            async play() {
-                    if (this.isPlaying || !this.audioBuffer) return;
-                    if (this.audioCtx.state === 'suspended') await this.audioCtx.resume();
-                    this.src = this.audioCtx.createBufferSource(); this.src.buffer = this.audioBuffer;
-                    this.src.connect(this.audioCtx.destination); this.src.start(0, this.pauseTime);
-                    this.startTime = this.audioCtx.currentTime - this.pauseTime; this.isPlaying = true;
-                    this.updatePlayIcon(true); this.timerWorker.postMessage('start');
-                }
-                pause() {
-                    if (!this.isPlaying) return; this.isPlaying = false;
-                    if (this.src) { try { this.src.stop(); } catch (e) { } }
-                    if (!this.isScrubbing) this.pauseTime = this.audioCtx.currentTime - this.startTime;
-                    this.updatePlayIcon(false); this.timerWorker.postMessage('stop');
-                }
-                updatePlayIcon(playing) {
-                    document.getElementById('icon-play').style.display = playing ? 'none' : 'block';
-                    document.getElementById('icon-pause').style.display = playing ? 'block' : 'none';
+                } catch (e) {
+                    document.getElementById('status').innerText = "Error: " + e.message;
                 }
             }
 
-            const player = new MSXMediaDemuxer('msx-screen');
+            async processData(data) {
+                const sig = String.fromCharCode(...data.slice(0, 8));
+                const ver = String.fromCharCode(...data.slice(16, 21));
+
+                // 1. 포맷에 따른 파싱 수행
+                if (sig === "MMCSD_MV" && ver === "v1.00") {
+                    this.fps = 12;
+                    this.isMV1 = true;
+                    await this.parseMV1(data);
+                } else {
+                    this.fps = 15;
+                    this.isMV1 = false;
+                    await this.parseMV2(data, sig.startsWith("MV2") ? 512 : 16384);
+                }
+
+                // 2. 시간 및 UI 설정
+                this.duration = this.totalFrames / this.fps;
+                document.getElementById('osd-time-total').innerText = this.formatTime(this.duration);
+                document.getElementById('osd-seek-slider').disabled = false;
+                document.getElementById('status').innerText = "Loaded: " + this.totalFrames + " frames";
+
+                // 3. [핵심] 로딩 완료 후 즉시 재생 시작
+                await this.play();
+            }
+
+            async parseMV1(data) {
+                this.frames = []; let off = 16384; let pcm = [];
+                while (off + 16384 <= data.length) {
+                    const b = data.subarray(off, off + 16384);
+                    this.frames.push({ pgt: b.slice(0, 6144), ct: b.slice(6144, 12288), palette: [[0, 0, 0], ...this.extractPal(b.slice(13232, 13262), 15)], eqRaw: b.slice(13264, 13273) });
+                    pcm.push(b.slice(12288, 13232)); off += 16384;
+                }
+                this.totalFrames = this.frames.length;
+                this.rawAudio = new Uint8Array(pcm.length * 944); pcm.forEach((c, i) => this.rawAudio.set(c, i * 944));
+                this.audioBuffer = this.audioCtx.createBuffer(1, this.rawAudio.length, 944 * 12);
+                const ch = this.audioBuffer.getChannelData(0); for (let i = 0; i < this.rawAudio.length; i++) ch[i] = (this.rawAudio[i] - 128) / 128;
+            }
+
+            async parseMV2(data, head) {
+                this.frames = []; let off = head; let mp3 = [];
+                while (off < data.length) {
+                    const sz = (head === 512 && off === 512) ? 15872 : 16384; if (off + sz > data.length) break;
+                    const b = data.subarray(off, off + sz);
+                    this.frames.push({ pgt: b.slice(0, 6144), ct: b.slice(6144, 12288), palette: [[0, 0, 0], ...this.extractPal(b.slice(12288, 12318), 15)], eqRaw: b.slice(12320, 12329) });
+                    mp3.push(b.slice(12801, 12801 + (b[12800] * 32))); off += sz;
+                }
+                this.totalFrames = this.frames.length;
+                const total = mp3.reduce((a, c) => a + c.length, 0); this.rawAudio = new Uint8Array(total);
+                let cur = 0; mp3.forEach(c => { this.rawAudio.set(c, cur); cur += c.length; });
+                this.audioBuffer = await this.audioCtx.decodeAudioData(this.rawAudio.buffer.slice(0));
+            }
+
+            extractPal(d, n) {
+                let p = []; for (let i = 0; i < n; i++) p.push([Math.round(((d[i * 2] >> 4) & 7) * 255 / 7), Math.round((d[i * 2 + 1] & 7) * 255 / 7), Math.round((d[i * 2] & 7) * 255 / 7)]); return p;
+            }
+
+            renderFrame(idx) {
+                const frame = this.frames[idx];
+                const img = this.ctx.createImageData(256, 192);
+                const counts = new Array(16).fill(0);
+
+                for (let y = 0; y < 192; y++) {
+                    for (let cx = 0; cx < 32; cx++) {
+                        const off = (Math.floor(y / 8) * 32 + cx) * 8 + (y % 8);
+                        const p = frame.pgt[off], c = frame.ct[off], fg = c >> 4, bg = c & 15;
+                        for (let px = 0; px < 8; px++) {
+                            const cIdx = (p & (1 << (7 - px))) ? fg : bg; counts[cIdx]++;
+                            const rgb = frame.palette[cIdx], i = (y * 256 + (cx * 8 + px)) * 4;
+                            img.data[i] = rgb[0]; img.data[i + 1] = rgb[1]; img.data[i + 2] = rgb[2]; img.data[i + 3] = 255;
+                        }
+                    }
+                }
+                this.ctx.putImageData(img, 0, 0);
+
+                if (!document.getElementById('palette-histogram').classList.contains('hidden')) {
+                    const maxLog = Math.log10(256 * 192 + 1);
+                    for (let i = 0; i < 16; i++) {
+                        const rgb = frame.palette[i];
+                        document.getElementById(`hist-clr-${i}`).style.backgroundColor = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+                        document.getElementById(`hist-bar-${i}`).style.width = `${(Math.log10(counts[i] + 1) / maxLog) * 100}%`;
+                    }
+                }
+
+                // 온 스크린 EQ 바 업데이트
+                const bars = document.getElementById('eq-overlay').children;
+                for (let i = 0; i < 9; i++) {
+                    const h = ((15 - Math.min(frame.eqRaw[i], 15)) / 15) * 100;
+                    if (document.getElementById('eq-overlay').style.display !== 'none') bars[i].style.height = h + '%';
+                }
+            }
+
+            togglePlay() { this.isPlaying ? this.pause() : this.play(); }
+            async play() {
+                if (this.isPlaying || !this.audioBuffer) return;
+                if (this.audioCtx.state === 'suspended') await this.audioCtx.resume();
+                this.src = this.audioCtx.createBufferSource(); this.src.buffer = this.audioBuffer;
+                this.src.connect(this.audioCtx.destination); this.src.start(0, this.pauseTime);
+                this.startTime = this.audioCtx.currentTime - this.pauseTime; this.isPlaying = true;
+                this.updatePlayIcon(true); this.timerWorker.postMessage('start');
+            }
+            pause() {
+                if (!this.isPlaying) return; this.isPlaying = false;
+                if (this.src) { try { this.src.stop(); } catch (e) { } }
+                if (!this.isScrubbing) this.pauseTime = this.audioCtx.currentTime - this.startTime;
+                this.updatePlayIcon(false); this.timerWorker.postMessage('stop');
+            }
+            updatePlayIcon(playing) {
+                document.getElementById('icon-play').style.display = playing ? 'none' : 'block';
+                document.getElementById('icon-pause').style.display = playing ? 'block' : 'none';
+            }
+        }
+
+        const player = new MSXMediaDemuxer('msx-screen');
 
         // 파일 선택
         document.getElementById('btn-open-file').addEventListener('click', () => document.getElementById('file-input').click());
