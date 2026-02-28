@@ -4,109 +4,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MSX2 MV Player & Recorder (Final Integrated)</title>
+    <title>MSX2 MV Player & Recorder (MV1/MV2 Supported)</title>
     <script src="coi-serviceworker.js"></script>
     <script src="ffmpeg.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
-        :root {
-            --eq-opacity: 0.25;
-        }
-
         body {
             background-color: #111;
             color: #eee;
             font-family: sans-serif;
             text-align: center;
-            margin: 0;
-            padding-top: 20px;
-            overflow-x: hidden;
+            margin-top: 30px;
         }
 
-        /* 전체 화면 컨테이너 */
         #screen-wrapper {
             position: relative;
             display: inline-flex;
             justify-content: center;
             align-items: center;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+            border: 4px solid #333;
             background-color: #000;
             max-width: 100%;
             box-sizing: border-box;
-            transition: all 0.3s ease;
         }
 
-        /* PC 및 표준 브라우저 전체화면 */
         #screen-wrapper:fullscreen {
+            border: none;
             width: 100vw;
             height: 100vh;
+            max-width: none;
+            max-height: none;
         }
 
-        #screen-wrapper:-webkit-full-screen {
-            width: 100vw;
-            height: 100vh;
-        }
-
-        /* iOS(iPhone) 대응 유사 전체화면 */
-        .ios-fullscreen-fix {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            z-index: 9999 !important;
-            margin: 0 !important;
-            border: none !important;
-        }
-
-        #video-container {
-            position: relative;
-            display: flex;
-            align-items: stretch;
-            background: #000;
-            width: 848px;
-            /* 기본 크기: 768 + 80 */
-            transition: width 0.2s;
-        }
-
-        #screen-wrapper:fullscreen #video-container,
-        .ios-fullscreen-fix #video-container {
-            width: 100% !important;
-            height: 100% !important;
-            justify-content: center;
-        }
-
-        /* 캔버스 영역 */
-        #canvas-area {
-            position: relative;
-            flex-grow: 1;
-            aspect-ratio: 4 / 3;
-            overflow: hidden;
-            background: #000;
-        }
-
-        #screen-wrapper:fullscreen #canvas-area,
-        .ios-fullscreen-fix #canvas-area {
-            flex-grow: 0;
-            height: 100vh;
-            width: calc(100vh * 4 / 3);
-            max-width: 100vw;
+        #screen-wrapper::backdrop {
+            background-color: #000;
         }
 
         #msx-screen {
             width: 100%;
             height: 100%;
+            max-width: 100%;
+            max-height: 100%;
             object-fit: contain;
             image-rendering: pixelated;
             display: block;
         }
 
-        /* EQ 오버레이 */
+        #screen-wrapper:fullscreen #msx-screen {
+            width: 100vw;
+            height: 100vh;
+            max-height: 100vh;
+        }
+
+        #video-container {
+            position: relative;
+            display: inline-block;
+            max-width: min(100%, calc(55vh * 4 / 3));
+            max-height: 55vh;
+            aspect-ratio: 4 / 3;
+            width: 768px;
+            /* Managed by JS slider */
+            height: auto;
+            transition: width 0.2s;
+        }
+
+        #screen-wrapper:fullscreen #video-container {
+            max-width: min(100vw, calc(100vh * 4 / 3));
+            max-height: 100vh;
+            width: 100vw !important;
+            height: auto !important;
+        }
+
         #eq-overlay {
             position: absolute;
             top: 0;
             left: 0;
             width: 25%;
             height: 25%;
+            background-color: transparent;
             pointer-events: none;
             display: flex;
             align-items: flex-end;
@@ -119,259 +95,276 @@
 
         .overlay-eq-bar {
             flex: 1;
-            background-color: rgba(255, 255, 255, var(--eq-opacity));
+            background-color: rgba(255, 255, 255, 0.25);
             height: 0%;
-            border-radius: 1px 1px 0 0;
+            border-radius: 2px 2px 0 0;
             transition: height 0.05s ease-out;
-        }
-
-        /* 온 스크린 컨트롤러 (OSD) */
-        #osd-controls {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, transparent 25%, transparent 75%, rgba(0, 0, 0, 0.5) 100%);
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
-            padding: 15px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            z-index: 25;
-            pointer-events: none;
-        }
-
-        #canvas-area:hover #osd-controls,
-        .touch-active #osd-controls {
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        #btn-osd-play-pause {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.5);
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 50%;
-            width: 60px;
-            height: 60px;
-            cursor: pointer;
-            fill: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .osd-bottom-bar {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            width: 100%;
-        }
-
-        #osd-seek-slider {
-            flex-grow: 1;
-            cursor: pointer;
-            accent-color: #ff0000;
-        }
-
-        .osd-time {
-            font-family: monospace;
-            font-size: 13px;
-            color: #ddd;
-            min-width: 90px;
-            text-align: left;
-        }
-
-        /* 히스토그램 (우측) */
-        #palette-histogram {
-            width: 80px;
-            background: transparent;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-around;
-            padding: 5px;
-            border-left: 1px solid #333;
-            box-sizing: border-box;
-            cursor: pointer;
-            transition: width 0.3s, opacity 0.3s, border 0.3s;
-        }
-
-        #palette-histogram.hidden {
-            width: 0;
-            padding: 0;
-            opacity: 0;
-            border: none;
-            overflow: hidden;
-        }
-
-        .hist-row {
-            display: flex;
-            align-items: center;
-            height: 5%;
-            gap: 6px;
-        }
-
-        .hist-color-box {
-            width: 14px;
-            height: 14px;
-            flex-shrink: 0;
-        }
-
-        .hist-bar {
-            height: 8px;
-            background-color: #00ffcc;
-            border-radius: 0 1px 1px 0;
-        }
-
-        /* 안내 문구 및 컨트롤 패널 */
-        #canvas-msg-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            color: #777;
-            background-color: #000;
-            z-index: 5;
-            border: 1px dashed #333;
-            margin: 10px;
-            border-radius: 4px;
         }
 
         .controls {
             margin-top: 20px;
             display: flex;
             justify-content: center;
-            gap: 10px;
+            gap: 15px;
             align-items: center;
             flex-wrap: wrap;
-            padding: 0 10px;
+        }
+
+        button,
+        input[type="file"] {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 4px;
+        }
+
+        button:hover {
+            background: #555;
+        }
+
+        button:disabled {
+            background: #222;
+            color: #666;
+            cursor: not-allowed;
         }
 
         .panel {
             background: #222;
-            padding: 8px 15px;
-            border-radius: 6px;
+            padding: 10px 20px;
+            border-radius: 8px;
             border: 1px solid #444;
             display: flex;
             align-items: center;
             gap: 10px;
         }
 
-        button {
-            padding: 8px 15px;
-            background: #333;
-            color: white;
+        #status {
+            margin-top: 15px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+
+        #dashboard {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 20px;
+            padding: 15px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            width: fit-content;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .dash-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .dash-title {
+            font-size: 12px;
+            color: #888;
+            letter-spacing: 1px;
+        }
+
+        #vis-palette {
+            display: flex;
+            gap: 2px;
+        }
+
+        .pal-box {
+            width: 24px;
+            height: 24px;
             border: 1px solid #555;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 13px;
+            border-radius: 2px;
         }
 
-        button:hover {
-            background: #444;
+        #vis-eq {
+            display: flex;
+            gap: 3px;
+            align-items: flex-end;
+            height: 60px;
+            border-bottom: 2px solid #555;
+            padding-bottom: 2px;
+            width: 280px;
+            justify-content: center;
         }
 
-        #btn-open-file {
-            background: #d9534f;
-            border: none;
+        .eq-bar {
+            width: 12px;
+            background-color: #00ffcc;
+            border-radius: 2px 2px 0 0;
+            transition: height 0.05s ease-out;
+        }
+
+        .eq-center-divider {
+            width: 2px;
+            height: 10px;
+            background-color: #666;
+            margin: 0 4px;
+        }
+
+        #btn-export {
+            background-color: #28a745;
             font-weight: bold;
         }
 
-        #btn-fullscreen-toggle {
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            fill: white;
-            padding: 5px;
+        #btn-export:hover {
+            background-color: #218838;
+        }
+
+        #btn-fullscreen {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            background-color: rgba(0, 0, 0, 0.4);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 4px;
+            font-size: 22px;
             display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            cursor: pointer;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, background-color 0.2s, transform 0.1s, visibility 0.3s;
+        }
+
+        /* Show button when wrapper has the 'active' class (mouse moved / touched) */
+        #screen-wrapper.active #btn-fullscreen:not(:disabled) {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        #btn-fullscreen:hover {
+            background-color: rgba(0, 123, 255, 0.8);
+        }
+
+        #btn-fullscreen:active {
+            transform: scale(0.95);
+        }
+
+        #btn-fullscreen:disabled {
+            display: none;
+        }
+
+        .drop-zone {
+            border: 2px dashed #555;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            background: #1a1a1a;
+            transition: all 0.3s ease;
+            margin: 20px auto;
+            width: 90%;
+            max-width: 600px;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+
+        .drop-zone.dragover {
+            background: #2a2a35;
+            border-color: #4CAF50;
+            transform: scale(1.02);
+        }
+
+        .drop-zone p {
+            margin: 0 0 15px 0;
+            color: #ccc;
+            font-size: 15px;
+            pointer-events: none;
         }
     </style>
 </head>
 
 <body>
-    <h2>MSX2 MV Player & Recorder</h2>
+
+    <h2>MSX2 MV Player & Recorder (.MV / .MV2)</h2>
 
     <div id="screen-wrapper">
         <div id="video-container">
-            <div id="canvas-area">
-                <canvas id="msx-screen" width="256" height="192"></canvas>
-                <div id="canvas-msg-overlay">📂 Drop .MV or .ZIP here</div>
-
-                <div id="eq-overlay">
-                    <div class="overlay-eq-bar"></div>
-                    <div class="overlay-eq-bar"></div>
-                    <div class="overlay-eq-bar"></div>
-                    <div class="overlay-eq-bar"></div>
-                    <div class="overlay-eq-bar"></div>
-                    <div class="overlay-eq-bar"></div>
-                    <div class="overlay-eq-bar"></div>
-                    <div class="overlay-eq-bar"></div>
-                    <div class="overlay-eq-bar"></div>
-                </div>
-
-                <div id="osd-controls">
-                    <button id="btn-osd-play-pause">
-                        <svg id="icon-play" viewBox="0 0 24 24" width="36" height="36">
-                            <path d="M8 5v14l11-7z" />
-                        </svg>
-                        <svg id="icon-pause" viewBox="0 0 24 24" width="36" height="36" style="display:none;">
-                            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                        </svg>
-                    </button>
-
-                    <div class="osd-bottom-bar">
-                        <span class="osd-time"><span id="osd-time-cur">00:00</span> / <span
-                                id="osd-time-total">00:00</span></span>
-                        <input type="range" id="osd-seek-slider" min="0" max="100" value="0" step="0.1" disabled>
-                        <button id="btn-fullscreen-toggle">
-                            <svg id="icon-expand" viewBox="0 0 24 24" width="24" height="24">
-                                <path
-                                    d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
-                            </svg>
-                            <svg id="icon-compress" viewBox="0 0 24 24" width="24" height="24" style="display:none;">
-                                <path
-                                    d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
+            <canvas id="msx-screen" width="256" height="192"></canvas>
+            <div id="eq-overlay">
+                <div class="overlay-eq-bar"></div>
+                <div class="overlay-eq-bar"></div>
+                <div class="overlay-eq-bar"></div>
+                <div class="overlay-eq-bar"></div>
+                <div class="overlay-eq-bar"></div>
+                <div class="overlay-eq-bar"></div>
+                <div class="overlay-eq-bar"></div>
+                <div class="overlay-eq-bar"></div>
+                <div class="overlay-eq-bar"></div>
             </div>
-            <div id="palette-histogram" title="Click to Toggle Histogram"></div>
         </div>
+        <button id="btn-fullscreen" disabled title="Fullscreen">⤡</button>
+    </div>
+
+    <div id="drop-zone" class="drop-zone">
+        <p>여기에 .MV, .MV2 또는 .ZIP 파일을 드래그 앤 드롭하거나 클릭해서 선택하세요.</p>
+        <input type="file" id="file-input" accept=".mv,.mv2,.zip" />
     </div>
 
     <div class="controls">
-        <button id="btn-open-file">📁 OPEN FILE</button>
+        <button id="btn-play" disabled>▶ Play</button>
+        <button id="btn-pause" disabled>⏸ Pause</button>
+        <button id="btn-export" disabled>💾 Export MP4</button>
 
-        <div class="panel">
-            <button id="toggle-eq-btn" style="background:#444">EQ ON</button>
-            <label style="font-size:12px;">Opacity</label>
-            <input type="range" id="eq-opacity-slider" min="0" max="1" step="0.05" value="0.25" style="width:70px;">
+        <div class="panel"
+            style="width: 100%; max-width: 600px; display: flex; align-items: center; justify-content: space-between; padding: 10px 0;">
+            <span id="time-current" style="font-family: monospace;">00:00</span>
+            <input type="range" id="seek-slider" min="0" max="100" value="0" step="0.1"
+                style="flex-grow: 1; margin: 0 10px;" disabled>
+            <span id="time-total" style="font-family: monospace;">00:00</span>
         </div>
 
-        <button id="btn-prev-frame">-1F</button>
-        <button id="btn-next-frame">+1F</button>
-        <button id="btn-export">💾 EXPORT MP4</button>
+        <div class="panel">
+            <label for="scale-slider">📺 Size: <span id="scale-label">3x</span></label>
+            <input type="range" id="scale-slider" min="1" max="5" step="1" value="3">
+        </div>
 
         <div class="panel">
-            <label style="font-size:12px;">Zoom</label>
-            <input type="range" id="scale-slider" min="1" max="5" step="1" value="3" style="width:70px;">
+            <label style="cursor: pointer;"><input type="checkbox" id="toggle-dashboard" checked> 📊 Dash View</label>
+        </div>
+
+        <div class="panel">
+            <label style="cursor: pointer;" title="Allow playing when tab is in background"><input type="checkbox"
+                    id="toggle-bg-play" checked> 🔄 BG Play</label>
+        </div>
+
+        <div class="panel">
+            <button id="toggle-overlay-btn"
+                style="padding: 5px 10px; font-size: 14px; background-color: #d9534f">Overlay OFF</button>
+            <label for="overlay-opacity" style="margin-left: 10px; font-size: 14px;">Opacity: <span
+                    id="opacity-label">25%</span></label>
+            <input type="range" id="overlay-opacity" min="0" max="1" step="0.05" value="0.25" style="width: 80px;">
         </div>
     </div>
 
-    <div id="status" style="margin-top:10px; font-size:13px; color:#888;">Ready</div>
+    <div id="status">대기 중... .MV, .MV2 또는 .ZIP 파일을 선택하세요.</div>
 
-    <input type="file" id="file-input" accept=".mv,.mv2,.zip" style="display:none;" />
+    <div id="dashboard">
+        <div class="dash-section">
+            <div class="dash-title">PALETTE MEMORY (16 COLORS)</div>
+            <div id="vis-palette"></div>
+        </div>
+        <div class="dash-section">
+            <div class="dash-title">STEREO EQ SPECTRUM (18 BANDS)</div>
+            <div id="vis-eq"></div>
+        </div>
+    </div>
+
     <canvas id="export-canvas" width="256" height="192" style="display:none;"></canvas>
 
     <script>
@@ -384,276 +377,554 @@
                 this.ctx = this.canvas.getContext('2d');
                 this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 this.frames = [];
+                this.audioBuffer = null;
+                this.audioSource = null;
+                this.rawAudioBytes = null;
                 this.isPlaying = false;
+                this.startTime = 0;
                 this.pauseTime = 0;
+                this.lastRenderedFrame = -1;
+                this.timerWorker = null;
                 this.fps = 15;
-                this.initUI();
+                this.isMV1 = false; // 💡 MP4 Export 분기용 포맷 플래그
+                this.initDashboard();
                 this.initWorker();
             }
 
-            initUI() {
-                const histContainer = document.getElementById('palette-histogram');
+            formatTime(seconds) {
+                const m = Math.floor(seconds / 60);
+                const s = Math.floor(seconds % 60);
+                return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            }
+
+            initWorker() {
+                const workerCode = `
+                    let timerID = null;
+                    self.onmessage = function(e) {
+                        if (e.data === 'start') {
+                            if (timerID) clearInterval(timerID);
+                            timerID = setInterval(() => self.postMessage('tick'), 16); // Check ~60 times a second
+                        } else if (e.data === 'stop') {
+                            if (timerID) clearInterval(timerID);
+                            timerID = null;
+                        }
+                    };
+                `;
+                const blob = new Blob([workerCode], { type: 'application/javascript' });
+                this.timerWorker = new Worker(URL.createObjectURL(blob));
+                this.timerWorker.onmessage = () => {
+                    if (!this.isPlaying || this.isScrubbing) return;
+                    let currentTime = this.audioCtx.currentTime - this.startTime;
+                    if (currentTime > this.duration) currentTime = this.duration;
+
+                    const currentFrame = Math.floor(currentTime * this.fps);
+
+                    if (!this.isScrubbing) {
+                        const slider = document.getElementById('seek-slider');
+                        if (this.duration > 0) slider.value = (currentTime / this.duration) * 100;
+                        document.getElementById('time-current').innerText = this.formatTime(currentTime);
+                    }
+
+                    if (currentFrame < this.totalFrames) {
+                        if (this.lastRenderedFrame !== currentFrame) {
+                            this.renderFrame(currentFrame);
+                            this.lastRenderedFrame = currentFrame;
+                        }
+                    } else {
+                        this.pause();
+                    }
+                };
+            }
+
+            initDashboard() {
+                const palContainer = document.getElementById('vis-palette');
                 for (let i = 0; i < 16; i++) {
-                    const row = document.createElement('div'); row.className = 'hist-row';
-                    row.innerHTML = `<div class="hist-color-box" id="hist-clr-${i}"></div><div class="hist-bar" id="hist-bar-${i}" style="width: 0%"></div>`;
-                    histContainer.appendChild(row);
+                    const d = document.createElement('div');
+                    d.className = 'pal-box';
+                    palContainer.appendChild(d);
+                }
+                const eqContainer = document.getElementById('vis-eq');
+                for (let i = 0; i < 19; i++) {
+                    if (i === 9) {
+                        const divider = document.createElement('div');
+                        divider.className = 'eq-center-divider';
+                        eqContainer.appendChild(divider);
+                        continue;
+                    }
+                    const d = document.createElement('div');
+                    d.className = 'eq-bar';
+                    d.style.height = '0px';
+                    eqContainer.appendChild(d);
                 }
             }
 
             reset() {
-                this.pause();
+                this.isPlaying = false;
+                if (this.timerWorker) this.timerWorker.postMessage('stop');
+                if (this.audioSource) { try { this.audioSource.stop(); } catch (e) { } this.audioSource.disconnect(); this.audioSource = null; }
                 this.frames = [];
                 this.audioBuffer = null;
-                this.rawAudio = null;
+                this.rawAudioBytes = null;
+                this.startTime = 0;
                 this.pauseTime = 0;
-                this.lastFrame = -1;
-                this.duration = 0;
-                const seek = document.getElementById('osd-seek-slider');
-                seek.value = 0; seek.disabled = true;
-                document.getElementById('osd-time-cur').innerText = "00:00";
-                document.getElementById('osd-time-total').innerText = "00:00";
+                this.lastRenderedFrame = -1;
                 this.ctx.fillStyle = "black";
                 this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-            }
-
-            formatTime(s) { return `${Math.floor(s / 60).toString().padStart(2, '0')}:${Math.floor(s % 60).toString().padStart(2, '0')}`; }
-
-            initWorker() {
-                const blob = new Blob([`let t=null;self.onmessage=e=>{if(e.data==='start'){t=setInterval(()=>self.postMessage('tick'),16)}else{clearInterval(t);t=null}}`], { type: 'application/javascript' });
-                this.timerWorker = new Worker(URL.createObjectURL(blob));
-                this.timerWorker.onmessage = () => {
-                    if (!this.isPlaying || this.isScrubbing) return;
-                    let cur = this.audioCtx.currentTime - this.startTime;
-                    if (cur > this.duration) cur = this.duration;
-                    const frame = Math.floor(cur * this.fps);
-                    document.getElementById('osd-seek-slider').value = (cur / this.duration) * 100;
-                    document.getElementById('osd-time-cur').innerText = this.formatTime(cur);
-                    if (frame < this.totalFrames) {
-                        if (this.lastFrame !== frame) { this.renderFrame(frame); this.lastFrame = frame; }
-                    } else { this.pause(); }
-                };
+                document.getElementById('btn-play').disabled = true;
+                document.getElementById('btn-pause').disabled = true;
+                document.getElementById('btn-export').disabled = true;
+                document.getElementById('btn-fullscreen').disabled = true;
+                const sl = document.getElementById('seek-slider');
+                sl.value = 0; sl.disabled = true;
+                document.getElementById('time-current').innerText = "00:00";
+                document.getElementById('time-total').innerText = "00:00";
             }
 
             async loadFile(file) {
                 this.reset();
-                document.getElementById('canvas-msg-overlay').style.display = 'none';
-                let data;
                 if (file.name.toLowerCase().endsWith('.zip')) {
-                    const zip = new JSZip(); const content = await zip.loadAsync(file);
-                    const entry = Object.values(content.files).find(f => f.name.toLowerCase().endsWith('.mv') || f.name.toLowerCase().endsWith('.mv2'));
-                    data = await entry.async('uint8array');
-                } else { data = new Uint8Array(await file.arrayBuffer()); }
+                    document.getElementById('status').innerText = "ZIP 압축 해제 중...";
+                    try {
+                        const zip = new JSZip();
+                        const zipContent = await zip.loadAsync(file);
+                        let mvData = null;
+                        let mvFilename = "";
+                        for (const [filename, zipEntry] of Object.entries(zipContent.files)) {
+                            if (!zipEntry.dir && (filename.toLowerCase().endsWith('.mv') || filename.toLowerCase().endsWith('.mv2'))) {
+                                mvData = await zipEntry.async('uint8array');
+                                mvFilename = filename;
+                                break;
+                            }
+                        }
+                        if (!mvData) {
+                            throw new Error("ZIP 파일 내에 .MV 또는 .MV2 파일이 없습니다.");
+                        }
+                        document.getElementById('status').innerText = `${mvFilename} 분석 중...`;
+                        await this.processData(mvData);
+                        return;
+                    } catch (err) {
+                        document.getElementById('status').innerText = `에러: ${err.message}`;
+                        document.getElementById('status').style.color = "#ff4444";
+                        return;
+                    }
+                }
+
+                document.getElementById('status').innerText = "파일 분석 중...";
+                const data = new Uint8Array(await file.arrayBuffer());
                 await this.processData(data);
             }
 
             async processData(data) {
                 const sig = String.fromCharCode(...data.slice(0, 8));
                 const ver = String.fromCharCode(...data.slice(16, 21));
-                if (sig === "MMCSD_MV" && ver === "v1.00") { this.fps = 12; this.isMV1 = true; await this.parseMV1(data); }
-                else { this.fps = 15; this.isMV1 = false; await this.parseMV2(data, sig.startsWith("MV2") ? 512 : 16384); }
-                this.duration = this.totalFrames / this.fps;
-                document.getElementById('osd-time-total').innerText = this.formatTime(this.duration);
-                document.getElementById('osd-seek-slider').disabled = false;
-                await this.play(); // 로드 완료 시 자동 재생
+
+                try {
+                    // 💡 [핵심] MV1과 MV2를 모두 에러 없이 통과!
+                    if (sig === "MMCSD_MV" && ver === "v1.00") {
+                        this.fps = 12;
+                        this.isMV1 = true;
+                        await this.parseMV1(data);
+                    } else if (sig === "MMCSD_MV" && ver === "v2.00") {
+                        this.fps = 15;
+                        this.isMV1 = false;
+                        await this.parseMV2(data, 16384);
+                    } else if (sig.startsWith("MV2")) {
+                        this.fps = 15;
+                        this.isMV1 = false;
+                        await this.parseMV2(data, 512); // Legacy MV2
+                    } else {
+                        throw new Error("올바른 .MV 또는 .MV2 포맷이 아닙니다.");
+                    }
+
+                    document.getElementById('status').innerText = `파싱 완료! (${this.isMV1 ? 'MV1' : 'MV2'}, ${this.fps}FPS, ${this.totalFrames} 프레임)`;
+                    document.getElementById('status').style.color = "#4CAF50";
+                    document.getElementById('btn-play').disabled = false;
+                    document.getElementById('btn-export').disabled = false;
+                    document.getElementById('btn-fullscreen').disabled = false;
+
+                    this.duration = this.totalFrames / this.fps;
+                    document.getElementById('time-total').innerText = this.formatTime(this.duration);
+                    document.getElementById('seek-slider').disabled = false;
+                } catch (err) {
+                    document.getElementById('status').innerText = `에러: ${err.message}`;
+                    document.getElementById('status').style.color = "#ff4444";
+                }
             }
 
             async parseMV1(data) {
-                this.frames = []; let off = 16384; let pcm = [];
-                while (off + 16384 <= data.length) {
-                    const b = data.subarray(off, off + 16384);
-                    this.frames.push({ pgt: b.slice(0, 6144), ct: b.slice(6144, 12288), palette: [[0, 0, 0], ...this.extractPal(b.slice(13232, 13262), 15)], eqRaw: b.slice(13264, 13273) });
-                    pcm.push(b.slice(12288, 13232)); off += 16384;
+                this.frames = [];
+                let offset = 16384;
+                let pcmChunks = [];
+
+                while (offset + 16384 <= data.length) {
+                    const block = data.subarray(offset, offset + 16384);
+                    const pgt = block.slice(0, 6144);
+                    const ct = block.slice(6144, 12288);
+                    const pcm = block.slice(12288, 13232);
+                    const palette = [[0, 0, 0]].concat(this.extractPalette(block.slice(13232, 13262), 15));
+                    const eqRaw = block.slice(13264, 13273); // 완벽한 13264번지 오프셋
+
+                    this.frames.push({ pgt, ct, palette, eqRaw });
+                    pcmChunks.push(pcm);
+                    offset += 16384;
                 }
                 this.totalFrames = this.frames.length;
-                this.rawAudio = new Uint8Array(pcm.length * 944); pcm.forEach((c, i) => this.rawAudio.set(c, i * 944));
-                this.audioBuffer = this.audioCtx.createBuffer(1, this.rawAudio.length, 944 * 12);
-                const ch = this.audioBuffer.getChannelData(0); for (let i = 0; i < this.rawAudio.length; i++) ch[i] = (this.rawAudio[i] - 128) / 128;
+
+                const totalLen = pcmChunks.length * 944;
+                this.rawAudioBytes = new Uint8Array(totalLen);
+                let aOff = 0;
+                for (let c of pcmChunks) {
+                    this.rawAudioBytes.set(c, aOff);
+                    aOff += c.length;
+                }
+
+                const sampleRate = 944 * 12; // 11328Hz
+                this.audioBuffer = this.audioCtx.createBuffer(1, totalLen, sampleRate);
+                const channelData = this.audioBuffer.getChannelData(0);
+                for (let i = 0; i < totalLen; i++) {
+                    channelData[i] = (this.rawAudioBytes[i] - 128) / 128.0;
+                }
             }
 
-            async parseMV2(data, head) {
-                this.frames = []; let off = head; let mp3 = [];
-                while (off < data.length) {
-                    const sz = (head === 512 && off === 512) ? 15872 : 16384; if (off + sz > data.length) break;
-                    const b = data.subarray(off, off + sz);
-                    this.frames.push({ pgt: b.slice(0, 6144), ct: b.slice(6144, 12288), palette: [[0, 0, 0], ...this.extractPal(b.slice(12288, 12318), 15)], eqRaw: b.slice(12320, 12329) });
-                    mp3.push(b.slice(12801, 12801 + (b[12800] * 32))); off += sz;
+            async parseMV2(data, headerSize) {
+                this.frames = [];
+                let offset = headerSize;
+                let mp3Chunks = [];
+
+                while (offset < data.length) {
+                    const blockSize = (headerSize === 512 && offset === 512) ? 15872 : 16384;
+                    if (offset + blockSize > data.length) break;
+
+                    const block = data.subarray(offset, offset + blockSize);
+                    const pgt = block.slice(0, 6144);
+                    const ct = block.slice(6144, 12288);
+                    const palette = [[0, 0, 0]].concat(this.extractPalette(block.slice(12288, 12318), 15));
+                    const eqRaw = block.slice(12320, 12329); // MV2 고유의 12320번지 오프셋
+                    const sz = block[12800];
+                    const mp3 = block.slice(12801, 12801 + (sz * 32));
+
+                    this.frames.push({ pgt, ct, palette, eqRaw });
+                    mp3Chunks.push(mp3);
+                    offset += blockSize;
                 }
                 this.totalFrames = this.frames.length;
-                const total = mp3.reduce((a, c) => a + c.length, 0); this.rawAudio = new Uint8Array(total);
-                let cur = 0; mp3.forEach(c => { this.rawAudio.set(c, cur); cur += c.length; });
-                this.audioBuffer = await this.audioCtx.decodeAudioData(this.rawAudio.buffer.slice(0));
+
+                const totalLen = mp3Chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+                this.rawAudioBytes = new Uint8Array(totalLen);
+                let aOff = 0;
+                for (let c of mp3Chunks) {
+                    this.rawAudioBytes.set(c, aOff);
+                    aOff += c.length;
+                }
+                this.audioBuffer = await this.audioCtx.decodeAudioData(this.rawAudioBytes.buffer.slice(0));
             }
 
-            extractPal(d, n) {
-                let p = []; for (let i = 0; i < n; i++) p.push([Math.round(((d[i * 2] >> 4) & 7) * 255 / 7), Math.round((d[i * 2 + 1] & 7) * 255 / 7), Math.round((d[i * 2] & 7) * 255 / 7)]); return p;
+            extractPalette(d, count) {
+                const p = [];
+                for (let i = 0; i < count; i++) {
+                    const r8 = Math.round(((d[i * 2] >> 4) & 0x07) * 255 / 7);
+                    const b8 = Math.round((d[i * 2] & 0x07) * 255 / 7);
+                    const g8 = Math.round((d[i * 2 + 1] & 0x07) * 255 / 7);
+                    p.push([r8, g8, b8]);
+                }
+                return p;
             }
 
-            renderFrame(idx) {
-                const frame = this.frames[idx];
-                const img = this.ctx.createImageData(256, 192);
-                const counts = new Array(16).fill(0);
-                for (let y = 0; y < 192; y++) {
-                    for (let cx = 0; cx < 32; cx++) {
-                        const off = (Math.floor(y / 8) * 32 + cx) * 8 + (y % 8);
-                        const p = frame.pgt[off], c = frame.ct[off], fg = c >> 4, bg = c & 15;
-                        for (let px = 0; px < 8; px++) {
-                            const cIdx = (p & (1 << (7 - px))) ? fg : bg; counts[cIdx]++;
-                            const rgb = frame.palette[cIdx], i = (y * 256 + (cx * 8 + px)) * 4;
-                            img.data[i] = rgb[0]; img.data[i + 1] = rgb[1]; img.data[i + 2] = rgb[2]; img.data[i + 3] = 255;
-                        }
-                    }
-                }
-                this.ctx.putImageData(img, 0, 0);
-                if (!document.getElementById('palette-histogram').classList.contains('hidden')) {
-                    const maxLog = Math.log10(256 * 192 + 1);
-                    for (let i = 0; i < 16; i++) {
-                        const rgb = frame.palette[i];
-                        document.getElementById(`hist-clr-${i}`).style.backgroundColor = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
-                        document.getElementById(`hist-bar-${i}`).style.width = `${(Math.log10(counts[i] + 1) / maxLog) * 100}%`;
-                    }
-                }
-                const bars = document.getElementById('eq-overlay').children;
-                for (let i = 0; i < 9; i++) {
-                    const h = ((15 - Math.min(frame.eqRaw[i], 15)) / 15) * 100;
-                    if (document.getElementById('eq-overlay').style.display !== 'none') bars[i].style.height = h + '%';
-                }
-            }
-
-            renderFrameToCanvas(idx, targetCtx, withOverlay = true) {
-                const frame = this.frames[idx];
+            renderFrameToCanvas(frameIndex, targetCtx, withOverlay = true) {
+                const frame = this.frames[frameIndex];
                 const img = targetCtx.createImageData(256, 192);
                 for (let y = 0; y < 192; y++) {
                     for (let cx = 0; cx < 32; cx++) {
-                        const off = (Math.floor(y / 8) * 32 + cx) * 8 + (y % 8), p = frame.pgt[off], c = frame.ct[off], fg = c >> 4, bg = c & 15;
+                        const off = (Math.floor(y / 8) * 32 + cx) * 8 + (y % 8);
+                        const p = frame.pgt[off], c = frame.ct[off];
+                        const fg = c >> 4, bg = c & 0x0F;
                         for (let px = 0; px < 8; px++) {
-                            const cIdx = (p & (1 << (7 - px))) ? fg : bg; const rgb = frame.palette[cIdx], i = (y * 256 + (cx * 8 + px)) * 4;
-                            img.data[i] = rgb[0]; img.data[i + 1] = rgb[1]; img.data[i + 2] = rgb[2]; img.data[i + 3] = 255;
+                            const color = (p & (1 << (7 - px))) ? frame.palette[fg] : frame.palette[bg];
+                            const idx = (y * 256 + (cx * 8 + px)) * 4;
+                            img.data[idx] = color[0]; img.data[idx + 1] = color[1]; img.data[idx + 2] = color[2]; img.data[idx + 3] = 255;
                         }
                     }
                 }
                 targetCtx.putImageData(img, 0, 0);
+
                 if (withOverlay) {
-                    const op = getComputedStyle(document.documentElement).getPropertyValue('--eq-opacity').trim();
-                    targetCtx.fillStyle = `rgba(255,255,255,${op})`; const eqW = 256 * 0.25, eqH = 192 * 0.25, barW = (eqW / 9) - 1;
-                    for (let i = 0; i < 9; i++) { const h = ((15 - Math.min(frame.eqRaw[i], 15)) / 15) * (eqH * 0.9); targetCtx.fillRect(2 + i * (barW + 1), eqH - h + 2, barW, Math.max(1, h)); }
+                    const opacity = document.getElementById('overlay-opacity').value;
+                    targetCtx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+                    const eqWidth = 256 * 0.25;
+                    const eqHeight = 192 * 0.25;
+                    const barW = (eqWidth / 9) - 1;
+                    for (let i = 0; i < 9; i++) {
+                        const val = 15 - Math.min(frame.eqRaw[i], 15);
+                        const h = (val / 15) * (eqHeight * 0.9);
+                        targetCtx.fillRect(2 + i * (barW + 1), eqHeight - h + 2, barW, Math.max(1, h));
+                    }
                 }
+            }
+
+            renderFrame(idx) {
+                this.renderFrameToCanvas(idx, this.ctx, false);
+                const frame = this.frames[idx];
+
+                if (document.getElementById('toggle-dashboard').checked) {
+                    const palDivs = document.getElementById('vis-palette').children;
+                    for (let i = 0; i < 16; i++) {
+                        const rgb = frame.palette[i] || [0, 0, 0];
+                        palDivs[i].style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+                    }
+
+                    const eqDivs = document.getElementById('vis-eq').children;
+                    for (let i = 0; i < 9; i++) {
+                        const realVal = 15 - Math.min(frame.eqRaw[i], 15);
+                        const heightPx = (realVal / 15.0) * 60;
+                        eqDivs[i].style.height = `${heightPx}px`;
+                        eqDivs[18 - i].style.height = `${heightPx}px`;
+                    }
+                }
+
+                const eqOverlay = document.getElementById('eq-overlay');
+                if (eqOverlay.style.display !== 'none') {
+                    const bars = eqOverlay.children;
+                    for (let i = 0; i < 9; i++) bars[i].style.height = `${((15 - Math.min(frame.eqRaw[i], 15)) / 15) * 100}%`;
+                }
+            }
+
+            async play() {
+                if (this.isPlaying) return;
+                if (this.audioCtx.state === 'suspended' || this.audioCtx.state === 'interrupted') {
+                    await this.audioCtx.resume();
+                }
+                this.audioSource = this.audioCtx.createBufferSource();
+                this.audioSource.buffer = this.audioBuffer;
+                this.audioSource.connect(this.audioCtx.destination);
+                this.audioSource.start(0, this.pauseTime);
+                this.startTime = this.audioCtx.currentTime - this.pauseTime;
+                this.isPlaying = true;
+                document.getElementById('btn-play').disabled = true;
+                document.getElementById('btn-pause').disabled = false;
+                if (this.timerWorker) this.timerWorker.postMessage('start');
+            }
+
+            pause() {
+                if (!this.isPlaying) return;
+                this.isPlaying = false;
+                if (this.audioSource) {
+                    try { this.audioSource.stop(); } catch (e) { }
+                }
+                if (!this.isScrubbing) {
+                    this.pauseTime = this.audioCtx.currentTime - this.startTime;
+                }
+                if (this.timerWorker) this.timerWorker.postMessage('stop');
+                document.getElementById('btn-play').disabled = false;
+                document.getElementById('btn-pause').disabled = true;
             }
 
             async exportMP4() {
-                const btn = document.getElementById('btn-export'); const status = document.getElementById('status');
-                btn.disabled = true; status.innerText = "Preparing export...";
-                if (!ffmpeg.loaded) await ffmpeg.load({ coreURL: 'ffmpeg-core.js', wasmURL: 'ffmpeg-core.wasm' });
-                const exportCanvas = document.getElementById('export-canvas'); const exportCtx = exportCanvas.getContext('2d');
-                const videoData = new Uint8Array(this.totalFrames * 256 * 192 * 3); let offset = 0;
-                const includeEQ = document.getElementById('eq-overlay').style.display !== 'none';
-                for (let i = 0; i < this.totalFrames; i++) {
-                    this.renderFrameToCanvas(i, exportCtx, includeEQ); const pix = exportCtx.getImageData(0, 0, 256, 192).data;
-                    for (let j = 0; j < pix.length; j += 4) { videoData[offset++] = pix[j]; videoData[offset++] = pix[j + 1]; videoData[offset++] = pix[j + 2]; }
-                    if (i % 50 === 0) status.innerText = `Encoding... (${i}/${this.totalFrames})`;
-                }
-                await ffmpeg.writeFile('video.raw', videoData);
-                let args = [];
-                if (this.isMV1) {
-                    await ffmpeg.writeFile('audio.raw', this.rawAudio);
-                    args = ['-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '256x192', '-r', '12', '-i', 'video.raw', '-f', 'u8', '-ar', '11328', '-ac', '1', '-i', 'audio.raw', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-shortest', 'output.mp4'];
-                } else {
-                    await ffmpeg.writeFile('audio.mp3', this.rawAudio);
-                    args = ['-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '256x192', '-r', '15', '-i', 'video.raw', '-i', 'audio.mp3', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-shortest', 'output.mp4'];
-                }
-                await ffmpeg.exec(args); const data = await ffmpeg.readFile('output.mp4');
-                const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
-                a.download = `msx_export_${Date.now()}.mp4`; a.click(); status.innerText = "Export Complete!"; btn.disabled = false;
-            }
+                const btn = document.getElementById('btn-export');
+                btn.disabled = true;
+                const status = document.getElementById('status');
+                status.innerText = "내보내기 준비 중...";
+                status.style.color = "#ffeb3b";
 
-            togglePlay() { this.isPlaying ? this.pause() : this.play(); }
-            async play() {
-                if (this.isPlaying || !this.audioBuffer) return;
-                if (this.audioCtx.state === 'suspended') await this.audioCtx.resume();
-                this.src = this.audioCtx.createBufferSource(); this.src.buffer = this.audioBuffer;
-                this.src.connect(this.audioCtx.destination); this.src.start(0, this.pauseTime);
-                this.startTime = this.audioCtx.currentTime - this.pauseTime; this.isPlaying = true;
-                this.updatePlayIcon(true); this.timerWorker.postMessage('start');
-            }
-            pause() {
-                if (!this.isPlaying) return; this.isPlaying = false;
-                if (this.src) { try { this.src.stop(); } catch (e) { } }
-                if (!this.isScrubbing) this.pauseTime = this.audioCtx.currentTime - this.startTime;
-                this.updatePlayIcon(false); this.timerWorker.postMessage('stop');
-            }
-            updatePlayIcon(p) {
-                document.getElementById('icon-play').style.display = p ? 'none' : 'block';
-                document.getElementById('icon-pause').style.display = p ? 'block' : 'none';
+                if (!ffmpeg.loaded) await ffmpeg.load({ coreURL: 'ffmpeg-core.js', wasmURL: 'ffmpeg-core.wasm' });
+
+                const exportCanvas = document.getElementById('export-canvas');
+                const exportCtx = exportCanvas.getContext('2d');
+                const videoData = new Uint8Array(this.totalFrames * 256 * 192 * 3);
+                let offset = 0;
+
+                for (let i = 0; i < this.totalFrames; i++) {
+                    this.renderFrameToCanvas(i, exportCtx, document.getElementById('eq-overlay').style.display !== 'none');
+                    const pixels = exportCtx.getImageData(0, 0, 256, 192).data;
+                    for (let j = 0; j < pixels.length; j += 4) {
+                        videoData[offset++] = pixels[j]; videoData[offset++] = pixels[j + 1]; videoData[offset++] = pixels[j + 2];
+                    }
+                    if (i % 50 === 0) status.innerText = `프레임 합성 중... (${i}/${this.totalFrames})`;
+                }
+
+                await ffmpeg.writeFile('video.raw', videoData);
+
+                let ffmpegArgs = [];
+
+                // 💡 [핵심] MV1(PCM)과 MV2(MP3)를 완벽히 분기하여 FFmpeg 트랜스코딩 설정
+                if (this.isMV1) {
+                    await ffmpeg.writeFile('audio.raw', this.rawAudioBytes);
+                    ffmpegArgs = [
+                        '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '256x192', '-r', '12', '-i', 'video.raw',
+                        '-f', 'u8', '-ar', '11328', '-ac', '1', '-i', 'audio.raw',
+                        '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
+                        '-c:a', 'aac', '-b:a', '128k',
+                        '-shortest', 'output.mp4'
+                    ];
+                } else {
+                    await ffmpeg.writeFile('audio.mp3', this.rawAudioBytes);
+                    ffmpegArgs = [
+                        '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '256x192', '-r', '15', '-i', 'video.raw',
+                        '-i', 'audio.mp3',
+                        '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
+                        '-c:a', 'copy', // MP3는 그대로 복사 (빠르고 화질 열화 없음)
+                        '-shortest', 'output.mp4'
+                    ];
+                }
+
+                status.innerText = `MP4 인코딩 중... (${this.isMV1 ? 'PCM->AAC' : 'MP3 Copy'})`;
+                await ffmpeg.exec(ffmpegArgs);
+
+                const data = await ffmpeg.readFile('output.mp4');
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
+                a.download = `msx_export_${this.isMV1 ? 'v1' : 'v2'}.mp4`;
+                a.click();
+
+                status.innerText = "내보내기 완료!";
+                status.style.color = "#4CAF50";
+                btn.disabled = false;
             }
         }
 
         const player = new MSXMediaDemuxer('msx-screen');
 
-        // Event Listeners
-        document.getElementById('btn-open-file').onclick = () => document.getElementById('file-input').click();
-        document.getElementById('file-input').onchange = e => { if (e.target.files.length) player.loadFile(e.target.files[0]); };
-        document.getElementById('toggle-eq-btn').onclick = e => {
-            const eq = document.getElementById('eq-overlay'); const isOff = eq.style.display === 'none';
-            eq.style.display = isOff ? 'flex' : 'none'; e.target.innerText = isOff ? 'EQ ON' : 'EQ OFF';
-            e.target.style.backgroundColor = isOff ? '#444' : '#d9534f';
-        };
-        document.getElementById('eq-opacity-slider').oninput = e => document.documentElement.style.setProperty('--eq-opacity', e.target.value);
-        document.getElementById('scale-slider').oninput = e => document.getElementById('video-container').style.width = (256 * e.target.value + 80) + 'px';
-        document.getElementById('palette-histogram').onclick = function () { this.classList.toggle('hidden'); };
-        document.getElementById('btn-osd-play-pause').onclick = () => player.togglePlay();
-        document.getElementById('btn-export').onclick = () => player.exportMP4();
+        const fileInput = document.getElementById('file-input');
+        const dropZone = document.getElementById('drop-zone');
 
-        const seek = document.getElementById('osd-seek-slider');
-        seek.oninput = e => {
-            player.isScrubbing = true; player.pause();
-            const t = (e.target.value / 100) * player.duration; document.getElementById('osd-time-cur').innerText = player.formatTime(t);
-            player.renderFrame(Math.min(Math.floor(t * player.fps), player.totalFrames - 1));
-        };
-        seek.onchange = e => { player.pauseTime = (e.target.value / 100) * player.duration; player.isScrubbing = false; };
+        fileInput.addEventListener('change', e => {
+            if (e.target.files.length > 0) player.loadFile(e.target.files[0]);
+        });
 
-        const moveFrame = (d) => {
-            if (!player.frames.length) return; player.pause();
-            const tar = Math.max(0, Math.min(player.totalFrames - 1, Math.floor(player.pauseTime * player.fps) + d));
-            player.pauseTime = tar / player.fps; seek.value = (player.pauseTime / player.duration) * 100;
-            document.getElementById('osd-time-cur').innerText = player.formatTime(player.pauseTime); player.renderFrame(tar);
-        };
-        document.getElementById('btn-prev-frame').onclick = () => moveFrame(-1);
-        document.getElementById('btn-next-frame').onclick = () => moveFrame(1);
-
-        const canvasArea = document.getElementById('canvas-area');
-        canvasArea.ondragover = e => { e.preventDefault(); canvasArea.classList.add('dragover'); };
-        canvasArea.ondragleave = () => canvasArea.classList.remove('dragover');
-        canvasArea.ondrop = e => { e.preventDefault(); canvasArea.classList.remove('dragover'); if (e.dataTransfer.files.length) player.loadFile(e.dataTransfer.files[0]); };
-
-        // Fullscreen Toggle (PC + iPhone)
-        const btnFs = document.getElementById('btn-fullscreen-toggle');
-        const screenWrapper = document.getElementById('screen-wrapper');
-        const iconExp = document.getElementById('icon-expand'), iconComp = document.getElementById('icon-compress');
-
-        const toggleFs = () => {
-            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-                const req = screenWrapper.requestFullscreen || screenWrapper.webkitRequestFullscreen;
-                if (req) req.call(screenWrapper).catch(() => screenWrapper.classList.add('ios-fullscreen-fix'));
-                else screenWrapper.classList.add('ios-fullscreen-fix');
-            } else {
-                const exit = document.exitFullscreen || document.webkitExitFullscreen;
-                if (exit) exit.call(document); screenWrapper.classList.remove('ios-fullscreen-fix');
+        dropZone.addEventListener('click', e => {
+            if (e.target !== fileInput) {
+                fileInput.click();
             }
-        };
-        btnFs.onclick = toggleFs;
+        });
 
-        const updateFsUI = () => {
-            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || screenWrapper.classList.contains('ios-fullscreen-fix'));
-            iconExp.style.display = isFs ? 'none' : 'block'; iconComp.style.display = isFs ? 'block' : 'none';
-            if (isFs) document.getElementById('palette-histogram').classList.add('hidden');
-            else document.getElementById('palette-histogram').classList.remove('hidden');
-        };
-        document.addEventListener('fullscreenchange', updateFsUI);
-        document.addEventListener('webkitfullscreenchange', updateFsUI);
+        dropZone.addEventListener('dragover', e => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
 
-        canvasArea.ontouchstart = () => {
-            canvasArea.classList.add('touch-active'); clearTimeout(window.tTimer);
-            window.tTimer = setTimeout(() => canvasArea.classList.remove('touch-active'), 3000);
+        dropZone.addEventListener('dragleave', e => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                player.loadFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        window.addEventListener('dragover', e => e.preventDefault());
+        window.addEventListener('drop', e => e.preventDefault());
+
+        document.getElementById('btn-play').addEventListener('click', () => player.play());
+        document.getElementById('btn-pause').addEventListener('click', () => player.pause());
+        document.getElementById('btn-export').addEventListener('click', () => player.exportMP4());
+
+        const seekSlider = document.getElementById('seek-slider');
+        let wasPlayingBeforeSeek = false;
+
+        seekSlider.addEventListener('input', e => {
+            if (!player.frames || player.frames.length === 0) return;
+            if (!player.isScrubbing) {
+                wasPlayingBeforeSeek = player.isPlaying;
+                player.isScrubbing = true;
+                if (player.isPlaying) player.pause();
+            }
+            const pct = parseFloat(e.target.value) / 100;
+            const targetTime = pct * player.duration;
+            document.getElementById('time-current').innerText = player.formatTime(targetTime);
+
+            const targetFrame = Math.min(Math.floor(targetTime * player.fps), player.totalFrames - 1);
+            player.renderFrame(targetFrame);
+        });
+
+        seekSlider.addEventListener('change', e => {
+            if (!player.frames || player.frames.length === 0) return;
+            const pct = parseFloat(e.target.value) / 100;
+            player.pauseTime = pct * player.duration;
+            player.isScrubbing = false;
+
+            if (wasPlayingBeforeSeek) {
+                player.play();
+            }
+        });
+
+        document.getElementById('scale-slider').addEventListener('input', e => {
+            const s = e.target.value;
+            document.getElementById('scale-label').innerText = s + 'x';
+            const container = document.getElementById('video-container');
+            container.style.width = (256 * s) + 'px';
+            container.style.height = 'auto'; // let aspect-ratio compute height naturally
+        });
+
+        document.getElementById('toggle-dashboard').addEventListener('change', e => {
+            document.getElementById('dashboard').style.display = e.target.checked ? 'flex' : 'none';
+        });
+
+        document.getElementById('toggle-overlay-btn').addEventListener('click', e => {
+            const o = document.getElementById('eq-overlay');
+            const isOff = window.getComputedStyle(o).display === 'none';
+
+            o.style.display = isOff ? 'flex' : 'none';
+            e.target.innerText = isOff ? 'Overlay OFF' : 'Overlay ON';
+            e.target.style.backgroundColor = isOff ? '#d9534f' : '#333';
+        });
+
+        document.getElementById('overlay-opacity').addEventListener('input', e => {
+            const alpha = e.target.value;
+            document.getElementById('opacity-label').innerText = Math.round(alpha * 100) + '%';
+            const bars = document.getElementsByClassName('overlay-eq-bar');
+            for (let b of bars) b.style.backgroundColor = `rgba(255, 255, 255, ${alpha})`;
+        });
+
+        // Autohide Fullscreen button logic
+        let hideBtnTimeout;
+        const screenWrapper = document.getElementById('screen-wrapper');
+
+        const showFullscreenBtn = () => {
+            screenWrapper.classList.add('active');
+            clearTimeout(hideBtnTimeout);
+            hideBtnTimeout = setTimeout(() => {
+                screenWrapper.classList.remove('active');
+            }, 2500);
         };
+
+        screenWrapper.addEventListener('mousemove', showFullscreenBtn);
+        screenWrapper.addEventListener('touchstart', showFullscreenBtn);
+        screenWrapper.addEventListener('click', showFullscreenBtn);
+        screenWrapper.addEventListener('mouseleave', () => {
+            clearTimeout(hideBtnTimeout);
+            screenWrapper.classList.remove('active');
+        });
+
+        document.getElementById('btn-fullscreen').addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                if (screenWrapper.requestFullscreen) {
+                    screenWrapper.requestFullscreen();
+                } else if (screenWrapper.webkitRequestFullscreen) {
+                    screenWrapper.webkitRequestFullscreen();
+                } else if (screenWrapper.msRequestFullscreen) {
+                    screenWrapper.msRequestFullscreen();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+            }
+        });
+
+        document.addEventListener("visibilitychange", () => {
+            const allowBg = document.getElementById('toggle-bg-play').checked;
+            if (document.hidden && player.isPlaying && !allowBg) {
+                player.pause();
+            }
+        });
     </script>
 </body>
 
