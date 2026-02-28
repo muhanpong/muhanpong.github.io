@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MSX2 MV Player & Recorder (MV1/MV2 Supported)</title>
+    <title>MSX2 MV Player (YouTube Style UI)</title>
     <script src="coi-serviceworker.js"></script>
     <script src="ffmpeg.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -14,127 +14,57 @@
             color: #eee;
             font-family: sans-serif;
             text-align: center;
-            margin-top: 30px;
+            margin: 0;
+            padding-top: 30px;
+            overflow-x: hidden;
         }
 
+        /* 전체 화면 시 컨테이너가 화면을 꽉 채우도록 설정 */
         #screen-wrapper {
             position: relative;
             display: inline-flex;
             justify-content: center;
             align-items: center;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
-            border: 4px solid #333;
             background-color: #000;
             max-width: 100%;
             box-sizing: border-box;
+            transition: width 0.3s, height 0.3s;
+        }
+
+        #screen-wrapper:fullscreen {
+            width: 100vw;
+            height: 100vh;
+            border: none;
         }
 
         #video-container {
             position: relative;
             display: flex;
             align-items: stretch;
-            max-width: min(100%, calc(55vh * 4 / 3 + 80px));
-            max-height: 55vh;
-            width: 848px;
-            transition: width 0.2s;
             background: #000;
+            width: 848px;
+            /* 768 + 80 */
+            aspect-ratio: auto;
         }
 
-        /* 캔버스 영역 (드래그 앤 드롭 대상) */
+        #screen-wrapper:fullscreen #video-container {
+            width: 100%;
+            height: 100%;
+            justify-content: center;
+        }
+
+        /* 캔버스 영역 */
         #canvas-area {
             position: relative;
             flex-grow: 1;
             aspect-ratio: 4 / 3;
-            transition: box-shadow 0.3s ease;
+            overflow: hidden;
         }
 
-        #canvas-area.dragover {
-            box-shadow: inset 0 0 30px rgba(76, 175, 80, 0.8);
-            border-radius: 4px;
-        }
-
-        /* 캔버스 빈 화면 안내 문구 */
-        #canvas-msg-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            color: #ccc;
-            background-color: rgba(0, 0, 0, 0.6);
-            pointer-events: none;
-            z-index: 5;
-            border: 2px dashed #555;
-            box-sizing: border-box;
-            margin: 10px;
-            border-radius: 8px;
-        }
-
-        /* 온 스크린 전체 화면 버튼 */
-        #btn-fullscreen-toggle {
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            width: 36px;
-            height: 36px;
-            padding: 0;
-            background-color: rgba(0, 0, 0, 0.5);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 4px;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 20;
-            transition: background-color 0.2s, opacity 0.3s, transform 0.1s;
-            opacity: 0.7;
-        }
-
-        #btn-fullscreen-toggle:hover {
-            background-color: rgba(0, 0, 0, 0.8);
-            opacity: 1;
-        }
-
-        #btn-fullscreen-toggle:active {
-            transform: scale(0.9);
-        }
-
-        /* 히스토그램 (우측, 배경 투명) */
-        #palette-histogram {
-            width: 80px;
-            background: transparent;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-around;
-            padding: 5px;
-            border-left: 1px solid #444;
-            box-sizing: border-box;
-        }
-
-        .hist-row {
-            display: flex;
-            align-items: center;
-            height: 5%;
-            gap: 4px;
-        }
-
-        .hist-color-box {
-            width: 10px;
-            height: 10px;
-            border: 1px solid #555;
-            flex-shrink: 0;
-        }
-
-        .hist-bar {
-            height: 6px;
-            background-color: #00ffcc;
-            border-radius: 0 1px 1px 0;
-            transition: width 0.05s ease-out;
-            min-width: 0px;
+        #screen-wrapper:fullscreen #canvas-area {
+            flex-grow: 0;
+            height: 100%;
+            width: calc(100vh * 4 / 3);
         }
 
         #msx-screen {
@@ -145,28 +75,139 @@
             display: block;
         }
 
-        #eq-overlay {
+        /* 온 스크린 컨트롤러 그룹 (유튜브 스타일) */
+        #osd-controls {
             position: absolute;
             top: 0;
             left: 0;
-            width: 25%;
-            height: 25%;
-            pointer-events: none;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.7) 0%, transparent 20%, transparent 80%, rgba(0, 0, 0, 0.4) 100%);
             display: flex;
-            align-items: flex-end;
-            justify-content: space-between;
-            padding: 2%;
-            box-sizing: border-box;
-            gap: 2%;
-            z-index: 10;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding: 10px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 25;
+            pointer-events: none;
         }
 
-        .overlay-eq-bar {
-            flex: 1;
-            background-color: rgba(255, 255, 255, 0.25);
-            height: 0%;
-            border-radius: 2px 2px 0 0;
-            transition: height 0.05s ease-out;
+        #canvas-area:hover #osd-controls,
+        #canvas-area.touch-active #osd-controls {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* 재생/일시정지 중앙 버튼 */
+        #btn-osd-play-pause {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.5);
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            cursor: pointer;
+            fill: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 하단 바 (슬라이더 + 시간) */
+        .osd-bottom-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+        }
+
+        #osd-seek-slider {
+            flex-grow: 1;
+            cursor: pointer;
+            accent-color: red;
+        }
+
+        .osd-time {
+            font-family: monospace;
+            font-size: 14px;
+            min-width: 100px;
+            text-align: left;
+        }
+
+        /* 히스토그램 (토글 가능) */
+        #palette-histogram {
+            width: 80px;
+            background: transparent;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            padding: 5px;
+            border-left: 1px solid #333;
+            box-sizing: border-box;
+            cursor: pointer;
+            transition: width 0.3s, opacity 0.3s;
+        }
+
+        #palette-histogram.hidden {
+            width: 0;
+            padding: 0;
+            opacity: 0;
+            border: none;
+            overflow: hidden;
+        }
+
+        .hist-row {
+            display: flex;
+            align-items: center;
+            height: 5%;
+            gap: 6px;
+        }
+
+        .hist-color-box {
+            width: 14px;
+            height: 14px;
+            flex-shrink: 0;
+        }
+
+        /* 보더 제거, 크기 키움 */
+        .hist-bar {
+            height: 8px;
+            background-color: #00ffcc;
+            border-radius: 0 1px 1px 0;
+            min-width: 0px;
+        }
+
+        /* 기타 UI */
+        #canvas-msg-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: #888;
+            background-color: #000;
+            z-index: 5;
+            border: 1px dashed #333;
+            margin: 10px;
+            border-radius: 4px;
+        }
+
+        #btn-fullscreen-toggle {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            fill: white;
+            padding: 5px;
+            display: flex;
+            align-items: center;
         }
 
         .controls {
@@ -179,184 +220,97 @@
         }
 
         button {
-            padding: 10px 15px;
-            font-size: 14px;
-            cursor: pointer;
+            padding: 8px 15px;
             background: #333;
             color: white;
             border: 1px solid #555;
             border-radius: 4px;
-        }
-
-        button:hover {
-            background: #555;
-        }
-
-        button:disabled {
-            background: #222;
-            color: #666;
-            cursor: not-allowed;
-        }
-
-        #btn-open-file {
-            background: #2c3e50;
-            border-color: #34495e;
-            font-weight: bold;
-        }
-
-        #btn-open-file:hover {
-            background: #34495e;
-        }
-
-        .panel {
-            background: #222;
-            padding: 10px 15px;
-            border-radius: 8px;
-            border: 1px solid #444;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        #status {
-            margin-top: 15px;
-            font-weight: bold;
-            color: #4CAF50;
+            cursor: pointer;
         }
 
         #dashboard {
-            display: flex;
-            justify-content: center;
-            gap: 40px;
             margin-top: 20px;
             padding: 15px;
             background: #1a1a1a;
-            border: 1px solid #333;
             border-radius: 8px;
             width: fit-content;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .dash-section {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .dash-title {
-            font-size: 12px;
-            color: #888;
-            letter-spacing: 1px;
+            margin-inline: auto;
         }
 
         #vis-eq {
             display: flex;
             gap: 3px;
             align-items: flex-end;
-            height: 60px;
-            border-bottom: 2px solid #555;
-            width: 280px;
+            height: 50px;
+            border-bottom: 2px solid #444;
+            width: 200px;
             justify-content: center;
-            padding-bottom: 2px;
         }
 
         .eq-bar {
-            width: 12px;
+            width: 8px;
             background-color: #00ffcc;
-            border-radius: 2px 2px 0 0;
-        }
-
-        .eq-center-divider {
-            width: 2px;
-            height: 10px;
-            background-color: #666;
-            margin: 0 4px;
         }
     </style>
 </head>
 
 <body>
-    <h2>MSX2 MV Player & Recorder (.MV / .MV2)</h2>
+    <h2>MSX2 MV Player</h2>
 
     <div id="screen-wrapper">
         <div id="video-container">
             <div id="canvas-area">
                 <canvas id="msx-screen" width="256" height="192"></canvas>
 
-                <div id="canvas-msg-overlay">
-                    📂 .MV, .MV2, .ZIP 파일을 이곳에 드래그 앤 드롭하세요
-                </div>
+                <div id="canvas-msg-overlay">📂 Drop .MV/.ZIP here</div>
 
-                <div id="eq-overlay">
-                    <div class="overlay-eq-bar"></div>
-                    <div class="overlay-eq-bar"></div>
-                    <div class="overlay-eq-bar"></div>
-                    <div class="overlay-eq-bar"></div>
-                    <div class="overlay-eq-bar"></div>
-                    <div class="overlay-eq-bar"></div>
-                    <div class="overlay-eq-bar"></div>
-                    <div class="overlay-eq-bar"></div>
-                    <div class="overlay-eq-bar"></div>
-                </div>
+                <div id="osd-controls">
+                    <button id="btn-osd-play-pause">
+                        <svg id="icon-play" viewBox="0 0 24 24" width="32" height="32">
+                            <path d="M8 5v14l11-7z" />
+                        </svg>
+                        <svg id="icon-pause" viewBox="0 0 24 24" width="32" height="32" style="display:none;">
+                            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                        </svg>
+                    </button>
 
-                <button id="btn-fullscreen-toggle" title="전체 화면 토글">
-                    <svg id="icon-expand" viewBox="0 0 24 24" fill="white" width="20" height="20">
-                        <path d="M5 5h5V3H3v7h2zm5 14H5v-5H3v7h7zm11-5h-2v5h-5v2h7zm-2-9V5h-5V3h7v7z" />
-                    </svg>
-                    <svg id="icon-compress" viewBox="0 0 24 24" fill="white" width="20" height="20"
-                        style="display: none;">
-                        <path d="M10 10H5V8h3V5h2zm4 0h5V8h-3V5h-2zm-4 4H5v2h3v3h2zm4 0h5v2h-3v3h-2z" />
-                    </svg>
-                </button>
+                    <div class="osd-bottom-bar">
+                        <span class="osd-time"><span id="osd-time-cur">00:00</span> / <span
+                                id="osd-time-total">00:00</span></span>
+                        <input type="range" id="osd-seek-slider" min="0" max="100" value="0" step="0.1" disabled>
+                        <button id="btn-fullscreen-toggle">
+                            <svg id="icon-expand" viewBox="0 0 24 24" width="24" height="24">
+                                <path
+                                    d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
+                            </svg>
+                            <svg id="icon-compress" viewBox="0 0 24 24" width="24" height="24" style="display:none;">
+                                <path
+                                    d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
             </div>
-
-            <div id="palette-histogram"></div>
+            <div id="palette-histogram" title="Click to Toggle"></div>
         </div>
+    </div>
+
+    <div class="controls">
+        <button id="btn-open-file" style="background:#b91d1d; border:none;">📁 Open File</button>
+        <button id="btn-prev-frame">-1F</button>
+        <button id="btn-next-frame">+1F</button>
+        <button id="btn-export">💾 Export MP4</button>
+        <input type="range" id="scale-slider" min="1" max="5" step="1" value="3" title="Zoom">
+    </div>
+
+    <div id="status">Ready</div>
+
+    <div id="dashboard">
+        <div id="vis-eq"></div>
+        <div style="font-size:10px; color:#666; margin-top:5px;">STEREO EQ</div>
     </div>
 
     <input type="file" id="file-input" accept=".mv,.mv2,.zip" style="display:none;" />
-
-    <div class="controls">
-        <button id="btn-open-file">📁 파일 선택</button>
-        <button id="btn-play" disabled>▶ Play</button>
-        <button id="btn-pause" disabled>⏸ Pause</button>
-        <button id="btn-export" disabled>💾 Export MP4</button>
-
-        <div class="panel" style="width: 100%; max-width: 600px; justify-content: space-between;">
-            <span id="time-current" style="font-family: monospace;">00:00</span>
-            <div style="display: flex; gap: 4px;">
-                <button id="btn-prev-frame" style="padding: 4px 8px; font-size: 11px;" title="-1 Frame">-1F</button>
-                <button id="btn-next-frame" style="padding: 4px 8px; font-size: 11px;" title="+1 Frame">+1F</button>
-            </div>
-            <input type="range" id="seek-slider" min="0" max="100" value="0" step="0.1"
-                style="flex-grow: 1; margin: 0 10px;" disabled>
-            <span id="time-total" style="font-family: monospace;">00:00</span>
-        </div>
-
-        <div class="panel">
-            <label>📺 Size: <span id="scale-label">3x</span></label>
-            <input type="range" id="scale-slider" min="1" max="5" step="1" value="3">
-        </div>
-
-        <div class="panel">
-            <button id="toggle-overlay-btn"
-                style="padding: 5px 10px; font-size: 14px; background-color: #d9534f">Overlay OFF</button>
-            <label style="margin-left: 10px; font-size: 14px;">Opacity: <span id="opacity-label">25%</span></label>
-            <input type="range" id="overlay-opacity" min="0" max="1" step="0.05" value="0.25" style="width: 60px;">
-        </div>
-    </div>
-
-    <div id="status">대기 중... 파일을 선택하거나 드래그 앤 드롭하세요.</div>
-
-    <div id="dashboard">
-        <div class="dash-section">
-            <div class="dash-title">STEREO EQ SPECTRUM (18 BANDS)</div>
-            <div id="vis-eq"></div>
-        </div>
-    </div>
-
     <canvas id="export-canvas" width="256" height="192" style="display:none;"></canvas>
 
     <script>
@@ -385,7 +339,7 @@
                 }
                 const eqContainer = document.getElementById('vis-eq');
                 for (let i = 0; i < 19; i++) {
-                    if (i === 9) { eqContainer.innerHTML += '<div class="eq-center-divider"></div>'; continue; }
+                    if (i === 9) { eqContainer.innerHTML += '<div style="width:2px; height:10px; background:#444; margin:0 4px;"></div>'; continue; }
                     eqContainer.innerHTML += '<div class="eq-bar" style="height:0px"></div>';
                 }
             }
@@ -400,17 +354,18 @@
                     let cur = this.audioCtx.currentTime - this.startTime;
                     if (cur > this.duration) cur = this.duration;
                     const frame = Math.floor(cur * this.fps);
-                    if (!this.isScrubbing) {
-                        document.getElementById('seek-slider').value = (cur / this.duration) * 100;
-                        document.getElementById('time-current').innerText = this.formatTime(cur);
-                    }
-                    if (frame < this.totalFrames) { if (this.lastFrame !== frame) { this.renderFrame(frame); this.lastFrame = frame; } } else { this.pause(); }
+
+                    document.getElementById('osd-seek-slider').value = (cur / this.duration) * 100;
+                    document.getElementById('osd-time-cur').innerText = this.formatTime(cur);
+
+                    if (frame < this.totalFrames) {
+                        if (this.lastFrame !== frame) { this.renderFrame(frame); this.lastFrame = frame; }
+                    } else { this.pause(); }
                 };
             }
 
             async loadFile(file) {
                 document.getElementById('canvas-msg-overlay').style.display = 'none';
-                document.getElementById('status').innerText = "파일 로딩 중...";
                 let data;
                 if (file.name.toLowerCase().endsWith('.zip')) {
                     const zip = new JSZip(); const content = await zip.loadAsync(file);
@@ -426,9 +381,9 @@
                 if (sig === "MMCSD_MV" && ver === "v1.00") { this.fps = 12; this.isMV1 = true; await this.parseMV1(data); }
                 else { this.fps = 15; this.isMV1 = false; await this.parseMV2(data, sig.startsWith("MV2") ? 512 : 16384); }
                 this.duration = this.totalFrames / this.fps;
-                document.getElementById('time-total').innerText = this.formatTime(this.duration);
-                document.getElementById('status').innerText = "준비 완료!";
-                ['btn-play', 'btn-export', 'seek-slider'].forEach(id => document.getElementById(id).disabled = false);
+                document.getElementById('osd-time-total').innerText = this.formatTime(this.duration);
+                document.getElementById('osd-seek-slider').disabled = false;
+                document.getElementById('status').innerText = "Loaded: " + this.totalFrames + " frames";
             }
 
             async parseMV1(data) {
@@ -480,29 +435,33 @@
                 }
                 this.ctx.putImageData(img, 0, 0);
 
-                const maxLog = Math.log10(256 * 192 + 1);
-                for (let i = 0; i < 16; i++) {
-                    const rgb = frame.palette[i];
-                    document.getElementById(`hist-clr-${i}`).style.backgroundColor = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
-                    document.getElementById(`hist-bar-${i}`).style.width = `${(Math.log10(counts[i] + 1) / maxLog) * 100}%`;
+                // 히스토그램 업데이트 (숨겨져 있지 않을 때만)
+                if (!document.getElementById('palette-histogram').classList.contains('hidden')) {
+                    const maxLog = Math.log10(256 * 192 + 1);
+                    for (let i = 0; i < 16; i++) {
+                        const rgb = frame.palette[i];
+                        document.getElementById(`hist-clr-${i}`).style.backgroundColor = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+                        document.getElementById(`hist-bar-${i}`).style.width = `${(Math.log10(counts[i] + 1) / maxLog) * 100}%`;
+                    }
                 }
 
-                const bars = document.getElementById('eq-overlay').children;
+                // EQ 대시보드 업데이트
                 const dbBars = document.getElementById('vis-eq').querySelectorAll('.eq-bar');
                 for (let i = 0; i < 9; i++) {
                     const h = ((15 - Math.min(frame.eqRaw[i], 15)) / 15) * 100;
-                    if (document.getElementById('eq-overlay').style.display !== 'none') bars[i].style.height = h + '%';
-                    dbBars[i].style.height = h * 0.6 + 'px'; dbBars[17 - i].style.height = h * 0.6 + 'px';
+                    dbBars[i].style.height = h * 0.5 + 'px'; dbBars[17 - i].style.height = h * 0.5 + 'px';
                 }
             }
 
+            togglePlay() { this.isPlaying ? this.pause() : this.play(); }
+
             async play() {
-                if (this.isPlaying) return;
+                if (this.isPlaying || !this.audioBuffer) return;
                 if (this.audioCtx.state === 'suspended') await this.audioCtx.resume();
                 this.src = this.audioCtx.createBufferSource(); this.src.buffer = this.audioBuffer;
                 this.src.connect(this.audioCtx.destination); this.src.start(0, this.pauseTime);
                 this.startTime = this.audioCtx.currentTime - this.pauseTime; this.isPlaying = true;
-                document.getElementById('btn-play').disabled = true; document.getElementById('btn-pause').disabled = false;
+                this.updatePlayIcon(true);
                 this.timerWorker.postMessage('start');
             }
 
@@ -510,113 +469,102 @@
                 if (!this.isPlaying) return; this.isPlaying = false;
                 if (this.src) { try { this.src.stop(); } catch (e) { } }
                 if (!this.isScrubbing) this.pauseTime = this.audioCtx.currentTime - this.startTime;
+                this.updatePlayIcon(false);
                 this.timerWorker.postMessage('stop');
-                document.getElementById('btn-play').disabled = false; document.getElementById('btn-pause').disabled = true;
+            }
+
+            updatePlayIcon(playing) {
+                document.getElementById('icon-play').style.display = playing ? 'none' : 'block';
+                document.getElementById('icon-pause').style.display = playing ? 'block' : 'none';
             }
         }
 
         const player = new MSXMediaDemuxer('msx-screen');
 
-        // 파일 열기 및 캔버스 드롭존 통합
-        const fileInput = document.getElementById('file-input');
-        const canvasArea = document.getElementById('canvas-area');
+        // 히스토그램 토글
+        document.getElementById('palette-histogram').addEventListener('click', function () {
+            this.classList.toggle('hidden');
+        });
 
-        document.getElementById('btn-open-file').addEventListener('click', () => fileInput.click());
-
-        fileInput.addEventListener('change', e => {
+        // 파일 열기
+        document.getElementById('btn-open-file').addEventListener('click', () => document.getElementById('file-input').click());
+        document.getElementById('file-input').addEventListener('change', e => {
             if (e.target.files.length) player.loadFile(e.target.files[0]);
         });
 
-        canvasArea.addEventListener('dragover', e => {
-            e.preventDefault();
-            canvasArea.classList.add('dragover');
-        });
-
-        canvasArea.addEventListener('dragleave', e => {
-            e.preventDefault();
-            canvasArea.classList.remove('dragover');
-        });
-
+        // 캔버스 드롭존
+        const canvasArea = document.getElementById('canvas-area');
+        canvasArea.addEventListener('dragover', e => { e.preventDefault(); canvasArea.classList.add('dragover'); });
+        canvasArea.addEventListener('dragleave', () => canvasArea.classList.remove('dragover'));
         canvasArea.addEventListener('drop', e => {
-            e.preventDefault();
-            canvasArea.classList.remove('dragover');
-            if (e.dataTransfer.files.length > 0) {
-                fileInput.files = e.dataTransfer.files;
-                player.loadFile(e.dataTransfer.files[0]);
-            }
+            e.preventDefault(); canvasArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) player.loadFile(e.dataTransfer.files[0]);
         });
 
-        window.addEventListener('dragover', e => e.preventDefault());
-        window.addEventListener('drop', e => e.preventDefault());
+        // 재생 토글
+        document.getElementById('btn-osd-play-pause').addEventListener('click', () => player.togglePlay());
 
-        // 재생, 정지, 프레임 제어
-        document.getElementById('btn-play').addEventListener('click', () => player.play());
-        document.getElementById('btn-pause').addEventListener('click', () => player.pause());
-
+        // 프레임 이동
         const moveFrame = (dir) => {
             if (!player.frames.length) return; player.pause();
             const curF = Math.floor(player.pauseTime * player.fps);
             const tarF = Math.max(0, Math.min(player.totalFrames - 1, curF + dir));
             player.pauseTime = tarF / player.fps;
-            document.getElementById('seek-slider').value = (player.pauseTime / player.duration) * 100;
-            document.getElementById('time-current').innerText = player.formatTime(player.pauseTime);
+            document.getElementById('osd-seek-slider').value = (player.pauseTime / player.duration) * 100;
+            document.getElementById('osd-time-cur').innerText = player.formatTime(player.pauseTime);
             player.renderFrame(tarF);
         };
         document.getElementById('btn-prev-frame').addEventListener('click', () => moveFrame(-1));
         document.getElementById('btn-next-frame').addEventListener('click', () => moveFrame(1));
 
-        // UI 설정 (크기, 투명도 등)
-        document.getElementById('scale-slider').addEventListener('input', e => {
-            const s = e.target.value; document.getElementById('scale-label').innerText = s + 'x';
-            document.getElementById('video-container').style.width = (256 * s + 80) + 'px';
-        });
-
-        document.getElementById('toggle-overlay-btn').addEventListener('click', e => {
-            const o = document.getElementById('eq-overlay'); const isOff = o.style.display === 'none';
-            o.style.display = isOff ? 'flex' : 'none';
-            e.target.innerText = isOff ? 'Overlay OFF' : 'Overlay ON';
-            e.target.style.backgroundColor = isOff ? '#d9534f' : '#333';
-        });
-
-        document.getElementById('overlay-opacity').addEventListener('input', e => {
-            const a = e.target.value; document.getElementById('opacity-label').innerText = Math.round(a * 100) + '%';
-            [...document.getElementsByClassName('overlay-eq-bar')].forEach(b => b.style.backgroundColor = `rgba(255,255,255,${a})`);
-        });
-
-        // 슬라이더 탐색
-        const seek = document.getElementById('seek-slider');
+        // 탐색 슬라이더
+        const seek = document.getElementById('osd-seek-slider');
         seek.addEventListener('input', e => {
             player.isScrubbing = true; player.pause();
             const time = (e.target.value / 100) * player.duration;
-            document.getElementById('time-current').innerText = player.formatTime(time);
+            document.getElementById('osd-time-cur').innerText = player.formatTime(time);
             player.renderFrame(Math.min(Math.floor(time * player.fps), player.totalFrames - 1));
         });
-        seek.addEventListener('change', e => { player.pauseTime = (e.target.value / 100) * player.duration; player.isScrubbing = false; });
+        seek.addEventListener('change', e => {
+            player.pauseTime = (e.target.value / 100) * player.duration;
+            player.isScrubbing = false;
+        });
 
-        // 전체 화면 토글 기능 (SVG 아이콘 변경 연동)
-        const btnFullscreen = document.getElementById('btn-fullscreen-toggle');
+        // 줌 슬라이더
+        document.getElementById('scale-slider').addEventListener('input', e => {
+            const s = e.target.value;
+            document.getElementById('video-container').style.width = (256 * s + 80) + 'px';
+        });
+
+        // 전체 화면 토글
+        const btnFs = document.getElementById('btn-fullscreen-toggle');
         const screenWrapper = document.getElementById('screen-wrapper');
         const iconExpand = document.getElementById('icon-expand');
         const iconCompress = document.getElementById('icon-compress');
+        const hist = document.getElementById('palette-histogram');
 
-        btnFullscreen.addEventListener('click', () => {
+        btnFs.addEventListener('click', () => {
             if (!document.fullscreenElement) {
-                if (screenWrapper.requestFullscreen) screenWrapper.requestFullscreen();
-                else if (screenWrapper.webkitRequestFullscreen) screenWrapper.webkitRequestFullscreen();
+                screenWrapper.requestFullscreen().catch(err => alert(err.message));
             } else {
-                if (document.exitFullscreen) document.exitFullscreen();
-                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+                document.exitFullscreen();
             }
         });
 
         document.addEventListener('fullscreenchange', () => {
-            if (document.fullscreenElement) {
-                iconExpand.style.display = 'none';
-                iconCompress.style.display = 'block';
-            } else {
-                iconExpand.style.display = 'block';
-                iconCompress.style.display = 'none';
-            }
+            const isFs = !!document.fullscreenElement;
+            iconExpand.style.display = isFs ? 'none' : 'block';
+            iconCompress.style.display = isFs ? 'block' : 'none';
+            // 전체화면 시 히스토그램 자동 숨김
+            if (isFs) hist.classList.add('hidden');
+            else hist.classList.remove('hidden');
+        });
+
+        // 모바일 터치 대응을 위한 클래스 토글
+        canvasArea.addEventListener('touchstart', () => {
+            canvasArea.classList.add('touch-active');
+            clearTimeout(window.touchTimer);
+            window.touchTimer = setTimeout(() => canvasArea.classList.remove('touch-active'), 3000);
         });
     </script>
 </body>
