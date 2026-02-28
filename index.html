@@ -412,15 +412,57 @@
                 };
             }
 
+            reset() {
+                // 1. 현재 재생 중이라면 강제 정지 (오디오 소스 및 워커 중단)
+                this.pause();
+
+                // 2. 내부 데이터 초기화
+                this.frames = [];
+                this.audioBuffer = null;
+                this.rawAudio = null;
+                this.pauseTime = 0;
+                this.lastFrame = -1;
+                this.duration = 0;
+                this.totalFrames = 0;
+
+                // 3. UI 리셋 (슬라이더 및 시간 표시)
+                const seek = document.getElementById('osd-seek-slider');
+                seek.value = 0;
+                seek.disabled = true;
+                document.getElementById('osd-time-cur').innerText = "00:00";
+                document.getElementById('osd-time-total').innerText = "00:00";
+
+                // 4. 화면 초기화 (검은 화면)
+                this.ctx.fillStyle = "black";
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                document.getElementById('status').innerText = "Resetting for new file...";
+            }
+
             async loadFile(file) {
+                // 파일 로딩 시작 시 가장 먼저 리셋을 수행합니다.
+                this.reset();
+
                 document.getElementById('canvas-msg-overlay').style.display = 'none';
+                document.getElementById('status').innerText = "Loading new file...";
+
                 let data;
-                if (file.name.toLowerCase().endsWith('.zip')) {
-                    const zip = new JSZip(); const content = await zip.loadAsync(file);
-                    const entry = Object.values(content.files).find(f => f.name.toLowerCase().endsWith('.mv') || f.name.toLowerCase().endsWith('.mv2'));
-                    data = await entry.async('uint8array');
-                } else { data = new Uint8Array(await file.arrayBuffer()); }
-                await this.processData(data);
+                try {
+                    if (file.name.toLowerCase().endsWith('.zip')) {
+                        const zip = new JSZip();
+                        const content = await zip.loadAsync(file);
+                        const entry = Object.values(content.files).find(f =>
+                            f.name.toLowerCase().endsWith('.mv') || f.name.toLowerCase().endsWith('.mv2')
+                        );
+                        if (!entry) throw new Error("No MV file in ZIP");
+                        data = await entry.async('uint8array');
+                    } else {
+                        data = new Uint8Array(await file.arrayBuffer());
+                    }
+                    await this.processData(data);
+                } catch (e) {
+                    document.getElementById('status').innerText = "Error: " + e.message;
+                }
             }
 
             async processData(data) {
