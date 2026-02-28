@@ -329,6 +329,21 @@
             <span id="time-total" style="font-family: monospace;">00:00</span>
         </div>
 
+        <div class="panel"
+            style="width: 100%; max-width: 600px; display: flex; align-items: center; justify-content: space-between; padding: 10px 0;">
+            <span id="time-current" style="font-family: monospace;">00:00</span>
+
+            <div style="display: flex; gap: 5px; margin-left: 10px;">
+                <button id="btn-prev-frame" title="Previous Frame"
+                    style="padding: 2px 8px; font-size: 12px;">-1F</button>
+                <button id="btn-next-frame" title="Next Frame" style="padding: 2px 8px; font-size: 12px;">+1F</button>
+            </div>
+
+            <input type="range" id="seek-slider" min="0" max="100" value="0" step="0.1"
+                style="flex-grow: 1; margin: 0 10px;" disabled>
+            <span id="time-total" style="font-family: monospace;">00:00</span>
+        </div>
+
         <div class="panel">
             <label for="scale-slider">📺 Size: <span id="scale-label">3x</span></label>
             <input type="range" id="scale-slider" min="1" max="5" step="1" value="3">
@@ -821,6 +836,35 @@
         document.getElementById('btn-play').addEventListener('click', () => player.play());
         document.getElementById('btn-pause').addEventListener('click', () => player.pause());
         document.getElementById('btn-export').addEventListener('click', () => player.exportMP4());
+
+
+        // 프레임 이동 함수 정의
+        const moveFrame = (direction) => {
+            if (!player.frames || player.frames.length === 0) return;
+
+            // 재생 중이라면 일시정지
+            if (player.isPlaying) player.pause();
+
+            // 현재 프레임 계산
+            const currentFrame = Math.floor(player.pauseTime * player.fps);
+            // 이동할 타겟 프레임 계산 (0 ~ 전체프레임-1 사이로 제한)
+            const targetFrame = Math.max(0, Math.min(player.totalFrames - 1, currentFrame + direction));
+
+            // 시간 및 슬라이더 업데이트
+            player.pauseTime = targetFrame / player.fps;
+            const pct = (player.pauseTime / player.duration) * 100;
+
+            document.getElementById('seek-slider').value = pct;
+            document.getElementById('time-current').innerText = player.formatTime(player.pauseTime);
+
+            // 화면 렌더링
+            player.renderFrame(targetFrame);
+        };
+
+        // 버튼 이벤트 리스너 연결
+        document.getElementById('btn-prev-frame').addEventListener('click', () => moveFrame(-1));
+        document.getElementById('btn-next-frame').addEventListener('click', () => moveFrame(1));
+
 
         const seekSlider = document.getElementById('seek-slider');
         let wasPlayingBeforeSeek = false;
