@@ -23,7 +23,7 @@
             overflow-x: hidden;
         }
 
-        /* 전체 화면 컨테이너 */
+        /* 전체 화면 컨테이너 (iOS 주소창 잘림 방지를 위해 100dvh 우선 적용) */
         #screen-wrapper {
             position: relative;
             display: inline-flex;
@@ -35,24 +35,25 @@
             transition: all 0.3s ease;
         }
 
-        /* PC 및 표준 브라우저 전체화면 */
         #screen-wrapper:fullscreen {
             width: 100vw;
             height: 100vh;
+            height: 100dvh;
         }
 
         #screen-wrapper:-webkit-full-screen {
             width: 100vw;
             height: 100vh;
+            height: 100dvh;
         }
 
-        /* iOS(iPhone) 대응 유사 전체화면 */
         .ios-fullscreen-fix {
             position: fixed !important;
             top: 0 !important;
             left: 0 !important;
             width: 100vw !important;
             height: 100vh !important;
+            height: 100dvh !important;
             z-index: 9999 !important;
             margin: 0 !important;
             border: none !important;
@@ -64,7 +65,7 @@
             align-items: stretch;
             background: #000;
             width: 848px;
-            /* 기본 크기: 768 + 80 */
+            /* 768 + 80 */
             transition: width 0.2s;
         }
 
@@ -75,7 +76,6 @@
             justify-content: center;
         }
 
-        /* 캔버스 영역 */
         #canvas-area {
             position: relative;
             flex-grow: 1;
@@ -88,7 +88,9 @@
         .ios-fullscreen-fix #canvas-area {
             flex-grow: 0;
             height: 100vh;
+            height: 100dvh;
             width: calc(100vh * 4 / 3);
+            width: calc(100dvh * 4 / 3);
             max-width: 100vw;
         }
 
@@ -125,7 +127,7 @@
             transition: height 0.05s ease-out;
         }
 
-        /* 온 스크린 컨트롤러 (OSD) */
+        /* 온 스크린 컨트롤러 */
         #osd-controls {
             position: absolute;
             top: 0;
@@ -187,7 +189,7 @@
             text-align: left;
         }
 
-        /* 히스토그램 (우측) */
+        /* 히스토그램 */
         #palette-histogram {
             width: 80px;
             background: transparent;
@@ -228,7 +230,7 @@
             border-radius: 0 1px 1px 0;
         }
 
-        /* 안내 문구 및 컨트롤 패널 */
+        /* UI 패널 */
         #canvas-msg-overlay {
             position: absolute;
             top: 0;
@@ -454,7 +456,7 @@
                 this.duration = this.totalFrames / this.fps;
                 document.getElementById('osd-time-total').innerText = this.formatTime(this.duration);
                 document.getElementById('osd-seek-slider').disabled = false;
-                await this.play(); // 로드 완료 시 자동 재생
+                await this.play(); // 자동 재생
             }
 
             async parseMV1(data) {
@@ -504,6 +506,7 @@
                     }
                 }
                 this.ctx.putImageData(img, 0, 0);
+
                 if (!document.getElementById('palette-histogram').classList.contains('hidden')) {
                     const maxLog = Math.log10(256 * 192 + 1);
                     for (let i = 0; i < 16; i++) {
@@ -512,6 +515,7 @@
                         document.getElementById(`hist-bar-${i}`).style.width = `${(Math.log10(counts[i] + 1) / maxLog) * 100}%`;
                     }
                 }
+
                 const bars = document.getElementById('eq-overlay').children;
                 for (let i = 0; i < 9; i++) {
                     const h = ((15 - Math.min(frame.eqRaw[i], 15)) / 15) * 100;
@@ -532,6 +536,7 @@
                     }
                 }
                 targetCtx.putImageData(img, 0, 0);
+
                 if (withOverlay) {
                     const op = getComputedStyle(document.documentElement).getPropertyValue('--eq-opacity').trim();
                     targetCtx.fillStyle = `rgba(255,255,255,${op})`; const eqW = 256 * 0.25, eqH = 192 * 0.25, barW = (eqW / 9) - 1;
@@ -546,11 +551,13 @@
                 const exportCanvas = document.getElementById('export-canvas'); const exportCtx = exportCanvas.getContext('2d');
                 const videoData = new Uint8Array(this.totalFrames * 256 * 192 * 3); let offset = 0;
                 const includeEQ = document.getElementById('eq-overlay').style.display !== 'none';
+
                 for (let i = 0; i < this.totalFrames; i++) {
                     this.renderFrameToCanvas(i, exportCtx, includeEQ); const pix = exportCtx.getImageData(0, 0, 256, 192).data;
                     for (let j = 0; j < pix.length; j += 4) { videoData[offset++] = pix[j]; videoData[offset++] = pix[j + 1]; videoData[offset++] = pix[j + 2]; }
                     if (i % 50 === 0) status.innerText = `Encoding... (${i}/${this.totalFrames})`;
                 }
+
                 await ffmpeg.writeFile('video.raw', videoData);
                 let args = [];
                 if (this.isMV1) {
@@ -588,9 +595,20 @@
 
         const player = new MSXMediaDemuxer('msx-screen');
 
-        // Event Listeners
+        // 브라우저 전역 Drag & Drop 차단 (오작동 방지)
+        window.addEventListener('dragover', e => e.preventDefault());
+        window.addEventListener('drop', e => e.preventDefault());
+
+        // 파일 열기 및 드래그 앤 드롭
         document.getElementById('btn-open-file').onclick = () => document.getElementById('file-input').click();
         document.getElementById('file-input').onchange = e => { if (e.target.files.length) player.loadFile(e.target.files[0]); };
+
+        const canvasArea = document.getElementById('canvas-area');
+        canvasArea.ondragover = e => { e.preventDefault(); canvasArea.classList.add('dragover'); };
+        canvasArea.ondragleave = () => canvasArea.classList.remove('dragover');
+        canvasArea.ondrop = e => { e.preventDefault(); canvasArea.classList.remove('dragover'); if (e.dataTransfer.files.length) player.loadFile(e.dataTransfer.files[0]); };
+
+        // UI 제어 (EQ, Zoom, Histogram)
         document.getElementById('toggle-eq-btn').onclick = e => {
             const eq = document.getElementById('eq-overlay'); const isOff = eq.style.display === 'none';
             eq.style.display = isOff ? 'flex' : 'none'; e.target.innerText = isOff ? 'EQ ON' : 'EQ OFF';
@@ -599,17 +617,29 @@
         document.getElementById('eq-opacity-slider').oninput = e => document.documentElement.style.setProperty('--eq-opacity', e.target.value);
         document.getElementById('scale-slider').oninput = e => document.getElementById('video-container').style.width = (256 * e.target.value + 80) + 'px';
         document.getElementById('palette-histogram').onclick = function () { this.classList.toggle('hidden'); };
+
+        // 재생/정지, 내보내기
         document.getElementById('btn-osd-play-pause').onclick = () => player.togglePlay();
         document.getElementById('btn-export').onclick = () => player.exportMP4();
 
+        // 슬라이더 탐색 및 자동 재생 복귀 처리
         const seek = document.getElementById('osd-seek-slider');
+        let wasPlayingBeforeSeek = false;
+        seek.onmousedown = seek.ontouchstart = () => { wasPlayingBeforeSeek = player.isPlaying; };
         seek.oninput = e => {
-            player.isScrubbing = true; player.pause();
-            const t = (e.target.value / 100) * player.duration; document.getElementById('osd-time-cur').innerText = player.formatTime(t);
+            player.isScrubbing = true;
+            if (player.isPlaying) player.pause();
+            const t = (e.target.value / 100) * player.duration;
+            document.getElementById('osd-time-cur').innerText = player.formatTime(t);
             player.renderFrame(Math.min(Math.floor(t * player.fps), player.totalFrames - 1));
         };
-        seek.onchange = e => { player.pauseTime = (e.target.value / 100) * player.duration; player.isScrubbing = false; };
+        seek.onchange = e => {
+            player.pauseTime = (e.target.value / 100) * player.duration;
+            player.isScrubbing = false;
+            if (wasPlayingBeforeSeek) player.play();
+        };
 
+        // 프레임 이동
         const moveFrame = (d) => {
             if (!player.frames.length) return; player.pause();
             const tar = Math.max(0, Math.min(player.totalFrames - 1, Math.floor(player.pauseTime * player.fps) + d));
@@ -619,39 +649,41 @@
         document.getElementById('btn-prev-frame').onclick = () => moveFrame(-1);
         document.getElementById('btn-next-frame').onclick = () => moveFrame(1);
 
-        const canvasArea = document.getElementById('canvas-area');
-        canvasArea.ondragover = e => { e.preventDefault(); canvasArea.classList.add('dragover'); };
-        canvasArea.ondragleave = () => canvasArea.classList.remove('dragover');
-        canvasArea.ondrop = e => { e.preventDefault(); canvasArea.classList.remove('dragover'); if (e.dataTransfer.files.length) player.loadFile(e.dataTransfer.files[0]); };
-
-        // Fullscreen Toggle (PC + iPhone)
+        // 전체 화면 토글 (iOS / PC 통합)
         const btnFs = document.getElementById('btn-fullscreen-toggle');
         const screenWrapper = document.getElementById('screen-wrapper');
-        const iconExp = document.getElementById('icon-expand'), iconComp = document.getElementById('icon-compress');
+        const iconExp = document.getElementById('icon-expand');
+        const iconComp = document.getElementById('icon-compress');
 
         const toggleFs = () => {
-            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            const isFs = document.fullscreenElement || document.webkitFullscreenElement || screenWrapper.classList.contains('ios-fullscreen-fix');
+            if (!isFs) {
                 const req = screenWrapper.requestFullscreen || screenWrapper.webkitRequestFullscreen;
                 if (req) req.call(screenWrapper).catch(() => screenWrapper.classList.add('ios-fullscreen-fix'));
                 else screenWrapper.classList.add('ios-fullscreen-fix');
             } else {
                 const exit = document.exitFullscreen || document.webkitExitFullscreen;
-                if (exit) exit.call(document); screenWrapper.classList.remove('ios-fullscreen-fix');
+                if (exit && (document.fullscreenElement || document.webkitFullscreenElement)) exit.call(document);
+                screenWrapper.classList.remove('ios-fullscreen-fix');
             }
         };
         btnFs.onclick = toggleFs;
 
         const updateFsUI = () => {
             const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || screenWrapper.classList.contains('ios-fullscreen-fix'));
-            iconExp.style.display = isFs ? 'none' : 'block'; iconComp.style.display = isFs ? 'block' : 'none';
+            iconExp.style.display = isFs ? 'none' : 'block';
+            iconComp.style.display = isFs ? 'block' : 'none';
             if (isFs) document.getElementById('palette-histogram').classList.add('hidden');
             else document.getElementById('palette-histogram').classList.remove('hidden');
         };
+
         document.addEventListener('fullscreenchange', updateFsUI);
         document.addEventListener('webkitfullscreenchange', updateFsUI);
 
+        // 모바일 터치 시 OSD 표시 제어
         canvasArea.ontouchstart = () => {
-            canvasArea.classList.add('touch-active'); clearTimeout(window.tTimer);
+            canvasArea.classList.add('touch-active');
+            clearTimeout(window.tTimer);
             window.tTimer = setTimeout(() => canvasArea.classList.remove('touch-active'), 3000);
         };
     </script>
