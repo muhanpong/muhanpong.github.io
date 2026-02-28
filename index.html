@@ -7,6 +7,7 @@
     <title>MSX2 MV Player & Recorder (MV1/MV2 Supported)</title>
     <script src="coi-serviceworker.js"></script>
     <script src="ffmpeg.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         body {
             background-color: #111;
@@ -82,7 +83,7 @@
             width: 25%;
             height: 25%;
             /* background-color: transparent; */
-            background-color: #d9534f,
+            background-color: #d9534f;
             pointer-events: none;
             display: flex;
             align-items: flex-end;
@@ -312,8 +313,8 @@
     </div>
 
     <div id="drop-zone" class="drop-zone">
-        <p>여기에 .MV 또는 .MV2 파일을 드래그 앤 드롭하거나 클릭해서 선택하세요.</p>
-        <input type="file" id="file-input" accept=".mv,.mv2" />
+        <p>여기에 .MV, .MV2 또는 .ZIP 파일을 드래그 앤 드롭하거나 클릭해서 선택하세요.</p>
+        <input type="file" id="file-input" accept=".mv,.mv2,.zip" />
     </div>
 
     <div class="controls">
@@ -344,14 +345,15 @@
         </div>
 
         <div class="panel">
-            <button id="toggle-overlay-btn" style="padding: 5px 10px; font-size: 14px; background-color: #d9534f">Overlay OFF</button>
+            <button id="toggle-overlay-btn"
+                style="padding: 5px 10px; font-size: 14px; background-color: #d9534f">Overlay OFF</button>
             <label for="overlay-opacity" style="margin-left: 10px; font-size: 14px;">Opacity: <span
                     id="opacity-label">25%</span></label>
             <input type="range" id="overlay-opacity" min="0" max="1" step="0.05" value="0.6" style="width: 80px;">
         </div>
     </div>
 
-    <div id="status">대기 중... .MV 또는 .MV2 파일을 선택하세요.</div>
+    <div id="status">대기 중... .MV, .MV2 또는 .ZIP 파일을 선택하세요.</div>
 
     <div id="dashboard">
         <div class="dash-section">
@@ -481,8 +483,39 @@
 
             async loadFile(file) {
                 this.reset();
+                if (file.name.toLowerCase().endsWith('.zip')) {
+                    document.getElementById('status').innerText = "ZIP 압축 해제 중...";
+                    try {
+                        const zip = new JSZip();
+                        const zipContent = await zip.loadAsync(file);
+                        let mvData = null;
+                        let mvFilename = "";
+                        for (const [filename, zipEntry] of Object.entries(zipContent.files)) {
+                            if (!zipEntry.dir && (filename.toLowerCase().endsWith('.mv') || filename.toLowerCase().endsWith('.mv2'))) {
+                                mvData = await zipEntry.async('uint8array');
+                                mvFilename = filename;
+                                break;
+                            }
+                        }
+                        if (!mvData) {
+                            throw new Error("ZIP 파일 내에 .MV 또는 .MV2 파일이 없습니다.");
+                        }
+                        document.getElementById('status').innerText = `${mvFilename} 분석 중...`;
+                        await this.processData(mvData);
+                        return;
+                    } catch (err) {
+                        document.getElementById('status').innerText = `에러: ${err.message}`;
+                        document.getElementById('status').style.color = "#ff4444";
+                        return;
+                    }
+                }
+
                 document.getElementById('status').innerText = "파일 분석 중...";
                 const data = new Uint8Array(await file.arrayBuffer());
+                await this.processData(data);
+            }
+
+            async processData(data) {
                 const sig = String.fromCharCode(...data.slice(0, 8));
                 const ver = String.fromCharCode(...data.slice(16, 21));
 
@@ -897,14 +930,3 @@
 </body>
 
 </html>
-
-
-
-
-
-
-
-
-
-
-
