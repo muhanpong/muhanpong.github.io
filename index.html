@@ -32,34 +32,86 @@
         #video-container {
             position: relative;
             display: flex;
-            /* 가로 배치 */
             align-items: stretch;
             max-width: min(100%, calc(55vh * 4 / 3 + 80px));
             max-height: 55vh;
             width: 848px;
-            /* 768px + 80px */
             transition: width 0.2s;
             background: #000;
         }
 
-        /* 캔버스 영역 (왼쪽) */
+        /* 캔버스 영역 (드래그 앤 드롭 대상) */
         #canvas-area {
             position: relative;
             flex-grow: 1;
             aspect-ratio: 4 / 3;
+            transition: box-shadow 0.3s ease;
         }
 
-        /* 히스토그램 영역 (오른쪽으로 이동 및 배경 투명화) */
+        #canvas-area.dragover {
+            box-shadow: inset 0 0 30px rgba(76, 175, 80, 0.8);
+            border-radius: 4px;
+        }
+
+        /* 캔버스 빈 화면 안내 문구 */
+        #canvas-msg-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            color: #ccc;
+            background-color: rgba(0, 0, 0, 0.6);
+            pointer-events: none;
+            z-index: 5;
+            border: 2px dashed #555;
+            box-sizing: border-box;
+            margin: 10px;
+            border-radius: 8px;
+        }
+
+        /* 온 스크린 전체 화면 버튼 */
+        #btn-fullscreen-toggle {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            transition: background-color 0.2s, opacity 0.3s, transform 0.1s;
+            opacity: 0.7;
+        }
+
+        #btn-fullscreen-toggle:hover {
+            background-color: rgba(0, 0, 0, 0.8);
+            opacity: 1;
+        }
+
+        #btn-fullscreen-toggle:active {
+            transform: scale(0.9);
+        }
+
+        /* 히스토그램 (우측, 배경 투명) */
         #palette-histogram {
             width: 80px;
             background: transparent;
-            /* 배경 투명하게 변경 */
             display: flex;
             flex-direction: column;
             justify-content: space-around;
             padding: 5px;
             border-left: 1px solid #444;
-            /* 구분선을 왼쪽으로 변경 */
             box-sizing: border-box;
         }
 
@@ -126,8 +178,7 @@
             flex-wrap: wrap;
         }
 
-        button,
-        input[type="file"] {
+        button {
             padding: 10px 15px;
             font-size: 14px;
             cursor: pointer;
@@ -139,6 +190,22 @@
 
         button:hover {
             background: #555;
+        }
+
+        button:disabled {
+            background: #222;
+            color: #666;
+            cursor: not-allowed;
+        }
+
+        #btn-open-file {
+            background: #2c3e50;
+            border-color: #34495e;
+            font-weight: bold;
+        }
+
+        #btn-open-file:hover {
+            background: #34495e;
         }
 
         .panel {
@@ -207,38 +274,6 @@
             background-color: #666;
             margin: 0 4px;
         }
-
-        #btn-fullscreen {
-            position: absolute;
-            bottom: 15px;
-            right: 15px;
-            width: 40px;
-            height: 40px;
-            background: rgba(0, 0, 0, 0.4);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.4);
-            border-radius: 4px;
-            cursor: pointer;
-            opacity: 0;
-            transition: opacity 0.3s;
-            z-index: 20;
-        }
-
-        #screen-wrapper.active #btn-fullscreen:not(:disabled) {
-            opacity: 1;
-        }
-
-        .drop-zone {
-            border: 2px dashed #555;
-            border-radius: 8px;
-            padding: 20px;
-            text-align: center;
-            background: #1a1a1a;
-            margin: 20px auto;
-            width: 90%;
-            max-width: 600px;
-            cursor: pointer;
-        }
     </style>
 </head>
 
@@ -249,6 +284,11 @@
         <div id="video-container">
             <div id="canvas-area">
                 <canvas id="msx-screen" width="256" height="192"></canvas>
+
+                <div id="canvas-msg-overlay">
+                    📂 .MV, .MV2, .ZIP 파일을 이곳에 드래그 앤 드롭하세요
+                </div>
+
                 <div id="eq-overlay">
                     <div class="overlay-eq-bar"></div>
                     <div class="overlay-eq-bar"></div>
@@ -260,27 +300,35 @@
                     <div class="overlay-eq-bar"></div>
                     <div class="overlay-eq-bar"></div>
                 </div>
+
+                <button id="btn-fullscreen-toggle" title="전체 화면 토글">
+                    <svg id="icon-expand" viewBox="0 0 24 24" fill="white" width="20" height="20">
+                        <path d="M5 5h5V3H3v7h2zm5 14H5v-5H3v7h7zm11-5h-2v5h-5v2h7zm-2-9V5h-5V3h7v7z" />
+                    </svg>
+                    <svg id="icon-compress" viewBox="0 0 24 24" fill="white" width="20" height="20"
+                        style="display: none;">
+                        <path d="M10 10H5V8h3V5h2zm4 0h5V8h-3V5h-2zm-4 4H5v2h3v3h2zm4 0h5v2h-3v3h-2z" />
+                    </svg>
+                </button>
             </div>
+
             <div id="palette-histogram"></div>
         </div>
-        <button id="btn-fullscreen" disabled title="Fullscreen">⤡</button>
     </div>
 
-    <div id="drop-zone" class="drop-zone">
-        <p>드래그 앤 드롭하거나 클릭해서 .MV, .MV2, .ZIP 파일을 선택하세요.</p>
-        <input type="file" id="file-input" accept=".mv,.mv2,.zip" style="display:none;" />
-    </div>
+    <input type="file" id="file-input" accept=".mv,.mv2,.zip" style="display:none;" />
 
     <div class="controls">
+        <button id="btn-open-file">📁 파일 선택</button>
         <button id="btn-play" disabled>▶ Play</button>
         <button id="btn-pause" disabled>⏸ Pause</button>
         <button id="btn-export" disabled>💾 Export MP4</button>
 
-        <div class="panel" style="width: 100%; max-width: 700px; justify-content: space-between;">
+        <div class="panel" style="width: 100%; max-width: 600px; justify-content: space-between;">
             <span id="time-current" style="font-family: monospace;">00:00</span>
             <div style="display: flex; gap: 4px;">
-                <button id="btn-prev-frame" style="padding: 4px 8px; font-size: 11px;">-1F</button>
-                <button id="btn-next-frame" style="padding: 4px 8px; font-size: 11px;">+1F</button>
+                <button id="btn-prev-frame" style="padding: 4px 8px; font-size: 11px;" title="-1 Frame">-1F</button>
+                <button id="btn-next-frame" style="padding: 4px 8px; font-size: 11px;" title="+1 Frame">+1F</button>
             </div>
             <input type="range" id="seek-slider" min="0" max="100" value="0" step="0.1"
                 style="flex-grow: 1; margin: 0 10px;" disabled>
@@ -300,7 +348,7 @@
         </div>
     </div>
 
-    <div id="status">대기 중... 파일을 선택하세요.</div>
+    <div id="status">대기 중... 파일을 선택하거나 드래그 앤 드롭하세요.</div>
 
     <div id="dashboard">
         <div class="dash-section">
@@ -361,6 +409,7 @@
             }
 
             async loadFile(file) {
+                document.getElementById('canvas-msg-overlay').style.display = 'none';
                 document.getElementById('status').innerText = "파일 로딩 중...";
                 let data;
                 if (file.name.toLowerCase().endsWith('.zip')) {
@@ -379,7 +428,7 @@
                 this.duration = this.totalFrames / this.fps;
                 document.getElementById('time-total').innerText = this.formatTime(this.duration);
                 document.getElementById('status').innerText = "준비 완료!";
-                ['btn-play', 'btn-export', 'btn-fullscreen', 'seek-slider'].forEach(id => document.getElementById(id).disabled = false);
+                ['btn-play', 'btn-export', 'seek-slider'].forEach(id => document.getElementById(id).disabled = false);
             }
 
             async parseMV1(data) {
@@ -431,7 +480,6 @@
                 }
                 this.ctx.putImageData(img, 0, 0);
 
-                // 우측 히스토그램 업데이트 (로그 스케일)
                 const maxLog = Math.log10(256 * 192 + 1);
                 for (let i = 0; i < 16; i++) {
                     const rgb = frame.palette[i];
@@ -439,7 +487,6 @@
                     document.getElementById(`hist-bar-${i}`).style.width = `${(Math.log10(counts[i] + 1) / maxLog) * 100}%`;
                 }
 
-                // EQ 오버레이 & 대시보드 업데이트
                 const bars = document.getElementById('eq-overlay').children;
                 const dbBars = document.getElementById('vis-eq').querySelectorAll('.eq-bar');
                 for (let i = 0; i < 9; i++) {
@@ -470,13 +517,42 @@
 
         const player = new MSXMediaDemuxer('msx-screen');
 
-        // 이벤트 리스너
-        document.getElementById('file-input').addEventListener('change', e => player.loadFile(e.target.files[0]));
-        document.getElementById('drop-zone').addEventListener('click', () => document.getElementById('file-input').click());
+        // 파일 열기 및 캔버스 드롭존 통합
+        const fileInput = document.getElementById('file-input');
+        const canvasArea = document.getElementById('canvas-area');
+
+        document.getElementById('btn-open-file').addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', e => {
+            if (e.target.files.length) player.loadFile(e.target.files[0]);
+        });
+
+        canvasArea.addEventListener('dragover', e => {
+            e.preventDefault();
+            canvasArea.classList.add('dragover');
+        });
+
+        canvasArea.addEventListener('dragleave', e => {
+            e.preventDefault();
+            canvasArea.classList.remove('dragover');
+        });
+
+        canvasArea.addEventListener('drop', e => {
+            e.preventDefault();
+            canvasArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                player.loadFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        window.addEventListener('dragover', e => e.preventDefault());
+        window.addEventListener('drop', e => e.preventDefault());
+
+        // 재생, 정지, 프레임 제어
         document.getElementById('btn-play').addEventListener('click', () => player.play());
         document.getElementById('btn-pause').addEventListener('click', () => player.pause());
 
-        // 프레임 이동 버튼 로직
         const moveFrame = (dir) => {
             if (!player.frames.length) return; player.pause();
             const curF = Math.floor(player.pauseTime * player.fps);
@@ -489,7 +565,7 @@
         document.getElementById('btn-prev-frame').addEventListener('click', () => moveFrame(-1));
         document.getElementById('btn-next-frame').addEventListener('click', () => moveFrame(1));
 
-        // UI 제어
+        // UI 설정 (크기, 투명도 등)
         document.getElementById('scale-slider').addEventListener('input', e => {
             const s = e.target.value; document.getElementById('scale-label').innerText = s + 'x';
             document.getElementById('video-container').style.width = (256 * s + 80) + 'px';
@@ -507,7 +583,7 @@
             [...document.getElementsByClassName('overlay-eq-bar')].forEach(b => b.style.backgroundColor = `rgba(255,255,255,${a})`);
         });
 
-        // 탐색 슬라이더
+        // 슬라이더 탐색
         const seek = document.getElementById('seek-slider');
         seek.addEventListener('input', e => {
             player.isScrubbing = true; player.pause();
@@ -516,6 +592,32 @@
             player.renderFrame(Math.min(Math.floor(time * player.fps), player.totalFrames - 1));
         });
         seek.addEventListener('change', e => { player.pauseTime = (e.target.value / 100) * player.duration; player.isScrubbing = false; });
+
+        // 전체 화면 토글 기능 (SVG 아이콘 변경 연동)
+        const btnFullscreen = document.getElementById('btn-fullscreen-toggle');
+        const screenWrapper = document.getElementById('screen-wrapper');
+        const iconExpand = document.getElementById('icon-expand');
+        const iconCompress = document.getElementById('icon-compress');
+
+        btnFullscreen.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                if (screenWrapper.requestFullscreen) screenWrapper.requestFullscreen();
+                else if (screenWrapper.webkitRequestFullscreen) screenWrapper.webkitRequestFullscreen();
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            }
+        });
+
+        document.addEventListener('fullscreenchange', () => {
+            if (document.fullscreenElement) {
+                iconExpand.style.display = 'none';
+                iconCompress.style.display = 'block';
+            } else {
+                iconExpand.style.display = 'block';
+                iconCompress.style.display = 'none';
+            }
+        });
     </script>
 </body>
 
