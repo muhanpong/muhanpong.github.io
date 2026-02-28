@@ -29,7 +29,6 @@
             box-sizing: border-box;
         }
 
-        /* 히스토그램 레이아웃 추가 */
         #video-container {
             position: relative;
             display: flex;
@@ -43,14 +42,24 @@
             background: #000;
         }
 
+        /* 캔버스 영역 (왼쪽) */
+        #canvas-area {
+            position: relative;
+            flex-grow: 1;
+            aspect-ratio: 4 / 3;
+        }
+
+        /* 히스토그램 영역 (오른쪽으로 이동 및 배경 투명화) */
         #palette-histogram {
             width: 80px;
-            background: rgba(20, 20, 20, 0.9);
+            background: transparent;
+            /* 배경 투명하게 변경 */
             display: flex;
             flex-direction: column;
             justify-content: space-around;
             padding: 5px;
-            border-right: 1px solid #444;
+            border-left: 1px solid #444;
+            /* 구분선을 왼쪽으로 변경 */
             box-sizing: border-box;
         }
 
@@ -76,12 +85,6 @@
             min-width: 0px;
         }
 
-        #canvas-area {
-            position: relative;
-            flex-grow: 1;
-            aspect-ratio: 4 / 3;
-        }
-
         #msx-screen {
             width: 100%;
             height: 100%;
@@ -98,7 +101,6 @@
             height: 25%;
             pointer-events: none;
             display: flex;
-            /* 초기 상태 ON */
             align-items: flex-end;
             justify-content: space-between;
             padding: 2%;
@@ -179,17 +181,7 @@
         .dash-title {
             font-size: 12px;
             color: #888;
-        }
-
-        #vis-palette {
-            display: flex;
-            gap: 2px;
-        }
-
-        .pal-box {
-            width: 24px;
-            height: 24px;
-            border: 1px solid #555;
+            letter-spacing: 1px;
         }
 
         #vis-eq {
@@ -200,12 +192,20 @@
             border-bottom: 2px solid #555;
             width: 280px;
             justify-content: center;
+            padding-bottom: 2px;
         }
 
         .eq-bar {
             width: 12px;
             background-color: #00ffcc;
             border-radius: 2px 2px 0 0;
+        }
+
+        .eq-center-divider {
+            width: 2px;
+            height: 10px;
+            background-color: #666;
+            margin: 0 4px;
         }
 
         #btn-fullscreen {
@@ -247,7 +247,6 @@
 
     <div id="screen-wrapper">
         <div id="video-container">
-            <div id="palette-histogram"></div>
             <div id="canvas-area">
                 <canvas id="msx-screen" width="256" height="192"></canvas>
                 <div id="eq-overlay">
@@ -262,6 +261,7 @@
                     <div class="overlay-eq-bar"></div>
                 </div>
             </div>
+            <div id="palette-histogram"></div>
         </div>
         <button id="btn-fullscreen" disabled title="Fullscreen">⤡</button>
     </div>
@@ -304,11 +304,7 @@
 
     <div id="dashboard">
         <div class="dash-section">
-            <div class="dash-title">PALETTE MEMORY</div>
-            <div id="vis-palette"></div>
-        </div>
-        <div class="dash-section">
-            <div class="dash-title">STEREO EQ SPECTRUM</div>
+            <div class="dash-title">STEREO EQ SPECTRUM (18 BANDS)</div>
             <div id="vis-eq"></div>
         </div>
     </div>
@@ -333,11 +329,8 @@
             }
 
             initUI() {
-                // 팔레트 및 EQ 초기화
-                const palContainer = document.getElementById('vis-palette');
                 const histContainer = document.getElementById('palette-histogram');
                 for (let i = 0; i < 16; i++) {
-                    const d = document.createElement('div'); d.className = 'pal-box'; palContainer.appendChild(d);
                     const row = document.createElement('div'); row.className = 'hist-row';
                     row.innerHTML = `<div class="hist-color-box" id="hist-clr-${i}"></div><div class="hist-bar" id="hist-bar-${i}" style="width: 0%"></div>`;
                     histContainer.appendChild(row);
@@ -438,16 +431,15 @@
                 }
                 this.ctx.putImageData(img, 0, 0);
 
-                // 히스토그램 & 팔레트 업데이트 (로그 스케일)
+                // 우측 히스토그램 업데이트 (로그 스케일)
                 const maxLog = Math.log10(256 * 192 + 1);
                 for (let i = 0; i < 16; i++) {
                     const rgb = frame.palette[i];
                     document.getElementById(`hist-clr-${i}`).style.backgroundColor = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
                     document.getElementById(`hist-bar-${i}`).style.width = `${(Math.log10(counts[i] + 1) / maxLog) * 100}%`;
-                    document.getElementsByClassName('pal-box')[i].style.backgroundColor = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
                 }
 
-                // EQ 오버레이 & 대시보드
+                // EQ 오버레이 & 대시보드 업데이트
                 const bars = document.getElementById('eq-overlay').children;
                 const dbBars = document.getElementById('vis-eq').querySelectorAll('.eq-bar');
                 for (let i = 0; i < 9; i++) {
