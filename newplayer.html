@@ -573,20 +573,55 @@
             }
 
             togglePlay() { this.isPlaying ? this.pause() : this.play(); }
+
             async play() {
+                // 1. 이미 재생 중이거나 버퍼가 없으면 차단
                 if (this.isPlaying || !this.audioBuffer) return;
-                if (this.audioCtx.state === 'suspended') await this.audioCtx.resume();
-                this.src = this.audioCtx.createBufferSource(); this.src.buffer = this.audioBuffer;
-                this.src.connect(this.audioCtx.destination); this.src.start(0, this.pauseTime);
-                this.startTime = this.audioCtx.currentTime - this.pauseTime; this.isPlaying = true;
-                this.updatePlayIcon(true); this.timerWorker.postMessage('start');
+
+                // 2. [핵심] await 대기 전에 즉시 상태를 true로 변경하여 중복 실행 방지
+                this.isPlaying = true;
+
+                if (this.audioCtx.state === 'suspended') {
+                    await this.audioCtx.resume();
+                }
+
+                // 3. await로 기다리는 동안 사용자가 다른 파일을 열어서 버퍼가 날아갔다면 재생 취소
+                if (!this.isPlaying || !this.audioBuffer) return;
+
+                // 4. 이전에 생성된 좀비 오디오 소스가 남아있다면 확실히 숨통을 끊음
+                if (this.src) {
+                    try { this.src.stop(); } catch (e) { }
+                    try { this.src.disconnect(); } catch (e) { }
+                }
+
+                this.src = this.audioCtx.createBufferSource();
+                this.src.buffer = this.audioBuffer;
+                this.src.connect(this.audioCtx.destination);
+                this.src.start(0, this.pauseTime);
+                this.startTime = this.audioCtx.currentTime - this.pauseTime;
+
+                this.updatePlayIcon(true);
+                this.timerWorker.postMessage('start');
             }
+
             pause() {
-                if (!this.isPlaying) return; this.isPlaying = false;
-                if (this.src) { try { this.src.stop(); } catch (e) { } }
-                if (!this.isScrubbing) this.pauseTime = this.audioCtx.currentTime - this.startTime;
-                this.updatePlayIcon(false); this.timerWorker.postMessage('stop');
+                // 1. 상태를 우선 false로 변경
+                this.isPlaying = false;
+
+                // 2. 현재 물려있는 오디오 소스를 즉시 파괴
+                if (this.src) {
+                    try { this.src.stop(); } catch (e) { }
+                    try { this.src.disconnect(); } catch (e) { }
+                    this.src = null; // 참조 완전히 제거
+                }
+
+                if (!this.isScrubbing) {
+                    this.pauseTime = this.audioCtx.currentTime - this.startTime;
+                }
+                this.updatePlayIcon(false);
+                this.timerWorker.postMessage('stop');
             }
+
             updatePlayIcon(p) {
                 document.getElementById('icon-play').style.display = p ? 'none' : 'block';
                 document.getElementById('icon-pause').style.display = p ? 'block' : 'none';
