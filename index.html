@@ -4,22 +4,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MSX2 MV Player (YouTube Style UI)</title>
+    <title>MSX2 MV Player (Final Integrated UI)</title>
     <script src="coi-serviceworker.js"></script>
     <script src="ffmpeg.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
+        :root {
+            --eq-opacity: 0.25;
+        }
+
         body {
             background-color: #111;
             color: #eee;
             font-family: sans-serif;
             text-align: center;
             margin: 0;
-            padding-top: 30px;
+            padding-top: 20px;
             overflow-x: hidden;
         }
 
-        /* 전체 화면 시 컨테이너가 화면을 꽉 채우도록 설정 */
+        /* 전체 화면 시 컨테이너 최적화 */
         #screen-wrapper {
             position: relative;
             display: inline-flex;
@@ -28,13 +32,30 @@
             background-color: #000;
             max-width: 100%;
             box-sizing: border-box;
-            transition: width 0.3s, height 0.3s;
+            transition: all 0.3s ease;
         }
 
+        /* PC 및 지원 브라우저 전체화면 표준 */
         #screen-wrapper:fullscreen {
             width: 100vw;
             height: 100vh;
-            border: none;
+        }
+
+        #screen-wrapper:-webkit-full-screen {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* 아이폰/iOS 대응 유사 전체화면 클래스 */
+        .ios-fullscreen-fix {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 9999 !important;
+            margin: 0 !important;
+            border: none !important;
         }
 
         #video-container {
@@ -43,28 +64,33 @@
             align-items: stretch;
             background: #000;
             width: 848px;
-            /* 768 + 80 */
-            aspect-ratio: auto;
+            /* 기본 크기: 768(256x3) + 80(히스토그램) */
+            transition: width 0.2s;
         }
 
-        #screen-wrapper:fullscreen #video-container {
-            width: 100%;
-            height: 100%;
+        /* 전체화면 시 비디오 컨테이너 크기 조정 */
+        #screen-wrapper:fullscreen #video-container,
+        .ios-fullscreen-fix #video-container {
+            width: 100% !important;
+            height: 100% !important;
             justify-content: center;
         }
 
-        /* 캔버스 영역 */
         #canvas-area {
             position: relative;
             flex-grow: 1;
             aspect-ratio: 4 / 3;
             overflow: hidden;
+            background: #000;
         }
 
-        #screen-wrapper:fullscreen #canvas-area {
+        /* 전체화면 시 4:3 비율 유지하며 최대화 */
+        #screen-wrapper:fullscreen #canvas-area,
+        .ios-fullscreen-fix #canvas-area {
             flex-grow: 0;
-            height: 100%;
+            height: 100vh;
             width: calc(100vh * 4 / 3);
+            max-width: 100vw;
         }
 
         #msx-screen {
@@ -75,18 +101,43 @@
             display: block;
         }
 
-        /* 온 스크린 컨트롤러 그룹 (유튜브 스타일) */
+        /* EQ 오버레이 (복구) */
+        #eq-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 25%;
+            height: 25%;
+            pointer-events: none;
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            padding: 2%;
+            box-sizing: border-box;
+            gap: 2%;
+            z-index: 10;
+        }
+
+        .overlay-eq-bar {
+            flex: 1;
+            background-color: rgba(255, 255, 255, var(--eq-opacity));
+            height: 0%;
+            border-radius: 1px 1px 0 0;
+            transition: height 0.05s ease-out;
+        }
+
+        /* 온 스크린 컨트롤러 (유튜브 스타일) */
         #osd-controls {
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
-            background: linear-gradient(to top, rgba(0, 0, 0, 0.7) 0%, transparent 20%, transparent 80%, rgba(0, 0, 0, 0.4) 100%);
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, transparent 25%, transparent 75%, rgba(0, 0, 0, 0.5) 100%);
             display: flex;
             flex-direction: column;
             justify-content: flex-end;
-            padding: 10px;
+            padding: 15px;
             opacity: 0;
             transition: opacity 0.3s;
             z-index: 25;
@@ -94,19 +145,18 @@
         }
 
         #canvas-area:hover #osd-controls,
-        #canvas-area.touch-active #osd-controls {
+        .touch-active #osd-controls {
             opacity: 1;
             pointer-events: auto;
         }
 
-        /* 재생/일시정지 중앙 버튼 */
         #btn-osd-play-pause {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             background: rgba(0, 0, 0, 0.5);
-            border: none;
+            border: 2px solid rgba(255, 255, 255, 0.2);
             border-radius: 50%;
             width: 60px;
             height: 60px;
@@ -117,28 +167,27 @@
             justify-content: center;
         }
 
-        /* 하단 바 (슬라이더 + 시간) */
         .osd-bottom-bar {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
             width: 100%;
         }
 
         #osd-seek-slider {
             flex-grow: 1;
             cursor: pointer;
-            accent-color: red;
+            accent-color: #ff0000;
         }
 
         .osd-time {
             font-family: monospace;
-            font-size: 14px;
-            min-width: 100px;
-            text-align: left;
+            font-size: 13px;
+            color: #ddd;
+            min-width: 90px;
         }
 
-        /* 히스토그램 (토글 가능) */
+        /* 히스토그램 (우측) */
         #palette-histogram {
             width: 80px;
             background: transparent;
@@ -173,15 +222,47 @@
             flex-shrink: 0;
         }
 
-        /* 보더 제거, 크기 키움 */
         .hist-bar {
             height: 8px;
             background-color: #00ffcc;
             border-radius: 0 1px 1px 0;
-            min-width: 0px;
         }
 
-        /* 기타 UI */
+        /* 하단 컨트롤 패널 */
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            padding: 0 10px;
+        }
+
+        .panel {
+            background: #222;
+            padding: 8px 15px;
+            border-radius: 6px;
+            border: 1px solid #444;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        button {
+            padding: 8px 15px;
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        button:hover {
+            background: #444;
+        }
+
         #canvas-msg-overlay {
             position: absolute;
             top: 0;
@@ -192,7 +273,7 @@
             align-items: center;
             justify-content: center;
             font-size: 14px;
-            color: #888;
+            color: #777;
             background-color: #000;
             z-index: 5;
             border: 1px dashed #333;
@@ -207,49 +288,6 @@
             fill: white;
             padding: 5px;
             display: flex;
-            align-items: center;
-        }
-
-        .controls {
-            margin-top: 20px;
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        button {
-            padding: 8px 15px;
-            background: #333;
-            color: white;
-            border: 1px solid #555;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        #dashboard {
-            margin-top: 20px;
-            padding: 15px;
-            background: #1a1a1a;
-            border-radius: 8px;
-            width: fit-content;
-            margin-inline: auto;
-        }
-
-        #vis-eq {
-            display: flex;
-            gap: 3px;
-            align-items: flex-end;
-            height: 50px;
-            border-bottom: 2px solid #444;
-            width: 200px;
-            justify-content: center;
-        }
-
-        .eq-bar {
-            width: 8px;
-            background-color: #00ffcc;
         }
     </style>
 </head>
@@ -262,14 +300,26 @@
             <div id="canvas-area">
                 <canvas id="msx-screen" width="256" height="192"></canvas>
 
-                <div id="canvas-msg-overlay">📂 Drop .MV/.ZIP here</div>
+                <div id="canvas-msg-overlay">📂 Drop .MV or .ZIP here</div>
+
+                <div id="eq-overlay">
+                    <div class="overlay-eq-bar"></div>
+                    <div class="overlay-eq-bar"></div>
+                    <div class="overlay-eq-bar"></div>
+                    <div class="overlay-eq-bar"></div>
+                    <div class="overlay-eq-bar"></div>
+                    <div class="overlay-eq-bar"></div>
+                    <div class="overlay-eq-bar"></div>
+                    <div class="overlay-eq-bar"></div>
+                    <div class="overlay-eq-bar"></div>
+                </div>
 
                 <div id="osd-controls">
                     <button id="btn-osd-play-pause">
-                        <svg id="icon-play" viewBox="0 0 24 24" width="32" height="32">
+                        <svg id="icon-play" viewBox="0 0 24 24" width="36" height="36">
                             <path d="M8 5v14l11-7z" />
                         </svg>
-                        <svg id="icon-pause" viewBox="0 0 24 24" width="32" height="32" style="display:none;">
+                        <svg id="icon-pause" viewBox="0 0 24 24" width="36" height="36" style="display:none;">
                             <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                         </svg>
                     </button>
@@ -291,27 +341,32 @@
                     </div>
                 </div>
             </div>
-            <div id="palette-histogram" title="Click to Toggle"></div>
+            <div id="palette-histogram" title="Click to Toggle Histogram"></div>
         </div>
     </div>
 
     <div class="controls">
-        <button id="btn-open-file" style="background:#b91d1d; border:none;">📁 Open File</button>
+        <button id="btn-open-file" style="background:#d9534f; border:none; font-weight:bold;">📁 OPEN FILE</button>
+
+        <div class="panel">
+            <button id="toggle-eq-btn" style="background:#444">EQ ON</button>
+            <label style="font-size:12px;">Opacity</label>
+            <input type="range" id="eq-opacity-slider" min="0" max="1" step="0.05" value="0.25" style="width:70px;">
+        </div>
+
         <button id="btn-prev-frame">-1F</button>
         <button id="btn-next-frame">+1F</button>
-        <button id="btn-export">💾 Export MP4</button>
-        <input type="range" id="scale-slider" min="1" max="5" step="1" value="3" title="Zoom">
+        <button id="btn-export">💾 EXPORT MP4</button>
+
+        <div class="panel">
+            <label style="font-size:12px;">Zoom</label>
+            <input type="range" id="scale-slider" min="1" max="5" step="1" value="3" style="width:70px;">
+        </div>
     </div>
 
-    <div id="status">Ready</div>
-
-    <div id="dashboard">
-        <div id="vis-eq"></div>
-        <div style="font-size:10px; color:#666; margin-top:5px;">STEREO EQ</div>
-    </div>
+    <div id="status" style="margin-top:10px; font-size:13px; color:#888;">Ready</div>
 
     <input type="file" id="file-input" accept=".mv,.mv2,.zip" style="display:none;" />
-    <canvas id="export-canvas" width="256" height="192" style="display:none;"></canvas>
 
     <script>
         const { FFmpeg } = FFmpegWASM;
@@ -337,11 +392,6 @@
                     row.innerHTML = `<div class="hist-color-box" id="hist-clr-${i}"></div><div class="hist-bar" id="hist-bar-${i}" style="width: 0%"></div>`;
                     histContainer.appendChild(row);
                 }
-                const eqContainer = document.getElementById('vis-eq');
-                for (let i = 0; i < 19; i++) {
-                    if (i === 9) { eqContainer.innerHTML += '<div style="width:2px; height:10px; background:#444; margin:0 4px;"></div>'; continue; }
-                    eqContainer.innerHTML += '<div class="eq-bar" style="height:0px"></div>';
-                }
             }
 
             formatTime(s) { return `${Math.floor(s / 60).toString().padStart(2, '0')}:${Math.floor(s % 60).toString().padStart(2, '0')}`; }
@@ -354,10 +404,8 @@
                     let cur = this.audioCtx.currentTime - this.startTime;
                     if (cur > this.duration) cur = this.duration;
                     const frame = Math.floor(cur * this.fps);
-
                     document.getElementById('osd-seek-slider').value = (cur / this.duration) * 100;
                     document.getElementById('osd-time-cur').innerText = this.formatTime(cur);
-
                     if (frame < this.totalFrames) {
                         if (this.lastFrame !== frame) { this.renderFrame(frame); this.lastFrame = frame; }
                     } else { this.pause(); }
@@ -383,7 +431,6 @@
                 this.duration = this.totalFrames / this.fps;
                 document.getElementById('osd-time-total').innerText = this.formatTime(this.duration);
                 document.getElementById('osd-seek-slider').disabled = false;
-                document.getElementById('status').innerText = "Loaded: " + this.totalFrames + " frames";
             }
 
             async parseMV1(data) {
@@ -435,7 +482,6 @@
                 }
                 this.ctx.putImageData(img, 0, 0);
 
-                // 히스토그램 업데이트 (숨겨져 있지 않을 때만)
                 if (!document.getElementById('palette-histogram').classList.contains('hidden')) {
                     const maxLog = Math.log10(256 * 192 + 1);
                     for (let i = 0; i < 16; i++) {
@@ -445,34 +491,29 @@
                     }
                 }
 
-                // EQ 대시보드 업데이트
-                const dbBars = document.getElementById('vis-eq').querySelectorAll('.eq-bar');
+                // 온 스크린 EQ 바 업데이트
+                const bars = document.getElementById('eq-overlay').children;
                 for (let i = 0; i < 9; i++) {
                     const h = ((15 - Math.min(frame.eqRaw[i], 15)) / 15) * 100;
-                    dbBars[i].style.height = h * 0.5 + 'px'; dbBars[17 - i].style.height = h * 0.5 + 'px';
+                    if (document.getElementById('eq-overlay').style.display !== 'none') bars[i].style.height = h + '%';
                 }
             }
 
             togglePlay() { this.isPlaying ? this.pause() : this.play(); }
-
             async play() {
                 if (this.isPlaying || !this.audioBuffer) return;
                 if (this.audioCtx.state === 'suspended') await this.audioCtx.resume();
                 this.src = this.audioCtx.createBufferSource(); this.src.buffer = this.audioBuffer;
                 this.src.connect(this.audioCtx.destination); this.src.start(0, this.pauseTime);
                 this.startTime = this.audioCtx.currentTime - this.pauseTime; this.isPlaying = true;
-                this.updatePlayIcon(true);
-                this.timerWorker.postMessage('start');
+                this.updatePlayIcon(true); this.timerWorker.postMessage('start');
             }
-
             pause() {
                 if (!this.isPlaying) return; this.isPlaying = false;
                 if (this.src) { try { this.src.stop(); } catch (e) { } }
                 if (!this.isScrubbing) this.pauseTime = this.audioCtx.currentTime - this.startTime;
-                this.updatePlayIcon(false);
-                this.timerWorker.postMessage('stop');
+                this.updatePlayIcon(false); this.timerWorker.postMessage('stop');
             }
-
             updatePlayIcon(playing) {
                 document.getElementById('icon-play').style.display = playing ? 'none' : 'block';
                 document.getElementById('icon-pause').style.display = playing ? 'block' : 'none';
@@ -481,53 +522,21 @@
 
         const player = new MSXMediaDemuxer('msx-screen');
 
-        // 히스토그램 토글
-        document.getElementById('palette-histogram').addEventListener('click', function () {
-            this.classList.toggle('hidden');
-        });
-
-        // 파일 열기
+        // 파일 선택
         document.getElementById('btn-open-file').addEventListener('click', () => document.getElementById('file-input').click());
-        document.getElementById('file-input').addEventListener('change', e => {
-            if (e.target.files.length) player.loadFile(e.target.files[0]);
+        document.getElementById('file-input').addEventListener('change', e => { if (e.target.files.length) player.loadFile(e.target.files[0]); });
+
+        // EQ 토글 및 투명도
+        document.getElementById('toggle-eq-btn').addEventListener('click', e => {
+            const eq = document.getElementById('eq-overlay');
+            const isOff = eq.style.display === 'none';
+            eq.style.display = isOff ? 'flex' : 'none';
+            e.target.innerText = isOff ? 'EQ ON' : 'EQ OFF';
+            e.target.style.backgroundColor = isOff ? '#444' : '#d9534f';
         });
 
-        // 캔버스 드롭존
-        const canvasArea = document.getElementById('canvas-area');
-        canvasArea.addEventListener('dragover', e => { e.preventDefault(); canvasArea.classList.add('dragover'); });
-        canvasArea.addEventListener('dragleave', () => canvasArea.classList.remove('dragover'));
-        canvasArea.addEventListener('drop', e => {
-            e.preventDefault(); canvasArea.classList.remove('dragover');
-            if (e.dataTransfer.files.length > 0) player.loadFile(e.dataTransfer.files[0]);
-        });
-
-        // 재생 토글
-        document.getElementById('btn-osd-play-pause').addEventListener('click', () => player.togglePlay());
-
-        // 프레임 이동
-        const moveFrame = (dir) => {
-            if (!player.frames.length) return; player.pause();
-            const curF = Math.floor(player.pauseTime * player.fps);
-            const tarF = Math.max(0, Math.min(player.totalFrames - 1, curF + dir));
-            player.pauseTime = tarF / player.fps;
-            document.getElementById('osd-seek-slider').value = (player.pauseTime / player.duration) * 100;
-            document.getElementById('osd-time-cur').innerText = player.formatTime(player.pauseTime);
-            player.renderFrame(tarF);
-        };
-        document.getElementById('btn-prev-frame').addEventListener('click', () => moveFrame(-1));
-        document.getElementById('btn-next-frame').addEventListener('click', () => moveFrame(1));
-
-        // 탐색 슬라이더
-        const seek = document.getElementById('osd-seek-slider');
-        seek.addEventListener('input', e => {
-            player.isScrubbing = true; player.pause();
-            const time = (e.target.value / 100) * player.duration;
-            document.getElementById('osd-time-cur').innerText = player.formatTime(time);
-            player.renderFrame(Math.min(Math.floor(time * player.fps), player.totalFrames - 1));
-        });
-        seek.addEventListener('change', e => {
-            player.pauseTime = (e.target.value / 100) * player.duration;
-            player.isScrubbing = false;
+        document.getElementById('eq-opacity-slider').addEventListener('input', e => {
+            document.documentElement.style.setProperty('--eq-opacity', e.target.value);
         });
 
         // 줌 슬라이더
@@ -536,31 +545,83 @@
             document.getElementById('video-container').style.width = (256 * s + 80) + 'px';
         });
 
-        // 전체 화면 토글
+        // 드래그 앤 드롭
+        const canvasArea = document.getElementById('canvas-area');
+        canvasArea.addEventListener('dragover', e => { e.preventDefault(); canvasArea.classList.add('dragover'); });
+        canvasArea.addEventListener('dragleave', () => canvasArea.classList.remove('dragover'));
+        canvasArea.addEventListener('drop', e => {
+            e.preventDefault(); canvasArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) player.loadFile(e.dataTransfer.files[0]);
+        });
+
+        // 히스토그램 토글
+        document.getElementById('palette-histogram').addEventListener('click', function () { this.classList.toggle('hidden'); });
+
+        // 재생/슬라이더 제어
+        document.getElementById('btn-osd-play-pause').addEventListener('click', () => player.togglePlay());
+        const seek = document.getElementById('osd-seek-slider');
+        seek.addEventListener('input', e => {
+            player.isScrubbing = true; player.pause();
+            const time = (e.target.value / 100) * player.duration;
+            document.getElementById('osd-time-cur').innerText = player.formatTime(time);
+            player.renderFrame(Math.min(Math.floor(time * player.fps), player.totalFrames - 1));
+        });
+        seek.addEventListener('change', e => { player.pauseTime = (e.target.value / 100) * player.duration; player.isScrubbing = false; });
+
+        // 프레임 이동
+        const moveFrame = (dir) => {
+            if (!player.frames.length) return; player.pause();
+            const tarF = Math.max(0, Math.min(player.totalFrames - 1, Math.floor(player.pauseTime * player.fps) + dir));
+            player.pauseTime = tarF / player.fps;
+            seek.value = (player.pauseTime / player.duration) * 100;
+            document.getElementById('osd-time-cur').innerText = player.formatTime(player.pauseTime);
+            player.renderFrame(tarF);
+        };
+        document.getElementById('btn-prev-frame').addEventListener('click', () => moveFrame(-1));
+        document.getElementById('btn-next-frame').addEventListener('click', () => moveFrame(1));
+
+        // 전체 화면 토글 (PC + iPhone 호환 로직)
         const btnFs = document.getElementById('btn-fullscreen-toggle');
         const screenWrapper = document.getElementById('screen-wrapper');
         const iconExpand = document.getElementById('icon-expand');
         const iconCompress = document.getElementById('icon-compress');
-        const hist = document.getElementById('palette-histogram');
 
-        btnFs.addEventListener('click', () => {
-            if (!document.fullscreenElement) {
-                screenWrapper.requestFullscreen().catch(err => alert(err.message));
+        const toggleFullscreen = () => {
+            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                // 전체화면 시도
+                const req = screenWrapper.requestFullscreen || screenWrapper.webkitRequestFullscreen;
+                if (req) {
+                    req.call(screenWrapper).catch(err => {
+                        // API 거부 시 iOS용 유사 전체화면 실행
+                        screenWrapper.classList.add('ios-fullscreen-fix');
+                    });
+                } else {
+                    // 아이폰 등 API 미지원 시 유사 전체화면
+                    screenWrapper.classList.add('ios-fullscreen-fix');
+                }
             } else {
-                document.exitFullscreen();
+                // 전체화면 해제
+                const exit = document.exitFullscreen || document.webkitExitFullscreen;
+                if (exit) exit.call(document);
+                screenWrapper.classList.remove('ios-fullscreen-fix');
             }
-        });
+        };
 
-        document.addEventListener('fullscreenchange', () => {
-            const isFs = !!document.fullscreenElement;
+        btnFs.addEventListener('click', toggleFullscreen);
+
+        // 상태 변화 감지 아이콘 업데이트
+        const updateFsIcons = () => {
+            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || screenWrapper.classList.contains('ios-fullscreen-fix'));
             iconExpand.style.display = isFs ? 'none' : 'block';
             iconCompress.style.display = isFs ? 'block' : 'none';
-            // 전체화면 시 히스토그램 자동 숨김
-            if (isFs) hist.classList.add('hidden');
-            else hist.classList.remove('hidden');
-        });
+            if (isFs) document.getElementById('palette-histogram').classList.add('hidden');
+            else document.getElementById('palette-histogram').classList.remove('hidden');
+        };
 
-        // 모바일 터치 대응을 위한 클래스 토글
+        document.addEventListener('fullscreenchange', updateFsIcons);
+        document.addEventListener('webkitfullscreenchange', updateFsIcons);
+
+        // 모바일 터치 시 OSD 표시 제어
         canvasArea.addEventListener('touchstart', () => {
             canvasArea.classList.add('touch-active');
             clearTimeout(window.touchTimer);
