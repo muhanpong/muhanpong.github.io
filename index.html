@@ -783,7 +783,8 @@
                         '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '256x192', '-r', '15', '-i', 'video.raw',
                         '-i', 'audio.mp3',
                         '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
-                        '-c:a', 'copy', // MP3는 그대로 복사 (빠르고 화질 열화 없음)
+                        '-c:a', 'copy', // MP3는 그대로 복사 (빠르고 화질 열화 없음),
+                        '-vf', 'scale=-1:768:flags=neighbor', '-pix_fmt', 'yuv420p',
                         '-shortest', 'output.mp4'
                     ];
                 }
