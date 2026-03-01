@@ -23,7 +23,6 @@
             overflow-x: hidden;
         }
 
-        /* 전체 화면 컨테이너 (iOS 주소창 잘림 방지를 위해 100dvh 우선 적용) */
         #screen-wrapper {
             position: relative;
             display: inline-flex;
@@ -65,7 +64,6 @@
             align-items: stretch;
             background: #000;
             width: 848px;
-            /* 768 + 80 */
             transition: width 0.2s;
         }
 
@@ -102,7 +100,6 @@
             display: block;
         }
 
-        /* EQ 오버레이 */
         #eq-overlay {
             position: absolute;
             top: 0;
@@ -127,7 +124,6 @@
             transition: height 0.05s ease-out;
         }
 
-        /* 온 스크린 컨트롤러 */
         #osd-controls {
             position: absolute;
             top: 0;
@@ -189,7 +185,6 @@
             text-align: left;
         }
 
-        /* 히스토그램 */
         #palette-histogram {
             width: 80px;
             background: transparent;
@@ -230,7 +225,6 @@
             border-radius: 0 1px 1px 0;
         }
 
-        /* UI 패널 */
         #canvas-msg-overlay {
             position: absolute;
             top: 0;
@@ -364,11 +358,6 @@
         <button id="btn-prev-frame">-1F</button>
         <button id="btn-next-frame">+1F</button>
         <button id="btn-export">💾 EXPORT MP4</button>
-        <div class="panel">
-            <label style="font-size:12px;">
-                <input type="checkbox" id="chk-scanlines"> SL
-            </label>
-        </div>
 
         <div class="panel">
             <label style="font-size:12px;">Zoom</label>
@@ -461,7 +450,7 @@
                 this.duration = this.totalFrames / this.fps;
                 document.getElementById('osd-time-total').innerText = this.formatTime(this.duration);
                 document.getElementById('osd-seek-slider').disabled = false;
-                await this.play(); // 자동 재생
+                await this.play();
             }
 
             async parseMV1(data) {
@@ -549,35 +538,8 @@
                 }
             }
 
-            // async exportMP4() {
-            //     const btn = document.getElementById('btn-export'); const status = document.getElementById('status');
-            //     btn.disabled = true; status.innerText = "Preparing export...";
-            //     if (!ffmpeg.loaded) await ffmpeg.load({ coreURL: 'ffmpeg-core.js', wasmURL: 'ffmpeg-core.wasm' });
-            //     const exportCanvas = document.getElementById('export-canvas'); const exportCtx = exportCanvas.getContext('2d');
-            //     const videoData = new Uint8Array(this.totalFrames * 256 * 192 * 3); let offset = 0;
-            //     const includeEQ = document.getElementById('eq-overlay').style.display !== 'none';
-
-            //     for (let i = 0; i < this.totalFrames; i++) {
-            //         this.renderFrameToCanvas(i, exportCtx, includeEQ); const pix = exportCtx.getImageData(0, 0, 256, 192).data;
-            //         for (let j = 0; j < pix.length; j += 4) { videoData[offset++] = pix[j]; videoData[offset++] = pix[j + 1]; videoData[offset++] = pix[j + 2]; }
-            //         if (i % 50 === 0) status.innerText = `Encoding... (${i}/${this.totalFrames})`;
-            //     }
-
-            //     await ffmpeg.writeFile('video.raw', videoData);
-            //     let args = [];
-            //     if (this.isMV1) {
-            //         await ffmpeg.writeFile('audio.raw', this.rawAudio);
-            //         args = ['-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '256x192', '-r', '12', '-i', 'video.raw', '-f', 'u8', '-ar', '11328', '-ac', '1', '-i', 'audio.raw', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-shortest', 'output.mp4'];
-            //     } else {
-            //         await ffmpeg.writeFile('audio.mp3', this.rawAudio);
-            //         args = ['-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '256x192', '-r', '15', '-i', 'video.raw', '-i', 'audio.mp3', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-shortest', 'output.mp4'];
-            //     }
-            //     await ffmpeg.exec(args); const data = await ffmpeg.readFile('output.mp4');
-            //     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
-            //     a.download = `msx_export_${Date.now()}.mp4`; a.click(); status.innerText = "Export Complete!"; btn.disabled = false;
-            // }
             async exportMP4() {
-                // 1. 파일이 로드되지 않은 상태에서 버튼을 누른 경우 방어
+                // [오류 방어] 파일이 로드되지 않은 경우 예외 처리
                 if (!this.frames || this.totalFrames === 0) {
                     alert("먼저 추출할 파일을 열어주세요.");
                     return;
@@ -588,7 +550,7 @@
                 btn.disabled = true;
                 status.innerText = "Preparing export... (Loading FFmpeg)";
 
-                // 2. FFmpeg 로드 구간에 try...catch 추가하여 멈춤 현상 원인 파악
+                // [핵심 변경] try...catch를 통해 FFmpeg 로드 실패 원인을 콘솔과 화면에 명확하게 표시
                 try {
                     if (!ffmpeg.loaded) {
                         await ffmpeg.load({ coreURL: 'ffmpeg-core.js', wasmURL: 'ffmpeg-core.wasm' });
@@ -596,19 +558,16 @@
                 } catch (error) {
                     console.error("FFmpeg 로드 실패 상세 에러:", error);
                     status.innerText = "에러: FFmpeg 로드 실패. F12 개발자 도구를 확인하세요.";
-                    alert("FFmpeg WASM 모듈을 불러오지 못했습니다.\n\n로컬 서버(http://localhost)로 실행 중인지, ffmpeg-core 파일이 같은 폴더에 있는지 확인해주세요.");
+                    alert("FFmpeg WASM 모듈을 불러오지 못했습니다.\n\n로컬 서버(http://localhost)로 실행 중인지, ffmpeg-core 파일이 같은 폴더에 위치해 있는지 확인해주세요.");
                     btn.disabled = false;
-                    return; // 여기서 실행 중단
+                    return; // 로드 실패 시 함수 즉시 종료
                 }
 
-                // FFmpeg 로드 성공 시 정상적으로 다음 단계 진행
                 const exportCanvas = document.getElementById('export-canvas');
                 const exportCtx = exportCanvas.getContext('2d');
-
                 const videoData = new Uint8Array(this.totalFrames * 256 * 192 * 3);
                 let offset = 0;
                 const includeEQ = document.getElementById('eq-overlay').style.display !== 'none';
-                const includeScanlines = document.getElementById('chk-scanlines').checked;
 
                 for (let i = 0; i < this.totalFrames; i++) {
                     this.renderFrameToCanvas(i, exportCtx, includeEQ);
@@ -620,13 +579,13 @@
                     }
                     if (i % 50 === 0) {
                         status.innerText = `Encoding... (${i}/${this.totalFrames})`;
-                        await new Promise(r => setTimeout(r, 0));
+                        await new Promise(r => setTimeout(r, 0)); // UI 프리징 방지
                     }
                 }
 
                 await ffmpeg.writeFile('video.raw', videoData);
 
-                // [수정] 가로 줄 필터 제거 (원본 그대로 출력)
+                // 가로줄 옵션 없이 기본 3배 확대만 적용
                 let vfFilter = 'scale=768:576:flags=neighbor';
 
                 let args = [];
@@ -656,6 +615,7 @@
                 a.download = `msx_export_${Date.now()}.mp4`;
                 a.click();
 
+                // WASM 가상 메모리 누수 방지 파일 삭제
                 await ffmpeg.deleteFile('video.raw');
                 await ffmpeg.deleteFile('output.mp4');
                 if (this.isMV1) {
@@ -671,20 +631,15 @@
             togglePlay() { this.isPlaying ? this.pause() : this.play(); }
 
             async play() {
-                // 1. 이미 재생 중이거나 버퍼가 없으면 차단
                 if (this.isPlaying || !this.audioBuffer) return;
-
-                // 2. [핵심] await 대기 전에 즉시 상태를 true로 변경하여 중복 실행 방지
                 this.isPlaying = true;
 
                 if (this.audioCtx.state === 'suspended') {
                     await this.audioCtx.resume();
                 }
 
-                // 3. await로 기다리는 동안 사용자가 다른 파일을 열어서 버퍼가 날아갔다면 재생 취소
                 if (!this.isPlaying || !this.audioBuffer) return;
 
-                // 4. 이전에 생성된 좀비 오디오 소스가 남아있다면 확실히 숨통을 끊음
                 if (this.src) {
                     try { this.src.stop(); } catch (e) { }
                     try { this.src.disconnect(); } catch (e) { }
@@ -701,14 +656,12 @@
             }
 
             pause() {
-                // 1. 상태를 우선 false로 변경
                 this.isPlaying = false;
 
-                // 2. 현재 물려있는 오디오 소스를 즉시 파괴
                 if (this.src) {
                     try { this.src.stop(); } catch (e) { }
                     try { this.src.disconnect(); } catch (e) { }
-                    this.src = null; // 참조 완전히 제거
+                    this.src = null;
                 }
 
                 if (!this.isScrubbing) {
@@ -726,11 +679,9 @@
 
         const player = new MSXMediaDemuxer('msx-screen');
 
-        // 브라우저 전역 Drag & Drop 차단 (오작동 방지)
         window.addEventListener('dragover', e => e.preventDefault());
         window.addEventListener('drop', e => e.preventDefault());
 
-        // 파일 열기 및 드래그 앤 드롭
         document.getElementById('btn-open-file').onclick = () => document.getElementById('file-input').click();
         document.getElementById('file-input').onchange = e => { if (e.target.files.length) player.loadFile(e.target.files[0]); };
 
@@ -739,7 +690,6 @@
         canvasArea.ondragleave = () => canvasArea.classList.remove('dragover');
         canvasArea.ondrop = e => { e.preventDefault(); canvasArea.classList.remove('dragover'); if (e.dataTransfer.files.length) player.loadFile(e.dataTransfer.files[0]); };
 
-        // UI 제어 (EQ, Zoom, Histogram)
         document.getElementById('toggle-eq-btn').onclick = e => {
             const eq = document.getElementById('eq-overlay'); const isOff = eq.style.display === 'none';
             eq.style.display = isOff ? 'flex' : 'none'; e.target.innerText = isOff ? 'EQ ON' : 'EQ OFF';
@@ -749,11 +699,9 @@
         document.getElementById('scale-slider').oninput = e => document.getElementById('video-container').style.width = (256 * e.target.value + 80) + 'px';
         document.getElementById('palette-histogram').onclick = function () { this.classList.toggle('hidden'); };
 
-        // 재생/정지, 내보내기
         document.getElementById('btn-osd-play-pause').onclick = () => player.togglePlay();
         document.getElementById('btn-export').onclick = () => player.exportMP4();
 
-        // 슬라이더 탐색 및 자동 재생 복귀 처리
         const seek = document.getElementById('osd-seek-slider');
         let wasPlayingBeforeSeek = false;
         seek.onmousedown = seek.ontouchstart = () => { wasPlayingBeforeSeek = player.isPlaying; };
@@ -770,7 +718,6 @@
             if (wasPlayingBeforeSeek) player.play();
         };
 
-        // 프레임 이동
         const moveFrame = (d) => {
             if (!player.frames.length) return; player.pause();
             const tar = Math.max(0, Math.min(player.totalFrames - 1, Math.floor(player.pauseTime * player.fps) + d));
@@ -780,7 +727,6 @@
         document.getElementById('btn-prev-frame').onclick = () => moveFrame(-1);
         document.getElementById('btn-next-frame').onclick = () => moveFrame(1);
 
-        // 전체 화면 토글 (iOS / PC 통합)
         const btnFs = document.getElementById('btn-fullscreen-toggle');
         const screenWrapper = document.getElementById('screen-wrapper');
         const iconExp = document.getElementById('icon-expand');
@@ -811,7 +757,6 @@
         document.addEventListener('fullscreenchange', updateFsUI);
         document.addEventListener('webkitfullscreenchange', updateFsUI);
 
-        // 모바일 터치 시 OSD 표시 제어
         canvasArea.ontouchstart = () => {
             canvasArea.classList.add('touch-active');
             clearTimeout(window.tTimer);
