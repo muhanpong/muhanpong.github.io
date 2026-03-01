@@ -544,32 +544,104 @@
                 }
             }
 
+            // async exportMP4() {
+            //     const btn = document.getElementById('btn-export'); const status = document.getElementById('status');
+            //     btn.disabled = true; status.innerText = "Preparing export...";
+            //     if (!ffmpeg.loaded) await ffmpeg.load({ coreURL: 'ffmpeg-core.js', wasmURL: 'ffmpeg-core.wasm' });
+            //     const exportCanvas = document.getElementById('export-canvas'); const exportCtx = exportCanvas.getContext('2d');
+            //     const videoData = new Uint8Array(this.totalFrames * 256 * 192 * 3); let offset = 0;
+            //     const includeEQ = document.getElementById('eq-overlay').style.display !== 'none';
+
+            //     for (let i = 0; i < this.totalFrames; i++) {
+            //         this.renderFrameToCanvas(i, exportCtx, includeEQ); const pix = exportCtx.getImageData(0, 0, 256, 192).data;
+            //         for (let j = 0; j < pix.length; j += 4) { videoData[offset++] = pix[j]; videoData[offset++] = pix[j + 1]; videoData[offset++] = pix[j + 2]; }
+            //         if (i % 50 === 0) status.innerText = `Encoding... (${i}/${this.totalFrames})`;
+            //     }
+
+            //     await ffmpeg.writeFile('video.raw', videoData);
+            //     let args = [];
+            //     if (this.isMV1) {
+            //         await ffmpeg.writeFile('audio.raw', this.rawAudio);
+            //         args = ['-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '256x192', '-r', '12', '-i', 'video.raw', '-f', 'u8', '-ar', '11328', '-ac', '1', '-i', 'audio.raw', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-shortest', 'output.mp4'];
+            //     } else {
+            //         await ffmpeg.writeFile('audio.mp3', this.rawAudio);
+            //         args = ['-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '256x192', '-r', '15', '-i', 'video.raw', '-i', 'audio.mp3', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-shortest', 'output.mp4'];
+            //     }
+            //     await ffmpeg.exec(args); const data = await ffmpeg.readFile('output.mp4');
+            //     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
+            //     a.download = `msx_export_${Date.now()}.mp4`; a.click(); status.innerText = "Export Complete!"; btn.disabled = false;
+            // }
             async exportMP4() {
-                const btn = document.getElementById('btn-export'); const status = document.getElementById('status');
-                btn.disabled = true; status.innerText = "Preparing export...";
+                const btn = document.getElementById('btn-export');
+                const status = document.getElementById('status');
+                btn.disabled = true;
+                status.innerText = "Preparing export...";
+
                 if (!ffmpeg.loaded) await ffmpeg.load({ coreURL: 'ffmpeg-core.js', wasmURL: 'ffmpeg-core.wasm' });
-                const exportCanvas = document.getElementById('export-canvas'); const exportCtx = exportCanvas.getContext('2d');
-                const videoData = new Uint8Array(this.totalFrames * 256 * 192 * 3); let offset = 0;
+
+                const exportCanvas = document.getElementById('export-canvas');
+                const exportCtx = exportCanvas.getContext('2d');
+                const videoData = new Uint8Array(this.totalFrames * 256 * 192 * 3);
+                let offset = 0;
                 const includeEQ = document.getElementById('eq-overlay').style.display !== 'none';
+                const includeScanlines = document.getElementById('chk-scanlines').checked;
 
                 for (let i = 0; i < this.totalFrames; i++) {
-                    this.renderFrameToCanvas(i, exportCtx, includeEQ); const pix = exportCtx.getImageData(0, 0, 256, 192).data;
-                    for (let j = 0; j < pix.length; j += 4) { videoData[offset++] = pix[j]; videoData[offset++] = pix[j + 1]; videoData[offset++] = pix[j + 2]; }
-                    if (i % 50 === 0) status.innerText = `Encoding... (${i}/${this.totalFrames})`;
+                    this.renderFrameToCanvas(i, exportCtx, includeEQ);
+                    const pix = exportCtx.getImageData(0, 0, 256, 192).data;
+                    for (let j = 0; j < pix.length; j += 4) {
+                        videoData[offset++] = pix[j];
+                        videoData[offset++] = pix[j + 1];
+                        videoData[offset++] = pix[j + 2];
+                    }
+                    if (i % 50 === 0) {
+                        status.innerText = `Encoding... (${i}/${this.totalFrames})`;
+                        await new Promise(r => setTimeout(r, 0));
+                    }
                 }
 
                 await ffmpeg.writeFile('video.raw', videoData);
+
+                // [수정] 가로 줄 필터 제거 (원본 그대로 출력)
+                let vfFilter = 'scale=768:576:flags=neighbor';
+
                 let args = [];
                 if (this.isMV1) {
                     await ffmpeg.writeFile('audio.raw', this.rawAudio);
-                    args = ['-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '256x192', '-r', '12', '-i', 'video.raw', '-f', 'u8', '-ar', '11328', '-ac', '1', '-i', 'audio.raw', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-shortest', 'output.mp4'];
+                    args = [
+                        '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '256x192', '-r', '12', '-i', 'video.raw',
+                        '-f', 'u8', '-ar', '11328', '-ac', '1', '-i', 'audio.raw',
+                        '-vf', vfFilter,
+                        '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-shortest', 'output.mp4'
+                    ];
                 } else {
                     await ffmpeg.writeFile('audio.mp3', this.rawAudio);
-                    args = ['-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '256x192', '-r', '15', '-i', 'video.raw', '-i', 'audio.mp3', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-shortest', 'output.mp4'];
+                    args = [
+                        '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '256x192', '-r', '15', '-i', 'video.raw',
+                        '-i', 'audio.mp3',
+                        '-vf', vfFilter,
+                        '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-shortest', 'output.mp4'
+                    ];
                 }
-                await ffmpeg.exec(args); const data = await ffmpeg.readFile('output.mp4');
-                const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
-                a.download = `msx_export_${Date.now()}.mp4`; a.click(); status.innerText = "Export Complete!"; btn.disabled = false;
+
+                await ffmpeg.exec(args);
+                const data = await ffmpeg.readFile('output.mp4');
+
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
+                a.download = `msx_export_${Date.now()}.mp4`;
+                a.click();
+
+                await ffmpeg.deleteFile('video.raw');
+                await ffmpeg.deleteFile('output.mp4');
+                if (this.isMV1) {
+                    await ffmpeg.deleteFile('audio.raw');
+                } else {
+                    await ffmpeg.deleteFile('audio.mp3');
+                }
+
+                status.innerText = "Export Complete!";
+                btn.disabled = false;
             }
 
             togglePlay() { this.isPlaying ? this.pause() : this.play(); }
