@@ -577,15 +577,34 @@
             //     a.download = `msx_export_${Date.now()}.mp4`; a.click(); status.innerText = "Export Complete!"; btn.disabled = false;
             // }
             async exportMP4() {
+                // 1. 파일이 로드되지 않은 상태에서 버튼을 누른 경우 방어
+                if (!this.frames || this.totalFrames === 0) {
+                    alert("먼저 추출할 파일을 열어주세요.");
+                    return;
+                }
+
                 const btn = document.getElementById('btn-export');
                 const status = document.getElementById('status');
                 btn.disabled = true;
-                status.innerText = "Preparing export...";
+                status.innerText = "Preparing export... (Loading FFmpeg)";
 
-                if (!ffmpeg.loaded) await ffmpeg.load({ coreURL: 'ffmpeg-core.js', wasmURL: 'ffmpeg-core.wasm' });
+                // 2. FFmpeg 로드 구간에 try...catch 추가하여 멈춤 현상 원인 파악
+                try {
+                    if (!ffmpeg.loaded) {
+                        await ffmpeg.load({ coreURL: 'ffmpeg-core.js', wasmURL: 'ffmpeg-core.wasm' });
+                    }
+                } catch (error) {
+                    console.error("FFmpeg 로드 실패 상세 에러:", error);
+                    status.innerText = "에러: FFmpeg 로드 실패. F12 개발자 도구를 확인하세요.";
+                    alert("FFmpeg WASM 모듈을 불러오지 못했습니다.\n\n로컬 서버(http://localhost)로 실행 중인지, ffmpeg-core 파일이 같은 폴더에 있는지 확인해주세요.");
+                    btn.disabled = false;
+                    return; // 여기서 실행 중단
+                }
 
+                // FFmpeg 로드 성공 시 정상적으로 다음 단계 진행
                 const exportCanvas = document.getElementById('export-canvas');
                 const exportCtx = exportCanvas.getContext('2d');
+
                 const videoData = new Uint8Array(this.totalFrames * 256 * 192 * 3);
                 let offset = 0;
                 const includeEQ = document.getElementById('eq-overlay').style.display !== 'none';
