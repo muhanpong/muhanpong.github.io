@@ -724,83 +724,154 @@
             }
 
             async exportMP4() {
-                // 1. 파일이 로드되지 않은 상태에서 버튼을 누른 경우 방어
                 if (!this.frames || this.totalFrames === 0) {
                     alert("먼저 추출할 파일을 열어주세요.");
+                    return;
+                }
+
+                if (typeof window.Mp4Muxer === 'undefined') {
+                    alert("mp4-muxer 라이브러리가 로드되지 않았습니다. 인터넷 연결을 확인해주세요.");
+                    return;
+                }
+
+                if (typeof VideoEncoder === "undefined") {
+                    alert("이 브라우저는 WebCodecs API를 지원하지 않습니다. 최신 크롬, 엣지, 사파리를 사용해주세요.");
                     return;
                 }
 
                 const btn = document.getElementById('btn-export');
                 const status = document.getElementById('status');
                 btn.disabled = true;
-                status.innerText = "Preparing export... (Loading FFmpeg)";
+                status.innerText = "오디오 규격 변환 중 (Resampling)...";
 
-                // 2. FFmpeg 로드 구간에 try...catch 추가하여 멈춤 현상 원인 파악
                 try {
-                    if (!ffmpeg.loaded) {
-                        await ffmpeg.load({ coreURL: 'ffmpeg-core.js', wasmURL: 'ffmpeg-core.wasm' });
+                    // [수정 1] 비표준 오디오 샘플레이트를 AAC 표준 규격(44100Hz)으로 리샘플링
+                    const targetSampleRate = 44100;
+                    const offlineCtx = new OfflineAudioContext(1, Math.ceil(this.duration * targetSampleRate), targetSampleRate);
+                    const source = offlineCtx.createBufferSource();
+                    source.buffer = this.audioBuffer;
+                    source.connect(offlineCtx.destination);
+                    source.start(0);
+                    const resampledAudioBuffer = await offlineCtx.startRendering();
+
+                    status.innerText = "하드웨어 가속 인코딩 준비 중...";
+
+                    const muxer = new Mp4Muxer.Muxer({
+                        target: new Mp4Muxer.ArrayBufferTarget(),
+                        video: {
+                            codec: 'avc',
+                            width: 768, 
+                            height: 576 
+                        },
+                        audio: {
+                            codec: 'aac',
+                            sampleRate: targetSampleRate, // 리샘플링된 44100Hz 적용
+                            numberOfChannels: 1
+                        },
+                        fastStart: 'in-memory'
+                    });
+
+                    const videoEncoder = new VideoEncoder({
+                        output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+                        error: e => console.error("비디오 인코딩 에러:", e)
+                    });
+                    videoEncoder.configure({
+                        codec: 'avc1.42001f', 
+                        width: 768,
+                        height: 576,
+                        bitrate: 5_000_000, 
+                        framerate: this.fps
+                    });
+
+                    const audioEncoder = new AudioEncoder({
+                        output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+                        error: e => console.error("오디오 인코딩 에러:", e)
+                    });
+                    audioEncoder.configure({
+                        codec: 'mp4a.40.2', 
+                        sampleRate: targetSampleRate, // 리샘플링된 44100Hz 적용
+                        numberOfChannels: 1,
+                        bitrate: 128_000 
+                    });
+
+                    // 추출한 44100Hz 오디오 데이터를 인코더에 주입
+                    const channelData = resampledAudioBuffer.getChannelData(0);
+                    
+                    for (let i = 0; i < channelData.length; i += targetSampleRate) {
+                        // subarray를 사용하여 메모리 복사 최소화
+                        const chunk = channelData.subarray(i, i + targetSampleRate);
+                        const audioData = new AudioData({
+                            format: 'f32-planar',
+                            sampleRate: targetSampleRate,
+                            numberOfFrames: chunk.length,
+                            numberOfChannels: 1,
+                            timestamp: Math.round((i / targetSampleRate) * 1_000_000),
+                            data: chunk
+                        });
+                        audioEncoder.encode(audioData);
+                        audioData.close();
                     }
-                } catch (error) {
-                    console.error("FFmpeg 로드 실패 상세 에러:", error);
-                    status.innerText = "에러: FFmpeg 로드 실패. F12 개발자 도구를 확인하세요.";
-                    alert("FFmpeg WASM 모듈을 불러오지 못했습니다.\n\n로컬 서버(http://localhost)로 실행 중인지, ffmpeg-core 파일이 같은 폴더에 있는지 확인해주세요.");
+
+                    const baseCanvas = document.createElement('canvas');
+                    baseCanvas.width = 256;
+                    baseCanvas.height = 192;
+                    const baseCtx = baseCanvas.getContext('2d', { willReadFrequently: true });
+
+                    const scaleCanvas = document.createElement('canvas');
+                    scaleCanvas.width = 768;
+                    scaleCanvas.height = 576;
+                    const scaleCtx = scaleCanvas.getContext('2d');
+                    scaleCtx.imageSmoothingEnabled = false; 
+
+                    const includeEQ = document.getElementById('eq-overlay').style.display !== 'none';
+
+                    // [수정 2] 1프레임당 머무르는 시간(마이크로초) 계산 (duration 에러 해결)
+                    const durationMicros = Math.round((1 / this.fps) * 1_000_000);
+
+                    for (let i = 0; i < this.totalFrames; i++) {
+                        this.renderFrameToCanvas(i, baseCtx, includeEQ);
+                        scaleCtx.drawImage(baseCanvas, 0, 0, 256, 192, 0, 0, 768, 576);
+
+                        const timestampMicros = Math.round((i / this.fps) * 1_000_000);
+                        const frame = new VideoFrame(scaleCanvas, {
+                            timestamp: timestampMicros,
+                            duration: durationMicros // 누락되었던 duration 추가
+                        });
+                        
+                        videoEncoder.encode(frame);
+                        frame.close(); 
+
+                        if (i % 30 === 0) {
+                            status.innerText = `GPU 인코딩 중... (${i}/${this.totalFrames})`;
+                            await new Promise(r => setTimeout(r, 0));
+                        }
+                    }
+
+                    status.innerText = "스트림 병합 및 마무리 중...";
+                    await new Promise(r => setTimeout(r, 0));
+
+                    await videoEncoder.flush();
+                    await audioEncoder.flush();
+                    muxer.finalize();
+
+                    const buffer = muxer.target.buffer;
+                    const blob = new Blob([buffer], { type: 'video/mp4' });
+                    
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `msx_export_gpu_${Date.now()}.mp4`;
+                    a.click();
+
+                    status.innerText = "초고속 내보내기 완료!";
+                    status.style.color = "#4CAF50";
+
+                } catch (err) {
+                    console.error("인코딩 중 예외 발생:", err);
+                    status.innerText = "에러: 인코딩 실패 (콘솔 확인)";
+                    status.style.color = "#ff4444";
+                } finally {
                     btn.disabled = false;
-                    return; // 여기서 실행 중단
                 }
-
-                // FFmpeg 로드 성공 시 정상적으로 다음 단계 진행
-                const exportCanvas = document.getElementById('export-canvas');
-                const exportCtx = exportCanvas.getContext('2d');
-                const videoData = new Uint8Array(this.totalFrames * 256 * 192 * 3);
-                let offset = 0;
-
-                for (let i = 0; i < this.totalFrames; i++) {
-                    this.renderFrameToCanvas(i, exportCtx, document.getElementById('eq-overlay').style.display !== 'none');
-                    const pixels = exportCtx.getImageData(0, 0, 256, 192).data;
-                    for (let j = 0; j < pixels.length; j += 4) {
-                        videoData[offset++] = pixels[j]; videoData[offset++] = pixels[j + 1]; videoData[offset++] = pixels[j + 2];
-                    }
-                    if (i % 50 === 0) status.innerText = `프레임 합성 중... (${i}/${this.totalFrames})`;
-                }
-
-                await ffmpeg.writeFile('video.raw', videoData);
-
-                let ffmpegArgs = [];
-
-                // 💡 [핵심] MV1(PCM)과 MV2(MP3)를 완벽히 분기하여 FFmpeg 트랜스코딩 설정
-                if (this.isMV1) {
-                    await ffmpeg.writeFile('audio.raw', this.rawAudioBytes);
-                    ffmpegArgs = [
-                        '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '256x192', '-r', '12', '-i', 'video.raw',
-                        '-f', 'u8', '-ar', '11328', '-ac', '1', '-i', 'audio.raw',
-                        '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
-                        '-c:a', 'aac', '-b:a', '128k',
-                        '-shortest', 'output.mp4'
-                    ];
-                } else {
-                    await ffmpeg.writeFile('audio.mp3', this.rawAudioBytes);
-                    ffmpegArgs = [
-                        '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '256x192', '-r', '15', '-i', 'video.raw',
-                        '-i', 'audio.mp3',
-                        '-c:a', 'copy', // MP3는 그대로 복사 (빠르고 화질 열화 없음),
-                        '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
-                        //'-vf', 'scale=-1:768:flags=neighbor',
-                        '-shortest', 'output.mp4'
-                    ];
-                }
-
-                status.innerText = `MP4 인코딩 중... (${this.isMV1 ? 'PCM->AAC' : 'MP3 Copy'})`;
-                await ffmpeg.exec(ffmpegArgs);
-
-                const data = await ffmpeg.readFile('output.mp4');
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
-                a.download = `msx_export_${this.isMV1 ? 'v1' : 'v2'}.mp4`;
-                a.click();
-
-                status.innerText = "내보내기 완료!";
-                status.style.color = "#4CAF50";
-                btn.disabled = false;
             }
         }
 

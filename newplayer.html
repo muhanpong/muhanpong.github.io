@@ -622,6 +622,11 @@
                     return;
                 }
 
+                if (typeof window.Mp4Muxer === 'undefined') {
+                    alert("mp4-muxer 라이브러리가 로드되지 않았습니다. 인터넷 연결을 확인해주세요.");
+                    return;
+                }
+
                 if (typeof VideoEncoder === "undefined") {
                     alert("이 브라우저는 WebCodecs API를 지원하지 않습니다. 최신 크롬, 엣지, 사파리를 사용해주세요.");
                     return;
@@ -630,121 +635,136 @@
                 const btn = document.getElementById('btn-export');
                 const status = document.getElementById('status');
                 btn.disabled = true;
-                status.innerText = "하드웨어 가속 인코딩 준비 중...";
+                status.innerText = "오디오 규격 변환 중 (Resampling)...";
 
-                // 1. mp4-muxer 초기화 (컨테이너 포장 역할)
-                const muxer = new Mp4Muxer.Muxer({
-                    target: new Mp4Muxer.ArrayBufferTarget(),
-                    video: {
-                        codec: 'avc',
-                        width: 768, // 3배 스케일링 폭
-                        height: 576 // 3배 스케일링 높
-                    },
-                    audio: {
-                        codec: 'aac',
-                        sampleRate: this.audioBuffer.sampleRate,
-                        numberOfChannels: 1
-                    },
-                    fastStart: 'in-memory'
-                });
+                try {
+                    // [수정 1] 비표준 오디오 샘플레이트를 AAC 표준 규격(44100Hz)으로 리샘플링
+                    const targetSampleRate = 44100;
+                    const offlineCtx = new OfflineAudioContext(1, Math.ceil(this.duration * targetSampleRate), targetSampleRate);
+                    const source = offlineCtx.createBufferSource();
+                    source.buffer = this.audioBuffer;
+                    source.connect(offlineCtx.destination);
+                    source.start(0);
+                    const resampledAudioBuffer = await offlineCtx.startRendering();
 
-                // 2. 비디오 및 오디오 인코더 설정
-                const videoEncoder = new VideoEncoder({
-                    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-                    error: e => console.error("비디오 인코딩 에러:", e)
-                });
-                videoEncoder.configure({
-                    codec: 'avc1.42001f', // H.264 Baseline
-                    width: 768,
-                    height: 576,
-                    bitrate: 5_000_000, // 5Mbps 화질
-                    framerate: this.fps
-                });
+                    status.innerText = "하드웨어 가속 인코딩 준비 중...";
 
-                const audioEncoder = new AudioEncoder({
-                    output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
-                    error: e => console.error("오디오 인코딩 에러:", e)
-                });
-                audioEncoder.configure({
-                    codec: 'mp4a.40.2', // AAC
-                    sampleRate: this.audioBuffer.sampleRate,
-                    numberOfChannels: 1,
-                    bitrate: 128_000 // 128kbps
-                });
+                    const muxer = new Mp4Muxer.Muxer({
+                        target: new Mp4Muxer.ArrayBufferTarget(),
+                        video: {
+                            codec: 'avc',
+                            width: 768, 
+                            height: 576 
+                        },
+                        audio: {
+                            codec: 'aac',
+                            sampleRate: targetSampleRate, // 리샘플링된 44100Hz 적용
+                            numberOfChannels: 1
+                        },
+                        fastStart: 'in-memory'
+                    });
 
-                // 3. 오디오 데이터 주입 (PCM -> AAC)
-                const channelData = this.audioBuffer.getChannelData(0);
-                const sampleRate = this.audioBuffer.sampleRate;
-                // 메모리 효율을 위해 1초(sampleRate) 단위로 청크를 쪼개서 넣음
-                for (let i = 0; i < channelData.length; i += sampleRate) {
-                    const chunk = channelData.slice(i, i + sampleRate);
-                    const audioData = new AudioData({
-                        format: 'f32-planar',
-                        sampleRate: sampleRate,
-                        numberOfFrames: chunk.length,
+                    const videoEncoder = new VideoEncoder({
+                        output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+                        error: e => console.error("비디오 인코딩 에러:", e)
+                    });
+                    videoEncoder.configure({
+                        codec: 'avc1.42001f', 
+                        width: 768,
+                        height: 576,
+                        bitrate: 5_000_000, 
+                        framerate: this.fps
+                    });
+
+                    const audioEncoder = new AudioEncoder({
+                        output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+                        error: e => console.error("오디오 인코딩 에러:", e)
+                    });
+                    audioEncoder.configure({
+                        codec: 'mp4a.40.2', 
+                        sampleRate: targetSampleRate, // 리샘플링된 44100Hz 적용
                         numberOfChannels: 1,
-                        timestamp: (i / sampleRate) * 1_000_000,
-                        data: chunk
-                    });
-                    audioEncoder.encode(audioData);
-                    audioData.close();
-                }
-
-                // 4. 비디오 프레임 주입 (Canvas -> H.264)
-                // 스케일링을 위한 오프스크린 캔버스 준비
-                const baseCanvas = document.createElement('canvas');
-                baseCanvas.width = 256;
-                baseCanvas.height = 192;
-                const baseCtx = baseCanvas.getContext('2d', { willReadFrequently: true });
-
-                const scaleCanvas = document.createElement('canvas');
-                scaleCanvas.width = 768;
-                scaleCanvas.height = 576;
-                const scaleCtx = scaleCanvas.getContext('2d');
-                scaleCtx.imageSmoothingEnabled = false; // 도트 픽셀 유지 (Nearest Neighbor)
-
-                const includeEQ = document.getElementById('eq-overlay').style.display !== 'none';
-
-                for (let i = 0; i < this.totalFrames; i++) {
-                    // 원본 해상도로 프레임 렌더링
-                    this.renderFrameToCanvas(i, baseCtx, includeEQ);
-
-                    // 3배 확대한 캔버스에 그리기
-                    scaleCtx.drawImage(baseCanvas, 0, 0, 256, 192, 0, 0, 768, 576);
-
-                    // WebCodecs VideoFrame 객체 생성
-                    const frame = new VideoFrame(scaleCanvas, {
-                        timestamp: (i / this.fps) * 1_000_000
+                        bitrate: 128_000 
                     });
 
-                    videoEncoder.encode(frame);
-                    frame.close(); // 메모리 즉시 해제
-
-                    if (i % 30 === 0) {
-                        status.innerText = `GPU 인코딩 중... (${i}/${this.totalFrames})`;
-                        await new Promise(r => setTimeout(r, 0));
+                    // 추출한 44100Hz 오디오 데이터를 인코더에 주입
+                    const channelData = resampledAudioBuffer.getChannelData(0);
+                    
+                    for (let i = 0; i < channelData.length; i += targetSampleRate) {
+                        // subarray를 사용하여 메모리 복사 최소화
+                        const chunk = channelData.subarray(i, i + targetSampleRate);
+                        const audioData = new AudioData({
+                            format: 'f32-planar',
+                            sampleRate: targetSampleRate,
+                            numberOfFrames: chunk.length,
+                            numberOfChannels: 1,
+                            timestamp: Math.round((i / targetSampleRate) * 1_000_000),
+                            data: chunk
+                        });
+                        audioEncoder.encode(audioData);
+                        audioData.close();
                     }
+
+                    const baseCanvas = document.createElement('canvas');
+                    baseCanvas.width = 256;
+                    baseCanvas.height = 192;
+                    const baseCtx = baseCanvas.getContext('2d', { willReadFrequently: true });
+
+                    const scaleCanvas = document.createElement('canvas');
+                    scaleCanvas.width = 768;
+                    scaleCanvas.height = 576;
+                    const scaleCtx = scaleCanvas.getContext('2d');
+                    scaleCtx.imageSmoothingEnabled = false; 
+
+                    const includeEQ = document.getElementById('eq-overlay').style.display !== 'none';
+
+                    // [수정 2] 1프레임당 머무르는 시간(마이크로초) 계산 (duration 에러 해결)
+                    const durationMicros = Math.round((1 / this.fps) * 1_000_000);
+
+                    for (let i = 0; i < this.totalFrames; i++) {
+                        this.renderFrameToCanvas(i, baseCtx, includeEQ);
+                        scaleCtx.drawImage(baseCanvas, 0, 0, 256, 192, 0, 0, 768, 576);
+
+                        const timestampMicros = Math.round((i / this.fps) * 1_000_000);
+                        const frame = new VideoFrame(scaleCanvas, {
+                            timestamp: timestampMicros,
+                            duration: durationMicros // 누락되었던 duration 추가
+                        });
+                        
+                        videoEncoder.encode(frame);
+                        frame.close(); 
+
+                        if (i % 30 === 0) {
+                            status.innerText = `GPU 인코딩 중... (${i}/${this.totalFrames})`;
+                            await new Promise(r => setTimeout(r, 0));
+                        }
+                    }
+
+                    status.innerText = "스트림 병합 및 마무리 중...";
+                    await new Promise(r => setTimeout(r, 0));
+
+                    await videoEncoder.flush();
+                    await audioEncoder.flush();
+                    muxer.finalize();
+
+                    const buffer = muxer.target.buffer;
+                    const blob = new Blob([buffer], { type: 'video/mp4' });
+                    
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `msx_export_gpu_${Date.now()}.mp4`;
+                    a.click();
+
+                    status.innerText = "초고속 내보내기 완료!";
+                    status.style.color = "#4CAF50";
+
+                } catch (err) {
+                    console.error("인코딩 중 예외 발생:", err);
+                    status.innerText = "에러: 인코딩 실패 (콘솔 확인)";
+                    status.style.color = "#ff4444";
+                } finally {
+                    btn.disabled = false;
                 }
-
-                status.innerText = "스트림 병합 및 마무리 중...";
-                await new Promise(r => setTimeout(r, 0));
-
-                // 5. 인코더 큐 비우기 및 파일 생성
-                await videoEncoder.flush();
-                await audioEncoder.flush();
-                muxer.finalize();
-
-                const buffer = muxer.target.buffer;
-                const blob = new Blob([buffer], { type: 'video/mp4' });
-
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = `msx_export_gpu_${Date.now()}.mp4`;
-                a.click();
-
-                status.innerText = "초고속 내보내기 완료!";
-                status.style.color = "#4CAF50";
-                btn.disabled = false;
             }
 
             togglePlay() { this.isPlaying ? this.pause() : this.play(); }
