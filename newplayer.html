@@ -56,17 +56,108 @@
             margin: 0 !important;
             border: none !important;
         }
+#video-container {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    background: #000;
+    width: 928px; /* Width increased to accommodate left sidebar (80px) */
+    max-width: 100vw;
+    transition: width 0.2s;
+}
 
-        #video-container {
-            position: relative;
-            display: flex;
-            align-items: stretch;
-            background: #000;
-            width: 848px;
-            max-width: 100vw;
-            transition: width 0.2s;
-        }
+#playlist-sidebar {
+    width: 120px;
+    background: rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #333;
+    box-sizing: border-box;
+    cursor: pointer;
+    transition: width 0.3s, opacity 0.3s, border 0.3s, background 0.3s;
+    z-index: 30;
+    overflow: hidden;
+}
 
+#playlist-sidebar.hidden {
+    width: 15px;
+    opacity: 0.6;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+#playlist-sidebar.hidden .playlist-content {
+    display: none;
+}
+
+.playlist-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 120px;
+}
+
+.playlist-header {
+    padding: 8px;
+    border-bottom: 1px solid #333;
+    display: flex;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.playlist-items {
+    flex-grow: 1;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #444 transparent;
+}
+
+.playlist-item {
+    padding: 8px 5px;
+    font-size: 11px;
+    color: #ccc;
+    border-bottom: 1px solid #222;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    cursor: pointer;
+    text-align: left;
+}
+
+.playlist-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.playlist-item.active {
+    background: rgba(217, 83, 79, 0.2);
+    color: #d9534f;
+    font-weight: bold;
+}
+
+.playlist-item-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex-grow: 1;
+}
+
+.btn-remove-item {
+    background: transparent;
+    border: none;
+    color: #666;
+    padding: 2px 5px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+}
+
+.btn-remove-item:hover {
+    color: #ff4444;
+}
+
+#canvas-area {
         #screen-wrapper:fullscreen #video-container,
         .ios-fullscreen-fix #video-container {
             width: 100% !important;
@@ -406,6 +497,18 @@
 
     <div id="screen-wrapper">
         <div id="video-container">
+            <div id="playlist-sidebar" title="Click to Toggle Playlist">
+                <div class="playlist-content">
+                    <div class="playlist-header" id="btn-add-playlist" title="Add File to Playlist">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="#aaa">
+                            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                        </svg>
+                    </div>
+                    <div class="playlist-items" id="playlist-items">
+                        <!-- Items will be added here -->
+                    </div>
+                </div>
+            </div>
             <div id="canvas-area">
                 <canvas id="msx-screen" width="256" height="192"></canvas>
                 <div id="canvas-msg-overlay">📂 Drop .MV or .ZIP here</div>
@@ -530,8 +633,67 @@
                 this.pauseTime = 0;
                 this.fps = 15;
                 this.lastVolume = 1.0;
+                this.playlist = [];
+                this.currentPlayIndex = -1;
                 this.initUI();
                 this.initWorker();
+            }
+
+            updatePlaylistUI() {
+                const container = document.getElementById('playlist-items');
+                container.innerHTML = '';
+                this.playlist.forEach((file, index) => {
+                    const item = document.createElement('div');
+                    item.className = `playlist-item ${index === this.currentPlayIndex ? 'active' : ''}`;
+                    item.onclick = (e) => {
+                        if (e.target.closest('.btn-remove-item')) return;
+                        this.playPlaylistItem(index);
+                    };
+
+                    const name = document.createElement('span');
+                    name.className = 'playlist-item-name';
+                    name.innerText = file.name;
+                    name.title = file.name;
+
+                    const removeBtn = document.createElement('button');
+                    removeBtn.className = 'btn-remove-item';
+                    removeBtn.innerHTML = '×';
+                    removeBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        this.removeFromPlaylist(index);
+                    };
+
+                    item.appendChild(name);
+                    item.appendChild(removeBtn);
+                    container.appendChild(item);
+                });
+            }
+
+            async addToPlaylist(file) {
+                if (!file) return;
+                this.playlist.push(file);
+                this.updatePlaylistUI();
+                if (this.playlist.length === 1) {
+                    await this.playPlaylistItem(0);
+                }
+            }
+
+            removeFromPlaylist(index) {
+                this.playlist.splice(index, 1);
+                if (index === this.currentPlayIndex) {
+                    this.currentPlayIndex = -1;
+                    this.reset();
+                } else if (index < this.currentPlayIndex) {
+                    this.currentPlayIndex--;
+                }
+                this.updatePlaylistUI();
+            }
+
+            async playPlaylistItem(index) {
+                if (index < 0 || index >= this.playlist.length) return;
+                this.currentPlayIndex = index;
+                this.updatePlaylistUI();
+                await this.loadFile(this.playlist[index]);
             }
 
             initUI() {
@@ -1122,10 +1284,49 @@
         window.addEventListener('dragover', e => e.preventDefault());
         window.addEventListener('drop', e => e.preventDefault());
 
-        document.getElementById('btn-open-file').onclick = () => document.getElementById('file-input').click();
-        document.getElementById('file-input').onchange = e => { if (e.target.files.length) player.loadFile(e.target.files[0]); };
+        const playlistSidebar = document.getElementById('playlist-sidebar');
+        const playlistItems = document.getElementById('playlist-items');
+        const btnAddPlaylist = document.getElementById('btn-add-playlist');
 
-        const canvasArea = document.getElementById('canvas-area');
+        playlistSidebar.onclick = function(e) {
+            if (this.classList.contains('hidden')) {
+                this.classList.remove('hidden');
+                e.stopPropagation();
+            }
+        };
+
+        // Clicking playlist handle when expanded should toggle back to hidden
+        playlistSidebar.addEventListener('click', (e) => {
+            // If click is on the narrow handle area while expanded (left 15px)
+            if (!playlistSidebar.classList.contains('hidden') && e.offsetX < 15) {
+                playlistSidebar.classList.add('hidden');
+                e.stopPropagation();
+            }
+        });
+
+        // Add button logic
+        btnAddPlaylist.onclick = (e) => {
+            e.stopPropagation();
+            document.getElementById('file-input').click();
+        };
+
+        // Clicking empty area in playlist should also trigger add
+        playlistItems.onclick = (e) => {
+            if (e.target === playlistItems) {
+                document.getElementById('file-input').click();
+            }
+        };
+
+        // Override file input change to add to playlist instead of just loading
+        document.getElementById('file-input').onchange = e => {
+            if (e.target.files.length) {
+                for (let file of e.target.files) {
+                    player.addToPlaylist(file);
+                }
+            }
+        };
+
+        const eqOverlay = document.getElementById('eq-overlay');
         canvasArea.ondragover = e => { e.preventDefault(); canvasArea.classList.add('dragover'); };
         canvasArea.ondragleave = () => canvasArea.classList.remove('dragover');
         canvasArea.ondrop = e => { e.preventDefault(); canvasArea.classList.remove('dragover'); if (e.dataTransfer.files.length) player.loadFile(e.dataTransfer.files[0]); };
