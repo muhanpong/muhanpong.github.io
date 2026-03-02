@@ -1309,24 +1309,32 @@
         btnFs.onclick = toggleFs;
 
         const updateFsUI = () => {
-            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || screenWrapper.classList.contains('ios-fullscreen-fix'));
+            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || 
+                           document.mozFullScreenElement || document.msFullscreenElement ||
+                           screenWrapper.classList.contains('ios-fullscreen-fix'));
+            
             iconExp.style.display = isFs ? 'none' : 'block';
             iconComp.style.display = isFs ? 'block' : 'none';
-            if (isFs) document.getElementById('palette-histogram').classList.add('hidden');
-            else document.getElementById('palette-histogram').classList.remove('hidden');
+            
+            if (isFs) {
+                document.getElementById('palette-histogram').classList.add('hidden');
+            } else {
+                document.getElementById('palette-histogram').classList.remove('hidden');
+            }
         };
 
         document.addEventListener('fullscreenchange', updateFsUI);
         document.addEventListener('webkitfullscreenchange', updateFsUI);
+        document.addEventListener('mozfullscreenchange', updateFsUI);
+        document.addEventListener('MSFullscreenChange', updateFsUI);
 
         const showOSD = () => {
             canvasArea.classList.add('touch-active');
             clearTimeout(window.tTimer);
-            // Only set timeout to hide if player is playing. 
-            // If paused, OSD stays visible via CSS .paused class.
+            // 재생 중일 때만 3초 후 사라짐. 일시 정지(.paused) 상태면 CSS에 의해 계속 보임.
             if (player.isPlaying) {
                 window.tTimer = setTimeout(() => {
-                    canvasArea.classList.remove('touch-active');
+                    if (player.isPlaying) canvasArea.classList.remove('touch-active');
                 }, 3000);
             }
         };
