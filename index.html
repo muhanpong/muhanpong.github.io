@@ -5,8 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MSX2 MV Player & Recorder (MV1/MV2 Supported)</title>
-    <script src="coi-serviceworker.js"></script>
-    <script src="ffmpeg.js"></script>
+    <script src="https://unpkg.com/mp4-muxer/build/mp4-muxer.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         body {
@@ -373,9 +372,6 @@
     <canvas id="export-canvas" width="256" height="192" style="display:none;"></canvas>
 
     <script>
-        const { FFmpeg } = FFmpegWASM;
-        const ffmpeg = new FFmpeg();
-
         class MSXMediaDemuxer {
             constructor(canvasId) {
                 this.canvas = document.getElementById(canvasId);
@@ -609,19 +605,36 @@
                     const mp3 = block.slice(12801, 12801 + (sz * 32));
 
                     this.frames.push({ pgt, ct, palette, eqRaw });
-                    mp3Chunks.push(mp3);
+                    if (mp3.length > 0) {
+                        mp3Chunks.push(mp3);
+                    }
                     offset += blockSize;
                 }
                 this.totalFrames = this.frames.length;
 
                 const totalLen = mp3Chunks.reduce((acc, chunk) => acc + chunk.length, 0);
                 this.rawAudioBytes = new Uint8Array(totalLen);
+                
+                // [안전망 1] 오디오 데이터가 아예 없는 파일인 경우 뻗지 않고 무음 버퍼 생성
+                if (totalLen === 0) {
+                    this.audioBuffer = this.audioCtx.createBuffer(1, Math.ceil((this.totalFrames / this.fps) * 44100), 44100);
+                    return;
+                }
+
                 let aOff = 0;
                 for (let c of mp3Chunks) {
                     this.rawAudioBytes.set(c, aOff);
                     aOff += c.length;
                 }
-                this.audioBuffer = await this.audioCtx.decodeAudioData(this.rawAudioBytes.buffer.slice(0));
+                
+                try {
+                    // 브라우저 네이티브 디코더로 MP3 해석 시도
+                    this.audioBuffer = await this.audioCtx.decodeAudioData(this.rawAudioBytes.buffer.slice(0));
+                } catch (err) {
+                    console.warn("오디오 디코딩 실패 (손상되거나 지원하지 않는 형식). 무음 처리합니다.", err);
+                    // [안전망 2] 디코딩 에러 시 크래시를 방지하고 강제로 무음(빈) 버퍼 생성
+                    this.audioBuffer = this.audioCtx.createBuffer(1, Math.ceil((this.totalFrames / this.fps) * 44100), 44100);
+                }
             }
 
             extractPalette(d, count) {
@@ -760,8 +773,8 @@
                         target: new Mp4Muxer.ArrayBufferTarget(),
                         video: {
                             codec: 'avc',
-                            width: 768, 
-                            height: 576 
+                            width: 768,
+                            height: 576
                         },
                         audio: {
                             codec: 'aac',
@@ -776,10 +789,10 @@
                         error: e => console.error("비디오 인코딩 에러:", e)
                     });
                     videoEncoder.configure({
-                        codec: 'avc1.42001f', 
+                        codec: 'avc1.42001f',
                         width: 768,
                         height: 576,
-                        bitrate: 5_000_000, 
+                        bitrate: 5_000_000,
                         framerate: this.fps
                     });
 
@@ -788,15 +801,15 @@
                         error: e => console.error("오디오 인코딩 에러:", e)
                     });
                     audioEncoder.configure({
-                        codec: 'mp4a.40.2', 
+                        codec: 'mp4a.40.2',
                         sampleRate: targetSampleRate, // 리샘플링된 44100Hz 적용
                         numberOfChannels: 1,
-                        bitrate: 128_000 
+                        bitrate: 128_000
                     });
 
                     // 추출한 44100Hz 오디오 데이터를 인코더에 주입
                     const channelData = resampledAudioBuffer.getChannelData(0);
-                    
+
                     for (let i = 0; i < channelData.length; i += targetSampleRate) {
                         // subarray를 사용하여 메모리 복사 최소화
                         const chunk = channelData.subarray(i, i + targetSampleRate);
@@ -821,7 +834,7 @@
                     scaleCanvas.width = 768;
                     scaleCanvas.height = 576;
                     const scaleCtx = scaleCanvas.getContext('2d');
-                    scaleCtx.imageSmoothingEnabled = false; 
+                    scaleCtx.imageSmoothingEnabled = false;
 
                     const includeEQ = document.getElementById('eq-overlay').style.display !== 'none';
 
@@ -837,9 +850,9 @@
                             timestamp: timestampMicros,
                             duration: durationMicros // 누락되었던 duration 추가
                         });
-                        
+
                         videoEncoder.encode(frame);
-                        frame.close(); 
+                        frame.close();
 
                         if (i % 30 === 0) {
                             status.innerText = `GPU 인코딩 중... (${i}/${this.totalFrames})`;
@@ -856,7 +869,7 @@
 
                     const buffer = muxer.target.buffer;
                     const blob = new Blob([buffer], { type: 'video/mp4' });
-                    
+
                     const a = document.createElement('a');
                     a.href = URL.createObjectURL(blob);
                     a.download = `msx_export_gpu_${Date.now()}.mp4`;

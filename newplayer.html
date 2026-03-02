@@ -356,6 +356,16 @@
 
         <button id="btn-prev-frame">-1F</button>
         <button id="btn-next-frame">+1F</button>
+        
+        <div class="panel">
+            <label style="font-size:12px;">Audio</label>
+            <select id="audio-codec-select" style="background:#333; color:white; border:1px solid #555; border-radius:4px; font-size:12px; padding:2px 5px;">
+                <option value="aac">AAC (Standard)</option>
+                <option value="opus">Opus (Open Source)</option>
+                <option value="none">Mute (No Audio)</option>
+            </select>
+        </div>
+
         <button id="btn-export">💾 EXPORT MP4</button>
 
         <div class="panel">
@@ -432,24 +442,63 @@
             async loadFile(file) {
                 this.reset();
                 document.getElementById('canvas-msg-overlay').style.display = 'none';
-                let data;
-                if (file.name.toLowerCase().endsWith('.zip')) {
-                    const zip = new JSZip(); const content = await zip.loadAsync(file);
-                    const entry = Object.values(content.files).find(f => f.name.toLowerCase().endsWith('.mv') || f.name.toLowerCase().endsWith('.mv2'));
-                    data = await entry.async('uint8array');
-                } else { data = new Uint8Array(await file.arrayBuffer()); }
-                await this.processData(data);
+                const status = document.getElementById('status');
+                status.innerText = "파일 분석 중...";
+
+                try {
+                    let data;
+                    if (file.name.toLowerCase().endsWith('.zip')) {
+                        status.innerText = "ZIP 압축 해제 중...";
+                        const zip = new JSZip();
+                        const content = await zip.loadAsync(file);
+                        const entry = Object.values(content.files).find(f => f.name.toLowerCase().endsWith('.mv') || f.name.toLowerCase().endsWith('.mv2'));
+                        if (!entry) throw new Error("ZIP 파일 내에 .MV 또는 .MV2 파일이 없습니다.");
+                        data = await entry.async('uint8array');
+                    } else {
+                        data = new Uint8Array(await file.arrayBuffer());
+                    }
+                    await this.processData(data);
+                } catch (err) {
+                    console.error("File loading error:", err);
+                    status.innerText = `에러: ${err.message}`;
+                    status.style.color = "#ff4444";
+                }
             }
 
             async processData(data) {
                 const sig = String.fromCharCode(...data.slice(0, 8));
                 const ver = String.fromCharCode(...data.slice(16, 21));
-                if (sig === "MMCSD_MV" && ver === "v1.00") { this.fps = 12; this.isMV1 = true; await this.parseMV1(data); }
-                else { this.fps = 15; this.isMV1 = false; await this.parseMV2(data, sig.startsWith("MV2") ? 512 : 16384); }
-                this.duration = this.totalFrames / this.fps;
-                document.getElementById('osd-time-total').innerText = this.formatTime(this.duration);
-                document.getElementById('osd-seek-slider').disabled = false;
-                await this.play();
+                const status = document.getElementById('status');
+
+                try {
+                    if (sig === "MMCSD_MV" && ver === "v1.00") {
+                        this.fps = 12;
+                        this.isMV1 = true;
+                        await this.parseMV1(data);
+                    } else if (sig === "MMCSD_MV" && ver === "v2.00") {
+                        this.fps = 15;
+                        this.isMV1 = false;
+                        await this.parseMV2(data, 16384);
+                    } else if (sig.startsWith("MV2")) {
+                        this.fps = 15;
+                        this.isMV1 = false;
+                        await this.parseMV2(data, 512); // Legacy MV2
+                    } else {
+                        throw new Error("올바른 .MV 또는 .MV2 포맷이 아닙니다.");
+                    }
+
+                    status.innerText = `파싱 완료! (${this.isMV1 ? 'MV1' : 'MV2'}, ${this.fps}FPS, ${this.totalFrames} 프레임)`;
+                    status.style.color = "#4CAF50";
+
+                    this.duration = this.totalFrames / this.fps;
+                    document.getElementById('osd-time-total').innerText = this.formatTime(this.duration);
+                    document.getElementById('osd-seek-slider').disabled = false;
+                    await this.play();
+                } catch (err) {
+                    console.error("Data processing error:", err);
+                    status.innerText = `에러: ${err.message}`;
+                    status.style.color = "#ff4444";
+                }
             }
 
             async parseMV1(data) {
@@ -471,12 +520,27 @@
                     const sz = (head === 512 && off === 512) ? 15872 : 16384; if (off + sz > data.length) break;
                     const b = data.subarray(off, off + sz);
                     this.frames.push({ pgt: b.slice(0, 6144), ct: b.slice(6144, 12288), palette: [[0, 0, 0], ...this.extractPal(b.slice(12288, 12318), 15)], eqRaw: b.slice(12320, 12329) });
-                    mp3.push(b.slice(12801, 12801 + (b[12800] * 32))); off += sz;
+                    const mp3Chunk = b.slice(12801, 12801 + (b[12800] * 32));
+                    if (mp3Chunk.length > 0) mp3.push(mp3Chunk);
+                    off += sz;
                 }
                 this.totalFrames = this.frames.length;
-                const total = mp3.reduce((a, c) => a + c.length, 0); this.rawAudio = new Uint8Array(total);
+                const total = mp3.reduce((a, c) => a + c.length, 0); 
+                
+                if (total === 0) {
+                    this.audioBuffer = this.audioCtx.createBuffer(1, Math.ceil((this.totalFrames / this.fps) * 44100), 44100);
+                    return;
+                }
+
+                this.rawAudio = new Uint8Array(total);
                 let cur = 0; mp3.forEach(c => { this.rawAudio.set(c, cur); cur += c.length; });
-                this.audioBuffer = await this.audioCtx.decodeAudioData(this.rawAudio.buffer.slice(0));
+                
+                try {
+                    this.audioBuffer = await this.audioCtx.decodeAudioData(this.rawAudio.buffer.slice(0));
+                } catch (err) {
+                    console.warn("Audio decoding failed, using silence.", err);
+                    this.audioBuffer = this.audioCtx.createBuffer(1, Math.ceil((this.totalFrames / this.fps) * 44100), 44100);
+                }
             }
 
             extractPal(d, n) {
@@ -638,31 +702,41 @@
                 status.innerText = "오디오 규격 변환 중 (Resampling)...";
 
                 try {
-                    // [수정 1] 비표준 오디오 샘플레이트를 AAC 표준 규격(44100Hz)으로 리샘플링
-                    const targetSampleRate = 44100;
-                    const offlineCtx = new OfflineAudioContext(1, Math.ceil(this.duration * targetSampleRate), targetSampleRate);
-                    const source = offlineCtx.createBufferSource();
-                    source.buffer = this.audioBuffer;
-                    source.connect(offlineCtx.destination);
-                    source.start(0);
-                    const resampledAudioBuffer = await offlineCtx.startRendering();
+                    const codecChoice = document.getElementById('audio-codec-select').value;
+                    const targetSampleRate = codecChoice === 'opus' ? 48000 : 44100;
+                    
+                    let resampledAudioBuffer = null;
+                    if (codecChoice !== 'none') {
+                        status.innerText = `오디오 규격 변환 중 (Resampling to ${targetSampleRate}Hz)...`;
+                        const offlineCtx = new OfflineAudioContext(1, Math.ceil(this.duration * targetSampleRate), targetSampleRate);
+                        const source = offlineCtx.createBufferSource();
+                        source.buffer = this.audioBuffer;
+                        source.connect(offlineCtx.destination);
+                        source.start(0);
+                        resampledAudioBuffer = await offlineCtx.startRendering();
+                    }
 
                     status.innerText = "하드웨어 가속 인코딩 준비 중...";
 
-                    const muxer = new Mp4Muxer.Muxer({
+                    const muxerConfig = {
                         target: new Mp4Muxer.ArrayBufferTarget(),
                         video: {
                             codec: 'avc',
                             width: 768, 
                             height: 576 
                         },
-                        audio: {
-                            codec: 'aac',
-                            sampleRate: targetSampleRate, // 리샘플링된 44100Hz 적용
-                            numberOfChannels: 1
-                        },
                         fastStart: 'in-memory'
-                    });
+                    };
+
+                    if (codecChoice !== 'none') {
+                        muxerConfig.audio = {
+                            codec: codecChoice,
+                            sampleRate: targetSampleRate,
+                            numberOfChannels: 1
+                        };
+                    }
+
+                    const muxer = new Mp4Muxer.Muxer(muxerConfig);
 
                     const videoEncoder = new VideoEncoder({
                         output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
@@ -676,33 +750,51 @@
                         framerate: this.fps
                     });
 
-                    const audioEncoder = new AudioEncoder({
-                        output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
-                        error: e => console.error("오디오 인코딩 에러:", e)
-                    });
-                    audioEncoder.configure({
-                        codec: 'mp4a.40.2', 
-                        sampleRate: targetSampleRate, // 리샘플링된 44100Hz 적용
-                        numberOfChannels: 1,
-                        bitrate: 128_000 
-                    });
-
-                    // 추출한 44100Hz 오디오 데이터를 인코더에 주입
-                    const channelData = resampledAudioBuffer.getChannelData(0);
-                    
-                    for (let i = 0; i < channelData.length; i += targetSampleRate) {
-                        // subarray를 사용하여 메모리 복사 최소화
-                        const chunk = channelData.subarray(i, i + targetSampleRate);
-                        const audioData = new AudioData({
-                            format: 'f32-planar',
-                            sampleRate: targetSampleRate,
-                            numberOfFrames: chunk.length,
+                    let audioEncoder = null;
+                    if (codecChoice !== 'none') {
+                        const audioConfig = {
+                            codec: codecChoice === 'opus' ? 'opus' : 'mp4a.40.2',
+                            sampleRate: targetSampleRate, 
                             numberOfChannels: 1,
-                            timestamp: Math.round((i / targetSampleRate) * 1_000_000),
-                            data: chunk
-                        });
-                        audioEncoder.encode(audioData);
-                        audioData.close();
+                            bitrate: 128_000 
+                        };
+
+                        let audioSupported = false;
+                        try {
+                            const support = await AudioEncoder.isConfigSupported(audioConfig);
+                            audioSupported = support.supported;
+                        } catch (e) {
+                            audioSupported = false;
+                        }
+
+                        if (audioSupported) {
+                            audioEncoder = new AudioEncoder({
+                                output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+                                error: e => console.error("오디오 인코딩 에러:", e)
+                            });
+                            audioEncoder.configure(audioConfig);
+
+                            const channelData = resampledAudioBuffer.getChannelData(0);
+                            const audioStep = codecChoice === 'opus' ? 960 : 1024; // Opus prefers 20ms frames at 48kHz
+                            
+                            for (let i = 0; i < channelData.length; i += audioStep) {
+                                const chunk = channelData.subarray(i, i + audioStep);
+                                const audioData = new AudioData({
+                                    format: 'f32-planar',
+                                    sampleRate: targetSampleRate,
+                                    numberOfFrames: chunk.length,
+                                    numberOfChannels: 1,
+                                    timestamp: Math.round((i / targetSampleRate) * 1_000_000),
+                                    data: chunk
+                                });
+                                audioEncoder.encode(audioData);
+                                audioData.close();
+                            }
+                        } else {
+                            console.warn(`${codecChoice.toUpperCase()} 오디오 인코딩이 지원되지 않아 소리 없이 비디오만 내보냅니다.`);
+                            status.innerText = "오디오 미지원: 비디오만 인코딩 중...";
+                            status.style.color = "#ff9800";
+                        }
                     }
 
                     const baseCanvas = document.createElement('canvas');
