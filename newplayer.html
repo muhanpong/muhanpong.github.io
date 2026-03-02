@@ -369,6 +369,7 @@
         <div class="panel">
             <label style="font-size:12px;">Audio</label>
             <select id="audio-codec-select" style="background:#333; color:white; border:1px solid #555; border-radius:4px; font-size:12px; padding:2px 5px;">
+                <option value="mp3">MP3 (Original)</option>
                 <option value="aac">AAC (Standard)</option>
                 <option value="opus">Opus (Open Source)</option>
                 <option value="none">Mute (No Audio)</option>
@@ -918,6 +919,38 @@
         }
 
         const player = new MSXMediaDemuxer('msx-screen');
+
+        // Check codec support on load
+        async function checkAudioSupport() {
+            const aacConfig = { codec: 'mp4a.40.2', sampleRate: 44100, numberOfChannels: 1, bitrate: 128000 };
+            const opusConfig = { codec: 'opus', sampleRate: 48000, numberOfChannels: 1, bitrate: 128000 };
+            
+            const select = document.getElementById('audio-codec-select');
+            
+            try {
+                const aacSupport = await AudioEncoder.isConfigSupported(aacConfig);
+                if (!aacSupport.supported) {
+                    select.options[0].text += " (Unsupported)";
+                    select.options[0].style.color = "#888";
+                }
+            } catch(e) { 
+                select.options[0].text += " (Error)";
+            }
+
+            try {
+                const opusSupport = await AudioEncoder.isConfigSupported(opusConfig);
+                if (!opusSupport.supported) {
+                    select.options[1].text += " (Unsupported)";
+                    select.options[1].style.color = "#888";
+                } else if (select.options[0].text.includes("Unsupported")) {
+                    // If AAC is not supported but Opus is, default to Opus
+                    select.value = 'opus';
+                }
+            } catch(e) {
+                select.options[1].text += " (Error)";
+            }
+        }
+        checkAudioSupport();
 
         window.addEventListener('dragover', e => e.preventDefault());
         window.addEventListener('drop', e => e.preventDefault());
