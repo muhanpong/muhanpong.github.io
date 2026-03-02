@@ -676,9 +676,16 @@
                 
                 try {
                     this.audioBuffer = await this.audioCtx.decodeAudioData(this.rawAudio.buffer.slice(0));
+                    
+                    // [추가] iOS Safari 방어 코드: 오디오 버퍼의 길이(duration)가 오염되었는지 검사
+                    if (!this.audioBuffer || !isFinite(this.audioBuffer.duration) || this.audioBuffer.duration === 0) {
+                        throw new Error("iOS Safari: 불량 오디오 버퍼가 생성되었습니다.");
+                    }
                 } catch (err) {
-                    console.warn("Audio decoding failed, using silence.", err);
-                    this.audioBuffer = this.audioCtx.createBuffer(1, Math.ceil((this.totalFrames / this.fps) * 44100), 44100);
+                    console.warn("오디오 디코딩 실패(무음으로 대체합니다):", err);
+                    // [수정] 프레임이 아예 없을 경우 length가 0이 되어 발생하는 에러 방지를 위해 최소 길이 1 보장
+                    const safeLength = Math.max(1, Math.ceil((this.totalFrames / this.fps) * 44100));
+                    this.audioBuffer = this.audioCtx.createBuffer(1, safeLength, 44100);
                 }
             }
 
@@ -1043,8 +1050,11 @@
                 this.src = this.audioCtx.createBufferSource();
                 this.src.buffer = this.audioBuffer;
                 this.src.connect(this.gainNode);
-                this.src.start(0, this.pauseTime);
-                this.startTime = this.audioCtx.currentTime - this.pauseTime;
+                
+                // [추가] pauseTime이 NaN이나 Infinity로 오염된 경우 0으로 초기화
+                const safePauseTime = isFinite(this.pauseTime) ? this.pauseTime : 0;
+                this.src.start(0, safePauseTime);
+                this.startTime = this.audioCtx.currentTime - safePauseTime;
 
                 this.updatePlayIcon(true);
                 this.timerWorker.postMessage('start');
@@ -1082,23 +1092,23 @@
             const select = document.getElementById('audio-codec-select');
             
             try {
-                const aacSupport = await AudioEncoder.isConfigSupported(aacConfig);
-                if (!aacSupport.supported) {
+                const opusSupport = await AudioEncoder.isConfigSupported(opusConfig);
+                if (!opusSupport.supported) {
                     select.options[0].text += " (Unsupported)";
                     select.options[0].style.color = "#888";
                 }
-            } catch(e) { 
+            } catch(e) {
                 select.options[0].text += " (Error)";
             }
 
             try {
-                const opusSupport = await AudioEncoder.isConfigSupported(opusConfig);
-                if (!opusSupport.supported) {
-                    select.options[2].text += " (Unsupported)";
-                    select.options[2].style.color = "#888";
+                const aacSupport = await AudioEncoder.isConfigSupported(aacConfig);
+                if (!aacSupport.supported) {
+                    select.options[1].text += " (Unsupported)";
+                    select.options[1].style.color = "#888";
                 }
-            } catch(e) {
-                select.options[2].text += " (Error)";
+            } catch(e) { 
+                select.options[1].text += " (Error)";
             }
         }
         checkAudioSupport();
