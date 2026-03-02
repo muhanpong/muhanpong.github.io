@@ -147,7 +147,8 @@
         }
 
         #canvas-area:hover #osd-controls,
-        .touch-active #osd-controls {
+        .touch-active #osd-controls,
+        .paused #osd-controls {
             opacity: 1;
             pointer-events: auto;
         }
@@ -1039,6 +1040,7 @@
             async play() {
                 if (this.isPlaying || !this.audioBuffer) return;
                 this.isPlaying = true;
+                document.getElementById('canvas-area').classList.remove('paused');
 
                 if (this.audioCtx.state === 'suspended') {
                     await this.audioCtx.resume();
@@ -1066,6 +1068,7 @@
 
             pause() {
                 this.isPlaying = false;
+                document.getElementById('canvas-area').classList.add('paused');
 
                 if (this.src) {
                     try { this.src.stop(); } catch (e) { }
@@ -1079,7 +1082,6 @@
                 this.updatePlayIcon(false);
                 this.timerWorker.postMessage('stop');
             }
-
             updatePlayIcon(p) {
                 document.getElementById('icon-play').style.display = p ? 'none' : 'block';
                 document.getElementById('icon-pause').style.display = p ? 'block' : 'none';
@@ -1276,15 +1278,32 @@
         const iconComp = document.getElementById('icon-compress');
 
         const toggleFs = () => {
-            const isFs = document.fullscreenElement || document.webkitFullscreenElement || screenWrapper.classList.contains('ios-fullscreen-fix');
+            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || 
+                           document.mozFullScreenElement || document.msFullscreenElement || 
+                           screenWrapper.classList.contains('ios-fullscreen-fix'));
+            
             if (!isFs) {
-                const req = screenWrapper.requestFullscreen || screenWrapper.webkitRequestFullscreen;
-                if (req) req.call(screenWrapper).catch(() => screenWrapper.classList.add('ios-fullscreen-fix'));
-                else screenWrapper.classList.add('ios-fullscreen-fix');
+                const req = screenWrapper.requestFullscreen || screenWrapper.webkitRequestFullscreen || 
+                            screenWrapper.mozRequestFullScreen || screenWrapper.msRequestFullscreen;
+                if (req) {
+                    req.call(screenWrapper).catch(err => {
+                        console.warn("Fullscreen request failed, using fallback:", err);
+                        screenWrapper.classList.add('ios-fullscreen-fix');
+                        updateFsUI();
+                    });
+                } else {
+                    screenWrapper.classList.add('ios-fullscreen-fix');
+                    updateFsUI();
+                }
             } else {
-                const exit = document.exitFullscreen || document.webkitExitFullscreen;
-                if (exit && (document.fullscreenElement || document.webkitFullscreenElement)) exit.call(document);
+                const exit = document.exitFullscreen || document.webkitExitFullscreen || 
+                             document.mozCancelFullScreen || document.msExitFullscreen;
+                if (exit && (document.fullscreenElement || document.webkitFullscreenElement || 
+                             document.mozFullScreenElement || document.msFullscreenElement)) {
+                    exit.call(document);
+                }
                 screenWrapper.classList.remove('ios-fullscreen-fix');
+                updateFsUI();
             }
         };
         btnFs.onclick = toggleFs;
@@ -1300,10 +1319,41 @@
         document.addEventListener('fullscreenchange', updateFsUI);
         document.addEventListener('webkitfullscreenchange', updateFsUI);
 
-        canvasArea.ontouchstart = () => {
+        const showOSD = () => {
             canvasArea.classList.add('touch-active');
             clearTimeout(window.tTimer);
-            window.tTimer = setTimeout(() => canvasArea.classList.remove('touch-active'), 3000);
+            // Only set timeout to hide if player is playing. 
+            // If paused, OSD stays visible via CSS .paused class.
+            if (player.isPlaying) {
+                window.tTimer = setTimeout(() => {
+                    canvasArea.classList.remove('touch-active');
+                }, 3000);
+            }
+        };
+
+        canvasArea.addEventListener('mousemove', showOSD);
+        canvasArea.addEventListener('touchstart', (e) => {
+            // If OSD is already hidden and playing, first touch just shows it
+            if (!canvasArea.classList.contains('touch-active') && player.isPlaying) {
+                showOSD();
+                // Optional: prevent default if you want to block the touch from clicking underlying buttons immediately
+                // e.preventDefault(); 
+            } else {
+                showOSD();
+            }
+        }, { passive: true });
+
+        // Update showOSD when state changes
+        const originalPlay = player.play.bind(player);
+        player.play = async () => {
+            await originalPlay();
+            showOSD();
+        };
+
+        const originalPause = player.pause.bind(player);
+        player.pause = () => {
+            originalPause();
+            showOSD();
         };
     </script>
 </body>
