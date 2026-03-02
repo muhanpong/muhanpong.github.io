@@ -186,7 +186,7 @@
 
         #palette-histogram {
             width: 80px;
-            background: transparent;
+            background: rgba(0, 0, 0, 0.3);
             display: flex;
             flex-direction: column;
             justify-content: space-around;
@@ -194,15 +194,24 @@
             border-left: 1px solid #333;
             box-sizing: border-box;
             cursor: pointer;
-            transition: width 0.3s, opacity 0.3s, border 0.3s;
+            transition: width 0.3s, opacity 0.3s, border 0.3s, background 0.3s;
+            z-index: 30;
         }
 
         #palette-histogram.hidden {
-            width: 0;
+            width: 15px;
             padding: 0;
-            opacity: 0;
-            border: none;
-            overflow: hidden;
+            opacity: 0.6;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        #palette-histogram.hidden:hover {
+            opacity: 1;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        #palette-histogram.hidden .hist-row {
+            display: none;
         }
 
         .hist-row {
