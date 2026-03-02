@@ -152,21 +152,50 @@
             pointer-events: auto;
         }
 
-        #btn-osd-play-pause {
+        .osd-center-controls {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
+            display: flex;
+            align-items: center;
+            gap: 30px;
+            pointer-events: auto;
+        }
+
+        .osd-icon-btn {
             background: rgba(0, 0, 0, 0.5);
             border: 2px solid rgba(255, 255, 255, 0.2);
             border-radius: 50%;
-            width: 60px;
-            height: 60px;
             cursor: pointer;
             fill: white;
             display: flex;
             align-items: center;
             justify-content: center;
+            transition: background 0.2s, transform 0.1s, border-color 0.2s;
+        }
+
+        .osd-icon-btn:hover {
+            background: rgba(0, 0, 0, 0.7);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .osd-icon-btn:active {
+            transform: translate(0, 0) scale(0.9);
+        }
+
+        #btn-osd-play-pause {
+            width: 60px;
+            height: 60px;
+            position: relative;
+            top: 0;
+            left: 0;
+            transform: none;
+        }
+
+        .btn-osd-frame {
+            width: 40px;
+            height: 40px;
         }
 
         .osd-bottom-bar {
@@ -393,14 +422,26 @@
                 </div>
 
                 <div id="osd-controls">
-                    <button id="btn-osd-play-pause">
-                        <svg id="icon-play" viewBox="0 0 24 24" width="36" height="36">
-                            <path d="M8 5v14l11-7z" />
-                        </svg>
-                        <svg id="icon-pause" viewBox="0 0 24 24" width="36" height="36" style="display:none;">
-                            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                        </svg>
-                    </button>
+                    <div class="osd-center-controls">
+                        <button id="btn-osd-prev-frame" class="osd-icon-btn btn-osd-frame" title="Previous Frame">
+                            <svg viewBox="0 0 24 24" width="24" height="24">
+                                <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
+                            </svg>
+                        </button>
+                        <button id="btn-osd-play-pause" class="osd-icon-btn">
+                            <svg id="icon-play" viewBox="0 0 24 24" width="36" height="36">
+                                <path d="M8 5v14l11-7z" />
+                            </svg>
+                            <svg id="icon-pause" viewBox="0 0 24 24" width="36" height="36" style="display:none;">
+                                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                            </svg>
+                        </button>
+                        <button id="btn-osd-next-frame" class="osd-icon-btn btn-osd-frame" title="Next Frame">
+                            <svg viewBox="0 0 24 24" width="24" height="24">
+                                <path d="M6 18l8.5-6L6 6zm9-12v12h2V6z"/>
+                            </svg>
+                        </button>
+                    </div>
 
                     <div class="osd-bottom-bar">
                         <span class="osd-time"><span id="osd-time-cur">00:00</span> / <span
@@ -439,13 +480,10 @@
     <div class="controls">
         <button id="btn-open-file">📁 OPEN FILE</button>
 
-        <button id="btn-prev-frame">-1F</button>
-        <button id="btn-next-frame">+1F</button>
-        
         <div class="save-group" id="save-group">
             <button id="btn-export" title="Export MP4" style="display: flex; align-items: center; justify-content: center; padding: 8px; border: none; background: transparent;">
                 <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                    <path d="M17 18V5H7v13l5-2.18L17 18zM17 3c1.1 0 2 .9 2 2v16l-7-3-7 3V5c0-1.1.9-2 2-2h10z"/>
+                    <path d="M17 18v1H6v-1h11zm-.5-6.6l-.7-.7-3.8 3.7V4h-1v10.4l-3.8-3.8-.7.7 5 5 5-5z"/>
                 </svg>
             </button>
             <div id="audio-codec-container">
@@ -1127,6 +1165,8 @@
         document.getElementById('palette-histogram').onclick = function () { this.classList.toggle('hidden'); };
 
         document.getElementById('btn-osd-play-pause').onclick = () => player.togglePlay();
+        document.getElementById('btn-osd-prev-frame').onclick = () => moveFrame(-1);
+        document.getElementById('btn-osd-next-frame').onclick = () => moveFrame(1);
         
         const volBtn = document.getElementById('btn-volume');
         const volSlider = document.getElementById('volume-slider');
@@ -1201,10 +1241,17 @@
         };
 
         const moveFrame = (d) => {
-            if (!player.frames.length) return; player.pause();
-            const tar = Math.max(0, Math.min(player.totalFrames - 1, Math.floor(player.pauseTime * player.fps) + d));
-            player.pauseTime = tar / player.fps; seek.value = (player.pauseTime / player.duration) * 100;
-            document.getElementById('osd-time-cur').innerText = player.formatTime(player.pauseTime); player.renderFrame(tar);
+            if (!player.frames.length) return; 
+            player.pause();
+            
+            // Use round to get the closest frame to current pauseTime
+            const currentIdx = Math.round(player.pauseTime * player.fps);
+            const tar = Math.max(0, Math.min(player.totalFrames - 1, currentIdx + d));
+            
+            player.pauseTime = tar / player.fps; 
+            seek.value = (player.pauseTime / player.duration) * 100;
+            document.getElementById('osd-time-cur').innerText = player.formatTime(player.pauseTime); 
+            player.renderFrame(tar);
         };
         document.getElementById('btn-prev-frame').onclick = () => moveFrame(-1);
         document.getElementById('btn-next-frame').onclick = () => moveFrame(1);
