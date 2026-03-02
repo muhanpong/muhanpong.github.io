@@ -105,14 +105,20 @@
             left: 0;
             width: 25%;
             height: 25%;
-            pointer-events: none;
+            pointer-events: auto;
+            cursor: pointer;
             display: flex;
             align-items: flex-end;
             justify-content: space-between;
             padding: 2%;
             box-sizing: border-box;
             gap: 2%;
-            z-index: 10;
+            z-index: 40;
+            transition: opacity 0.2s;
+        }
+
+        #eq-overlay.hidden {
+            opacity: 0;
         }
 
         .overlay-eq-bar {
@@ -182,6 +188,36 @@
             color: #ddd;
             min-width: 90px;
             text-align: left;
+        }
+
+        .osd-volume-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-left: 5px;
+        }
+
+        #btn-volume {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            fill: white;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+        }
+
+        #volume-slider {
+            width: 0;
+            opacity: 0;
+            transition: width 0.2s, opacity 0.2s;
+            cursor: pointer;
+            accent-color: #fff;
+        }
+
+        .osd-volume-group:hover #volume-slider {
+            width: 60px;
+            opacity: 1;
         }
 
         #palette-histogram {
@@ -291,6 +327,39 @@
             font-weight: bold;
         }
 
+        .save-group {
+            position: relative;
+            display: flex;
+            align-items: center;
+            background: #333;
+            border: 1px solid #555;
+            border-radius: 4px;
+            overflow: visible;
+        }
+
+        .save-group:hover #audio-codec-container {
+            width: 120px;
+            opacity: 1;
+            padding: 0 8px;
+        }
+
+        #audio-codec-container {
+            width: 0;
+            opacity: 0;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            gap: 5px;
+        }
+
+        #audio-codec-container.expanded {
+            width: 120px;
+            opacity: 1;
+            padding: 0 8px;
+        }
+
         #btn-fullscreen-toggle {
             background: transparent;
             border: none;
@@ -336,6 +405,19 @@
                     <div class="osd-bottom-bar">
                         <span class="osd-time"><span id="osd-time-cur">00:00</span> / <span
                                 id="osd-time-total">00:00</span></span>
+                        
+                        <div class="osd-volume-group">
+                            <button id="btn-volume" title="Mute/Unmute">
+                                <svg id="icon-vol-on" viewBox="0 0 24 24" width="20" height="20">
+                                    <path d="M3 9v6h4l5 5V5L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                                </svg>
+                                <svg id="icon-vol-off" viewBox="0 0 24 24" width="20" height="20" style="display:none;">
+                                    <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 5L9.91 7.09 12 9.18V5z"/>
+                                </svg>
+                            </button>
+                            <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="1">
+                        </div>
+
                         <input type="range" id="osd-seek-slider" min="0" max="100" value="0" step="0.1" disabled>
                         <button id="btn-fullscreen-toggle">
                             <svg id="icon-expand" viewBox="0 0 24 24" width="24" height="24">
@@ -357,26 +439,27 @@
     <div class="controls">
         <button id="btn-open-file">📁 OPEN FILE</button>
 
-        <div class="panel">
-            <button id="toggle-eq-btn" style="background:#444">EQ ON</button>
-            <label style="font-size:12px;">Opacity</label>
-            <input type="range" id="eq-opacity-slider" min="0" max="1" step="0.05" value="0.25" style="width:70px;">
-        </div>
-
         <button id="btn-prev-frame">-1F</button>
         <button id="btn-next-frame">+1F</button>
         
-        <div class="panel">
-            <label style="font-size:12px;">Audio</label>
-            <select id="audio-codec-select" style="background:#333; color:white; border:1px solid #555; border-radius:4px; font-size:12px; padding:2px 5px;">
-                <option value="mp3">MP3 (Original)</option>
-                <option value="aac">AAC (Standard)</option>
-                <option value="opus">Opus (Open Source)</option>
-                <option value="none">Mute (No Audio)</option>
-            </select>
+        <div class="save-group" id="save-group">
+            <button id="btn-export" title="Export MP4" style="display: flex; align-items: center; justify-content: center; padding: 8px; border: none; background: transparent;">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                    <path d="M17 18V5H7v13l5-2.18L17 18zM17 3c1.1 0 2 .9 2 2v16l-7-3-7 3V5c0-1.1.9-2 2-2h10z"/>
+                </svg>
+            </button>
+            <div id="audio-codec-container">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="#aaa">
+                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                </svg>
+                <select id="audio-codec-select" style="background:#222; color:white; border:1px solid #444; border-radius:3px; font-size:11px; padding:1px 3px; cursor: pointer;">
+                    <option value="mp3" selected>MP3 (Original)</option>
+                    <option value="aac">AAC (Standard)</option>
+                    <option value="opus">Opus (Open Source)</option>
+                    <option value="none">Mute (No Audio)</option>
+                </select>
+            </div>
         </div>
-
-        <button id="btn-export">💾 EXPORT MP4</button>
 
         <div class="panel">
             <label style="font-size:12px;">Zoom</label>
@@ -398,10 +481,13 @@
                 this.canvas = document.getElementById(canvasId);
                 this.ctx = this.canvas.getContext('2d');
                 this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                this.gainNode = this.audioCtx.createGain();
+                this.gainNode.connect(this.audioCtx.destination);
                 this.frames = [];
                 this.isPlaying = false;
                 this.pauseTime = 0;
                 this.fps = 15;
+                this.lastVolume = 1.0;
                 this.initUI();
                 this.initWorker();
             }
@@ -529,8 +615,14 @@
                 while (off < data.length) {
                     const sz = (head === 512 && off === 512) ? 15872 : 16384; if (off + sz > data.length) break;
                     const b = data.subarray(off, off + sz);
-                    this.frames.push({ pgt: b.slice(0, 6144), ct: b.slice(6144, 12288), palette: [[0, 0, 0], ...this.extractPal(b.slice(12288, 12318), 15)], eqRaw: b.slice(12320, 12329) });
                     const mp3Chunk = b.slice(12801, 12801 + (b[12800] * 32));
+                    this.frames.push({ 
+                        pgt: b.slice(0, 6144), 
+                        ct: b.slice(6144, 12288), 
+                        palette: [[0, 0, 0], ...this.extractPal(b.slice(12288, 12318), 15)], 
+                        eqRaw: b.slice(12320, 12329),
+                        mp3Chunk: mp3Chunk.length > 0 ? mp3Chunk : null
+                    });
                     if (mp3Chunk.length > 0) mp3.push(mp3Chunk);
                     off += sz;
                 }
@@ -558,23 +650,23 @@
             }
 
             renderFrame(idx) {
-                const isEqOn = document.getElementById('eq-overlay').style.display !== 'none';
-                this.renderFrameToCanvas(idx, this.ctx, isEqOn);
-                
                 const frame = this.frames[idx];
+                const img = this.ctx.createImageData(256, 192);
                 const counts = new Array(16).fill(0);
-                
-                // Still need counts for histogram
-                if (!document.getElementById('palette-histogram').classList.contains('hidden')) {
-                    for (let y = 0; y < 192; y++) {
-                        for (let cx = 0; cx < 32; cx++) {
-                            const off = (Math.floor(y / 8) * 32 + cx) * 8 + (y % 8);
-                            const p = frame.pgt[off], c = frame.ct[off], fg = c >> 4, bg = c & 15;
-                            for (let px = 0; px < 8; px++) {
-                                const cIdx = (p & (1 << (7 - px))) ? fg : bg; counts[cIdx]++;
-                            }
+                for (let y = 0; y < 192; y++) {
+                    for (let cx = 0; cx < 32; cx++) {
+                        const off = (Math.floor(y / 8) * 32 + cx) * 8 + (y % 8);
+                        const p = frame.pgt[off], c = frame.ct[off], fg = c >> 4, bg = c & 15;
+                        for (let px = 0; px < 8; px++) {
+                            const cIdx = (p & (1 << (7 - px))) ? fg : bg; counts[cIdx]++;
+                            const rgb = frame.palette[cIdx], i = (y * 256 + (cx * 8 + px)) * 4;
+                            img.data[i] = rgb[0]; img.data[i + 1] = rgb[1]; img.data[i + 2] = rgb[2]; img.data[i + 3] = 255;
                         }
                     }
+                }
+                this.ctx.putImageData(img, 0, 0);
+
+                if (!document.getElementById('palette-histogram').classList.contains('hidden')) {
                     const maxLog = Math.log10(256 * 192 + 1);
                     for (let i = 0; i < 16; i++) {
                         const rgb = frame.palette[i];
@@ -583,11 +675,13 @@
                     }
                 }
 
-                // Update HTML overlay bars (used for visual consistency or if user prefers DOM)
-                const bars = document.getElementById('eq-overlay').children;
-                for (let i = 0; i < 9; i++) {
-                    const h = ((15 - Math.min(frame.eqRaw[i], 15)) / 15) * 100;
-                    if (isEqOn) bars[i].style.height = h + '%';
+                const eqOverlay = document.getElementById('eq-overlay');
+                if (!eqOverlay.classList.contains('hidden')) {
+                    const bars = eqOverlay.children;
+                    for (let i = 0; i < 9; i++) {
+                        const h = ((15 - Math.min(frame.eqRaw[i], 15)) / 15) * 100;
+                        bars[i].style.height = h + '%';
+                    }
                 }
             }
 
@@ -714,10 +808,12 @@
 
                 try {
                     const codecChoice = document.getElementById('audio-codec-select').value;
-                    const targetSampleRate = codecChoice === 'opus' ? 48000 : 44100;
+                    // For MP3 passthrough, use the original sample rate. For others, use target.
+                    const originalSampleRate = this.audioBuffer ? this.audioBuffer.sampleRate : 44100;
+                    const targetSampleRate = codecChoice === 'mp3' ? originalSampleRate : (codecChoice === 'opus' ? 48000 : 44100);
                     
                     let resampledAudioBuffer = null;
-                    if (codecChoice !== 'none') {
+                    if (codecChoice !== 'none' && codecChoice !== 'mp3') {
                         status.innerText = `오디오 규격 변환 중 (Resampling to ${targetSampleRate}Hz)...`;
                         const offlineCtx = new OfflineAudioContext(1, Math.ceil(this.duration * targetSampleRate), targetSampleRate);
                         const source = offlineCtx.createBufferSource();
@@ -763,48 +859,68 @@
 
                     let audioEncoder = null;
                     if (codecChoice !== 'none') {
-                        const audioConfig = {
-                            codec: codecChoice === 'opus' ? 'opus' : 'mp4a.40.2',
-                            sampleRate: targetSampleRate, 
-                            numberOfChannels: 1,
-                            bitrate: 128_000 
-                        };
-
-                        let audioSupported = false;
-                        try {
-                            const support = await AudioEncoder.isConfigSupported(audioConfig);
-                            audioSupported = support.supported;
-                        } catch (e) {
-                            audioSupported = false;
-                        }
-
-                        if (audioSupported) {
-                            audioEncoder = new AudioEncoder({
-                                output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
-                                error: e => console.error("오디오 인코딩 에러:", e)
-                            });
-                            audioEncoder.configure(audioConfig);
-
-                            const channelData = resampledAudioBuffer.getChannelData(0);
-                            const audioStep = codecChoice === 'opus' ? 960 : 1024; // Opus prefers 20ms frames at 48kHz
-                            
-                            for (let i = 0; i < channelData.length; i += audioStep) {
-                                const chunk = channelData.subarray(i, i + audioStep);
-                                const audioData = new AudioData({
-                                    format: 'f32-planar',
-                                    sampleRate: targetSampleRate,
-                                    numberOfFrames: chunk.length,
-                                    numberOfChannels: 1,
-                                    timestamp: Math.round((i / targetSampleRate) * 1_000_000),
-                                    data: chunk
-                                });
-                                audioEncoder.encode(audioData);
-                                audioData.close();
+                        if (codecChoice === 'mp3') {
+                            // MP3 Passthrough - bypass resampling and encoding
+                            status.innerText = "MP3 원본 데이터 추출 중...";
+                            const videoFrameDurationMicros = (1 / this.fps) * 1_000_000;
+                            for (let i = 0; i < this.totalFrames; i++) {
+                                const chunkData = this.frames[i].mp3Chunk;
+                                if (chunkData && chunkData.length > 0) {
+                                    // Wrap raw MP3 chunk into EncodedAudioChunk for mp4-muxer
+                                    const audioChunk = new EncodedAudioChunk({
+                                        type: 'key',
+                                        timestamp: Math.round(i * videoFrameDurationMicros),
+                                        duration: Math.round(videoFrameDurationMicros),
+                                        data: chunkData
+                                    });
+                                    muxer.addAudioChunk(audioChunk);
+                                }
                             }
                         } else {
-                            console.warn(`${codecChoice.toUpperCase()} 오디오 인코딩이 지원되지 않아 소리 없이 비디오만 내보냅니다.`);
-                            status.innerText = "오디오 미지원: 비디오만 인코딩 중...";
-                            status.style.color = "#ff9800";
+                            // AAC/Opus Encoding
+                            const audioConfig = {
+                                codec: codecChoice === 'opus' ? 'opus' : 'mp4a.40.2',
+                                sampleRate: targetSampleRate, 
+                                numberOfChannels: 1,
+                                bitrate: 128_000 
+                            };
+
+                            let audioSupported = false;
+                            try {
+                                const support = await AudioEncoder.isConfigSupported(audioConfig);
+                                audioSupported = support.supported;
+                            } catch (e) {
+                                audioSupported = false;
+                            }
+
+                            if (audioSupported) {
+                                audioEncoder = new AudioEncoder({
+                                    output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+                                    error: e => console.error("오디오 인코딩 에러:", e)
+                                });
+                                audioEncoder.configure(audioConfig);
+
+                                const channelData = resampledAudioBuffer.getChannelData(0);
+                                const audioStep = codecChoice === 'opus' ? 960 : 1024; 
+                                
+                                for (let i = 0; i < channelData.length; i += audioStep) {
+                                    const chunk = channelData.subarray(i, i + audioStep);
+                                    const audioData = new AudioData({
+                                        format: 'f32-planar',
+                                        sampleRate: targetSampleRate,
+                                        numberOfFrames: chunk.length,
+                                        numberOfChannels: 1,
+                                        timestamp: Math.round((i / targetSampleRate) * 1_000_000),
+                                        data: chunk
+                                    });
+                                    audioEncoder.encode(audioData);
+                                    audioData.close();
+                                }
+                            } else {
+                                console.warn(`${codecChoice.toUpperCase()} 오디오 인코딩이 지원되지 않아 소리 없이 비디오만 내보냅니다.`);
+                                status.innerText = "오디오 미지원: 비디오만 인코딩 중...";
+                                status.style.color = "#ff9800";
+                            }
                         }
                     }
 
@@ -889,7 +1005,7 @@
 
                 this.src = this.audioCtx.createBufferSource();
                 this.src.buffer = this.audioBuffer;
-                this.src.connect(this.audioCtx.destination);
+                this.src.connect(this.gainNode);
                 this.src.start(0, this.pauseTime);
                 this.startTime = this.audioCtx.currentTime - this.pauseTime;
 
@@ -941,14 +1057,11 @@
             try {
                 const opusSupport = await AudioEncoder.isConfigSupported(opusConfig);
                 if (!opusSupport.supported) {
-                    select.options[1].text += " (Unsupported)";
-                    select.options[1].style.color = "#888";
-                } else if (select.options[0].text.includes("Unsupported")) {
-                    // If AAC is not supported but Opus is, default to Opus
-                    select.value = 'opus';
+                    select.options[2].text += " (Unsupported)";
+                    select.options[2].style.color = "#888";
                 }
             } catch(e) {
-                select.options[1].text += " (Error)";
+                select.options[2].text += " (Error)";
             }
         }
         checkAudioSupport();
@@ -964,21 +1077,113 @@
         canvasArea.ondragleave = () => canvasArea.classList.remove('dragover');
         canvasArea.ondrop = e => { e.preventDefault(); canvasArea.classList.remove('dragover'); if (e.dataTransfer.files.length) player.loadFile(e.dataTransfer.files[0]); };
 
-        document.getElementById('toggle-eq-btn').onclick = e => {
-            const eq = document.getElementById('eq-overlay'); const isOff = eq.style.display === 'none';
-            eq.style.display = isOff ? 'flex' : 'none'; e.target.innerText = isOff ? 'EQ ON' : 'EQ OFF';
-            e.target.style.backgroundColor = isOff ? '#444' : '#d9534f';
-            if (player.frames.length > 0) {
-                const currentIdx = Math.max(0, Math.min(player.totalFrames - 1, Math.floor(player.pauseTime * player.fps)));
-                player.renderFrame(currentIdx);
+        const eqOverlay = document.getElementById('eq-overlay');
+        let isDraggingEq = false;
+        let startY = 0;
+        let startOpacity = 0.25;
+        let hasMoved = false;
+
+        const handleEqStart = (e) => {
+            isDraggingEq = true;
+            hasMoved = false;
+            startY = e.touches ? e.touches[0].clientY : e.clientY;
+            startOpacity = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--eq-opacity'));
+            // Prevent default to avoid scrolling on mobile while dragging EQ
+            if (e.touches) e.preventDefault();
+        };
+
+        const handleEqMove = (e) => {
+            if (!isDraggingEq) return;
+            const currentY = e.touches ? e.touches[0].clientY : e.clientY;
+            const deltaY = startY - currentY; // Up is positive
+            if (Math.abs(deltaY) > 5) hasMoved = true;
+
+            // Sensitivity: 100px drag = 0.5 opacity change
+            let newOpacity = startOpacity + (deltaY / 200);
+            newOpacity = Math.max(0.05, Math.min(1.0, newOpacity));
+            document.documentElement.style.setProperty('--eq-opacity', newOpacity);
+        };
+
+        const handleEqEnd = () => {
+            if (!isDraggingEq) return;
+            isDraggingEq = false;
+            if (!hasMoved) {
+                eqOverlay.classList.toggle('hidden');
+                if (player.frames.length > 0) {
+                    const currentIdx = Math.max(0, Math.min(player.totalFrames - 1, Math.floor(player.pauseTime * player.fps)));
+                    player.renderFrame(currentIdx);
+                }
             }
         };
-        document.getElementById('eq-opacity-slider').oninput = e => document.documentElement.style.setProperty('--eq-opacity', e.target.value);
+
+        eqOverlay.addEventListener('mousedown', handleEqStart);
+        window.addEventListener('mousemove', handleEqMove);
+        window.addEventListener('mouseup', handleEqEnd);
+
+        eqOverlay.addEventListener('touchstart', handleEqStart, { passive: false });
+        window.addEventListener('touchmove', handleEqMove, { passive: false });
+        window.addEventListener('touchend', handleEqEnd);
+
         document.getElementById('scale-slider').oninput = e => document.getElementById('video-container').style.width = (256 * e.target.value + 80) + 'px';
         document.getElementById('palette-histogram').onclick = function () { this.classList.toggle('hidden'); };
 
         document.getElementById('btn-osd-play-pause').onclick = () => player.togglePlay();
-        document.getElementById('btn-export').onclick = () => player.exportMP4();
+        
+        const volBtn = document.getElementById('btn-volume');
+        const volSlider = document.getElementById('volume-slider');
+        const iconVolOn = document.getElementById('icon-vol-on');
+        const iconVolOff = document.getElementById('icon-vol-off');
+
+        volBtn.onclick = () => {
+            if (player.gainNode.gain.value > 0) {
+                player.lastVolume = player.gainNode.gain.value;
+                player.gainNode.gain.value = 0;
+                volSlider.value = 0;
+                iconVolOn.style.display = 'none';
+                iconVolOff.style.display = 'block';
+            } else {
+                player.gainNode.gain.value = player.lastVolume || 1.0;
+                volSlider.value = player.gainNode.gain.value;
+                iconVolOn.style.display = 'block';
+                iconVolOff.style.display = 'none';
+            }
+        };
+
+        volSlider.oninput = (e) => {
+            const val = parseFloat(e.target.value);
+            player.gainNode.gain.value = val;
+            if (val > 0) {
+                iconVolOn.style.display = 'block';
+                iconVolOff.style.display = 'none';
+            } else {
+                iconVolOn.style.display = 'none';
+                iconVolOff.style.display = 'block';
+            }
+        };
+
+        document.getElementById('btn-export').onclick = (e) => {
+            // If the container is not expanded, expand it first instead of exporting
+            const container = document.getElementById('audio-codec-container');
+            if (!container.classList.contains('expanded') && window.innerWidth < 768) {
+                container.classList.add('expanded');
+                e.stopPropagation();
+                return;
+            }
+            player.exportMP4();
+        };
+
+        // Toggle expand on save-group click for mobile/touch
+        document.getElementById('save-group').onclick = function(e) {
+            if (e.target.closest('#btn-export')) return; // handled above
+            document.getElementById('audio-codec-container').classList.toggle('expanded');
+        };
+
+        // Close when clicking elsewhere
+        window.addEventListener('click', (e) => {
+            if (!e.target.closest('#save-group')) {
+                document.getElementById('audio-codec-container').classList.remove('expanded');
+            }
+        });
 
         const seek = document.getElementById('osd-seek-slider');
         let wasPlayingBeforeSeek = false;
