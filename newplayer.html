@@ -558,23 +558,23 @@
             }
 
             renderFrame(idx) {
+                const isEqOn = document.getElementById('eq-overlay').style.display !== 'none';
+                this.renderFrameToCanvas(idx, this.ctx, isEqOn);
+                
                 const frame = this.frames[idx];
-                const img = this.ctx.createImageData(256, 192);
                 const counts = new Array(16).fill(0);
-                for (let y = 0; y < 192; y++) {
-                    for (let cx = 0; cx < 32; cx++) {
-                        const off = (Math.floor(y / 8) * 32 + cx) * 8 + (y % 8);
-                        const p = frame.pgt[off], c = frame.ct[off], fg = c >> 4, bg = c & 15;
-                        for (let px = 0; px < 8; px++) {
-                            const cIdx = (p & (1 << (7 - px))) ? fg : bg; counts[cIdx]++;
-                            const rgb = frame.palette[cIdx], i = (y * 256 + (cx * 8 + px)) * 4;
-                            img.data[i] = rgb[0]; img.data[i + 1] = rgb[1]; img.data[i + 2] = rgb[2]; img.data[i + 3] = 255;
+                
+                // Still need counts for histogram
+                if (!document.getElementById('palette-histogram').classList.contains('hidden')) {
+                    for (let y = 0; y < 192; y++) {
+                        for (let cx = 0; cx < 32; cx++) {
+                            const off = (Math.floor(y / 8) * 32 + cx) * 8 + (y % 8);
+                            const p = frame.pgt[off], c = frame.ct[off], fg = c >> 4, bg = c & 15;
+                            for (let px = 0; px < 8; px++) {
+                                const cIdx = (p & (1 << (7 - px))) ? fg : bg; counts[cIdx]++;
+                            }
                         }
                     }
-                }
-                this.ctx.putImageData(img, 0, 0);
-
-                if (!document.getElementById('palette-histogram').classList.contains('hidden')) {
                     const maxLog = Math.log10(256 * 192 + 1);
                     for (let i = 0; i < 16; i++) {
                         const rgb = frame.palette[i];
@@ -583,10 +583,11 @@
                     }
                 }
 
+                // Update HTML overlay bars (used for visual consistency or if user prefers DOM)
                 const bars = document.getElementById('eq-overlay').children;
                 for (let i = 0; i < 9; i++) {
                     const h = ((15 - Math.min(frame.eqRaw[i], 15)) / 15) * 100;
-                    if (document.getElementById('eq-overlay').style.display !== 'none') bars[i].style.height = h + '%';
+                    if (isEqOn) bars[i].style.height = h + '%';
                 }
             }
 
@@ -967,6 +968,10 @@
             const eq = document.getElementById('eq-overlay'); const isOff = eq.style.display === 'none';
             eq.style.display = isOff ? 'flex' : 'none'; e.target.innerText = isOff ? 'EQ ON' : 'EQ OFF';
             e.target.style.backgroundColor = isOff ? '#444' : '#d9534f';
+            if (player.frames.length > 0) {
+                const currentIdx = Math.max(0, Math.min(player.totalFrames - 1, Math.floor(player.pauseTime * player.fps)));
+                player.renderFrame(currentIdx);
+            }
         };
         document.getElementById('eq-opacity-slider').oninput = e => document.documentElement.style.setProperty('--eq-opacity', e.target.value);
         document.getElementById('scale-slider').oninput = e => document.getElementById('video-container').style.width = (256 * e.target.value + 80) + 'px';
