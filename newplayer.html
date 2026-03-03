@@ -98,11 +98,34 @@
         }
 
         .playlist-header {
-            padding: 8px;
+            padding: 5px 8px;
             border-bottom: 1px solid #333;
             display: flex;
-            justify-content: center;
+            justify-content: space-between;
+            align-items: center;
             background: rgba(255, 255, 255, 0.05);
+        }
+
+        .playlist-header-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .playlist-header-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .playlist-header-btn svg {
+            fill: #888;
+        }
+
+        .playlist-header-btn:hover svg {
+            fill: #fff;
         }
 
         .playlist-items {
@@ -499,10 +522,18 @@
         <div id="video-container">
             <div id="playlist-sidebar" title="Click to Toggle Playlist">
                 <div class="playlist-content">
-                    <div class="playlist-header" id="btn-add-playlist" title="Add File to Playlist">
-                        <svg viewBox="0 0 24 24" width="20" height="20" fill="#aaa">
-                            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                        </svg>
+                    <div class="playlist-header">
+                        <div class="playlist-header-btn" id="btn-add-playlist" title="Add File to Playlist">
+                            <svg viewBox="0 0 24 24" width="20" height="20">
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                            </svg>
+                        </div>
+                        <div class="playlist-header-btn" id="btn-close-playlist" title="Hide Playlist">
+                            <svg viewBox="0 0 24 24" width="20" height="20">
+                                <path
+                                    d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                            </svg>
+                        </div>
                     </div>
                     <div class="playlist-items" id="playlist-items">
                         <!-- Items will be added here -->
@@ -646,6 +677,7 @@
                     const item = document.createElement('div');
                     item.className = `playlist-item ${index === this.currentPlayIndex ? 'active' : ''}`;
                     item.onclick = (e) => {
+                        e.stopPropagation(); // Prevent bubbling to sidebar toggle logic
                         if (e.target.closest('.btn-remove-item')) return;
                         this.playPlaylistItem(index);
                     };
@@ -1287,24 +1319,29 @@
         const playlistSidebar = document.getElementById('playlist-sidebar');
         const playlistItems = document.getElementById('playlist-items');
         const btnAddPlaylist = document.getElementById('btn-add-playlist');
+        const btnClosePlaylist = document.getElementById('btn-close-playlist');
 
-        playlistSidebar.onclick = function(e) {
+        playlistSidebar.onclick = function (e) {
             if (this.classList.contains('hidden')) {
                 this.classList.remove('hidden');
+                e.stopPropagation();
+            } else if (e.offsetX < 15) {
+                // If expanded but clicked on the handle area (left 15px), toggle to hidden
+                this.classList.add('hidden');
                 e.stopPropagation();
             }
         };
 
-        // Clicking playlist handle when expanded should toggle back to hidden
-        playlistSidebar.addEventListener('click', (e) => {
-            // If click is on the narrow handle area while expanded (left 15px)
-            if (!playlistSidebar.classList.contains('hidden') && e.offsetX < 15) {
-                playlistSidebar.classList.add('hidden');
-                e.stopPropagation();
-            }
-        });
+        btnClosePlaylist.onclick = (e) => {
+            e.stopPropagation();
+            playlistSidebar.classList.add('hidden');
+        };
 
         // Add button logic
+        document.getElementById('btn-open-file').onclick = () => {
+            document.getElementById('file-input').click();
+        };
+
         btnAddPlaylist.onclick = (e) => {
             e.stopPropagation();
             document.getElementById('file-input').click();
@@ -1323,13 +1360,22 @@
                 for (let file of e.target.files) {
                     player.addToPlaylist(file);
                 }
+                e.target.value = ''; // Reset value to allow selecting same file again
             }
         };
 
-        const eqOverlay = document.getElementById('eq-overlay');
+        const canvasArea = document.getElementById('canvas-area');
         canvasArea.ondragover = e => { e.preventDefault(); canvasArea.classList.add('dragover'); };
         canvasArea.ondragleave = () => canvasArea.classList.remove('dragover');
-        canvasArea.ondrop = e => { e.preventDefault(); canvasArea.classList.remove('dragover'); if (e.dataTransfer.files.length) player.loadFile(e.dataTransfer.files[0]); };
+        canvasArea.ondrop = e => { 
+            e.preventDefault(); 
+            canvasArea.classList.remove('dragover'); 
+            if (e.dataTransfer.files.length) {
+                for (let file of e.dataTransfer.files) {
+                    player.addToPlaylist(file);
+                }
+            }
+        };
 
         const eqOverlay = document.getElementById('eq-overlay');
         let isDraggingEq = false;
