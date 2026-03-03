@@ -1752,8 +1752,6 @@
             document.getElementById('osd-time-cur').innerText = player.formatTime(player.pauseTime);
             player.renderFrame(tar);
         };
-        document.getElementById('btn-prev-frame').onclick = () => moveFrame(-1);
-        document.getElementById('btn-next-frame').onclick = () => moveFrame(1);
 
         const btnFs = document.getElementById('btn-fullscreen-toggle');
         const screenWrapper = document.getElementById('screen-wrapper');
