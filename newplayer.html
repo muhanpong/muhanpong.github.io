@@ -1435,13 +1435,16 @@
         const canvasArea = document.getElementById('canvas-area');
         canvasArea.ondragover = e => { e.preventDefault(); canvasArea.classList.add('dragover'); };
         canvasArea.ondragleave = () => canvasArea.classList.remove('dragover');
-        canvasArea.ondrop = e => { 
+        canvasArea.ondrop = async e => { 
             e.preventDefault(); 
             canvasArea.classList.remove('dragover'); 
             if (e.dataTransfer.files.length) {
+                const startIndex = player.playlist.length;
                 for (let file of e.dataTransfer.files) {
                     player.addToPlaylist(file);
                 }
+                // Play the first of the newly dropped files immediately
+                await player.playPlaylistItem(startIndex);
             }
         };
 
