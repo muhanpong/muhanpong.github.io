@@ -130,12 +130,40 @@
             right: 10px; /* Leave space for resizer */
         }
 
+        /* Folder Handle (Left Edge) */
+        #playlist-folder {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 15px;
+            height: 100%;
+            cursor: pointer;
+            z-index: 35;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.05);
+            transition: background 0.2s;
+        }
+
+        #playlist-folder:hover {
+            background: rgba(217, 83, 79, 0.3);
+        }
+
+        #playlist-folder svg {
+            fill: #888;
+            transition: transform 0.3s;
+        }
+
+        #playlist-sidebar.hidden #playlist-folder svg {
+            transform: rotate(180deg);
+        }
+
         .playlist-header {
             padding: 5px 2px;
             border-bottom: 1px solid #333;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            justify-content: center;
             background: rgba(255, 255, 255, 0.05);
             flex-shrink: 0;
         }
@@ -794,7 +822,12 @@
                     </div>
                 </div>
             </div>
-            <div id="playlist-sidebar" title="Click to Toggle Playlist">
+            <div id="playlist-sidebar" title="Click Left Edge to Toggle Playlist">
+                <div id="playlist-folder" title="Toggle Playlist">
+                    <svg viewBox="0 0 24 24" width="12" height="12">
+                        <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+                    </svg>
+                </div>
                 <div id="playlist-resizer">
                     <svg viewBox="0 0 24 24" width="16" height="16">
                         <path d="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z" />
@@ -805,12 +838,6 @@
                         <div class="playlist-header-btn" id="btn-add-playlist" title="Add File to Playlist">
                             <svg viewBox="0 0 24 24" width="20" height="20">
                                 <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                            </svg>
-                        </div>
-                        <div class="playlist-header-btn" id="btn-close-playlist" title="Hide Playlist">
-                            <svg viewBox="0 0 24 24" width="20" height="20">
-                                <path
-                                    d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
                             </svg>
                         </div>
                     </div>
@@ -1727,20 +1754,18 @@
         window.addEventListener('mouseup', stopResizing);
         window.addEventListener('touchend', stopResizing);
 
+        const playlistFolder = document.getElementById('playlist-folder');
+
+        playlistFolder.onclick = (e) => {
+            e.stopPropagation();
+            playlistSidebar.classList.toggle('hidden');
+        };
+
         playlistSidebar.onclick = function (e) {
             if (this.classList.contains('hidden')) {
                 this.classList.remove('hidden');
                 e.stopPropagation();
-            } else if (e.offsetX < 15) {
-                // If expanded but clicked on the handle area (left 15px of the sidebar), toggle to hidden
-                this.classList.add('hidden');
-                e.stopPropagation();
             }
-        };
-
-        btnClosePlaylist.onclick = (e) => {
-            e.stopPropagation();
-            playlistSidebar.classList.add('hidden');
         };
 
         // Add button logic
