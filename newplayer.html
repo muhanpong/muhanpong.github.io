@@ -696,6 +696,38 @@
                 this.playlist.forEach((file, index) => {
                     const item = document.createElement('div');
                     item.className = `playlist-item ${index === this.currentPlayIndex ? 'active' : ''}`;
+                    item.draggable = true;
+
+                    item.ondragstart = (e) => {
+                        e.dataTransfer.setData('text/plain', index);
+                        item.classList.add('dragging');
+                    };
+
+                    item.ondragend = () => {
+                        item.classList.remove('dragging');
+                        // Re-render to fix any visual inconsistencies after DOM manipulation during dragover
+                        this.updatePlaylistUI();
+                    };
+
+                    item.ondragover = (e) => {
+                        e.preventDefault();
+                        const draggingItem = container.querySelector('.dragging');
+                        if (draggingItem && draggingItem !== item) {
+                            const rect = item.getBoundingClientRect();
+                            const next = (e.clientY - rect.top) > (rect.height / 2);
+                            container.insertBefore(draggingItem, next ? item.nextSibling : item);
+                        }
+                    };
+
+                    item.ondrop = (e) => {
+                        e.preventDefault();
+                        const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                        const toIndex = Array.from(container.children).indexOf(item);
+                        if (fromIndex !== toIndex) {
+                            this.movePlaylistItem(fromIndex, toIndex);
+                        }
+                    };
+
                     item.onclick = (e) => {
                         e.stopPropagation(); // Prevent bubbling to sidebar toggle logic
                         if (e.target.closest('.btn-remove-item')) return;
@@ -719,6 +751,22 @@
                     item.appendChild(removeBtn);
                     container.appendChild(item);
                 });
+            }
+
+            movePlaylistItem(from, to) {
+                const item = this.playlist.splice(from, 1)[0];
+                this.playlist.splice(to, 0, item);
+
+                // Update current playing index
+                if (this.currentPlayIndex === from) {
+                    this.currentPlayIndex = to;
+                } else if (from < this.currentPlayIndex && to >= this.currentPlayIndex) {
+                    this.currentPlayIndex--;
+                } else if (from > this.currentPlayIndex && to <= this.currentPlayIndex) {
+                    this.currentPlayIndex++;
+                }
+
+                this.updatePlaylistUI();
             }
 
             async addToPlaylist(file) {
