@@ -78,6 +78,7 @@
             transition: width 0.3s, opacity 0.3s, border 0.3s, background 0.3s;
             z-index: 30;
             overflow: hidden;
+            position: relative;
         }
 
         #playlist-sidebar.hidden {
@@ -93,7 +94,11 @@
         .playlist-content {
             display: flex;
             flex-direction: column;
-            height: 100%;
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
             width: 120px;
         }
 
@@ -104,6 +109,7 @@
             justify-content: space-between;
             align-items: center;
             background: rgba(255, 255, 255, 0.05);
+            flex-shrink: 0;
         }
 
         .playlist-header-btn {
@@ -132,7 +138,21 @@
             flex-grow: 1;
             overflow-y: auto;
             scrollbar-width: thin;
-            scrollbar-color: #444 transparent;
+            scrollbar-color: #555 transparent;
+            min-height: 0;
+        }
+
+        .playlist-items::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .playlist-items::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 2px;
+        }
+
+        .playlist-items::-webkit-scrollbar-track {
+            background: transparent;
         }
 
         .playlist-item {
