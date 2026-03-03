@@ -319,6 +319,38 @@
             transform: translate(0, 0) scale(0.9);
         }
 
+        .osd-frame-controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 5px;
+            pointer-events: auto;
+        }
+
+        .osd-frame-btn {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            cursor: pointer;
+            fill: #aaa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 12px;
+            transition: all 0.2s;
+        }
+
+        .osd-frame-btn:hover {
+            background: rgba(0, 0, 0, 0.6);
+            border-color: rgba(255, 255, 255, 0.3);
+            fill: #fff;
+        }
+
+        .btn-osd-track {
+            width: 45px;
+            height: 45px;
+        }
+
         #btn-osd-play-pause {
             width: 60px;
             height: 60px;
@@ -524,13 +556,17 @@
             padding: 0 8px;
         }
 
-        #btn-fullscreen-toggle {
+        #btn-fullscreen-toggle, #btn-repeat {
             background: transparent;
             border: none;
             cursor: pointer;
             fill: white;
             padding: 5px;
             display: flex;
+        }
+
+        .osd-btn-active {
+            fill: #d9534f !important;
         }
     </style>
 </head>
@@ -578,7 +614,7 @@
 
                 <div id="osd-controls">
                     <div class="osd-center-controls">
-                        <button id="btn-osd-prev-frame" class="osd-icon-btn btn-osd-frame" title="Previous Frame">
+                        <button id="btn-osd-prev-track" class="osd-icon-btn btn-osd-track" title="Previous Track">
                             <svg viewBox="0 0 24 24" width="24" height="24">
                                 <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
                             </svg>
@@ -591,9 +627,22 @@
                                 <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                             </svg>
                         </button>
-                        <button id="btn-osd-next-frame" class="osd-icon-btn btn-osd-frame" title="Next Frame">
+                        <button id="btn-osd-next-track" class="osd-icon-btn btn-osd-track" title="Next Track">
                             <svg viewBox="0 0 24 24" width="24" height="24">
                                 <path d="M6 18l8.5-6L6 6zm9-12v12h2V6z" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="osd-frame-controls">
+                        <button id="btn-osd-prev-frame" class="osd-frame-btn" title="Previous Frame">
+                            <svg viewBox="0 0 24 24" width="18" height="18">
+                                <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+                            </svg>
+                        </button>
+                        <button id="btn-osd-next-frame" class="osd-frame-btn" title="Next Frame">
+                            <svg viewBox="0 0 24 24" width="18" height="18">
+                                <path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z" />
                             </svg>
                         </button>
                     </div>
@@ -617,6 +666,23 @@
                         </div>
 
                         <input type="range" id="osd-seek-slider" min="0" max="100" value="0" step="0.1" disabled>
+                        <button id="btn-repeat" title="Repeat Mode: Off">
+                            <svg id="icon-repeat-off" viewBox="0 0 24 24" width="22" height="22">
+                                <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" opacity="0.3" />
+                            </svg>
+                            <svg id="icon-repeat-all" viewBox="0 0 24 24" width="22" height="22" style="display:none;">
+                                <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
+                            </svg>
+                            <svg id="icon-repeat-one" viewBox="0 0 24 24" width="22" height="22" style="display:none;">
+                                <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
+                                <text x="12" y="15" font-size="10" font-family="sans-serif" font-weight="bold" fill="white"
+                                    text-anchor="middle">1</text>
+                            </svg>
+                            <svg id="icon-shuffle" viewBox="0 0 24 24" width="22" height="22" style="display:none;">
+                                <path
+                                    d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.45 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z" />
+                            </svg>
+                        </button>
                         <button id="btn-fullscreen-toggle">
                             <svg id="icon-expand" viewBox="0 0 24 24" width="24" height="24">
                                 <path
@@ -686,8 +752,83 @@
                 this.lastVolume = 1.0;
                 this.playlist = [];
                 this.currentPlayIndex = -1;
+                this.repeatMode = 'off'; // 'off', 'all', 'one', 'shuffle'
+                this.shuffleList = [];
                 this.initUI();
                 this.initWorker();
+            }
+
+            setRepeatMode(mode) {
+                this.repeatMode = mode;
+                if (mode === 'shuffle') {
+                    this.generateShuffleList();
+                }
+                this.updateRepeatUI();
+            }
+
+            generateShuffleList() {
+                this.shuffleList = Array.from({ length: this.playlist.length }, (_, i) => i);
+                for (let i = this.shuffleList.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [this.shuffleList[i], this.shuffleList[j]] = [this.shuffleList[j], this.shuffleList[i]];
+                }
+                // Move current index to front of shuffle list so we don't replay it immediately
+                const currentInShuffle = this.shuffleList.indexOf(this.currentPlayIndex);
+                if (currentInShuffle > -1) {
+                    this.shuffleList.splice(currentInShuffle, 1);
+                    this.shuffleList.unshift(this.currentPlayIndex);
+                }
+            }
+
+            updateRepeatUI() {
+                const btn = document.getElementById('btn-repeat');
+                const icons = {
+                    off: 'icon-repeat-off',
+                    all: 'icon-repeat-all',
+                    one: 'icon-repeat-one',
+                    shuffle: 'icon-shuffle'
+                };
+
+                Object.values(icons).forEach(id => document.getElementById(id).style.display = 'none');
+                document.getElementById(icons[this.repeatMode]).style.display = 'block';
+
+                btn.title = `Repeat Mode: ${this.repeatMode.charAt(0).toUpperCase() + this.repeatMode.slice(1)}`;
+                if (this.repeatMode !== 'off') {
+                    btn.classList.add('osd-btn-active');
+                } else {
+                    btn.classList.remove('osd-btn-active');
+                }
+            }
+
+            async handleEnded() {
+                if (this.repeatMode === 'one') {
+                    await this.playPlaylistItem(this.currentPlayIndex);
+                } else if (this.repeatMode === 'all') {
+                    let next = this.currentPlayIndex + 1;
+                    if (next >= this.playlist.length) next = 0;
+                    await this.playPlaylistItem(next);
+                } else if (this.repeatMode === 'shuffle') {
+                    if (this.playlist.length <= 1) {
+                        await this.playPlaylistItem(this.currentPlayIndex);
+                        return;
+                    }
+                    let currentInShuffle = this.shuffleList.indexOf(this.currentPlayIndex);
+                    let nextIdxInShuffle = currentInShuffle + 1;
+                    if (nextIdxInShuffle >= this.shuffleList.length) {
+                        this.generateShuffleList();
+                        nextIdxInShuffle = 0;
+                    }
+                    await this.playPlaylistItem(this.shuffleList[nextIdxInShuffle]);
+                } else {
+                    // Off mode - just stop or play next if there is one
+                    if (this.currentPlayIndex < this.playlist.length - 1) {
+                        await this.playPlaylistItem(this.currentPlayIndex + 1);
+                    } else {
+                        this.pause();
+                        this.pauseTime = 0;
+                        this.renderFrame(0);
+                    }
+                }
             }
 
             updatePlaylistUI() {
@@ -796,6 +937,20 @@
                 await this.loadFile(this.playlist[index]);
             }
 
+            async playNextTrack() {
+                if (this.playlist.length === 0) return;
+                let next = this.currentPlayIndex + 1;
+                if (next >= this.playlist.length) next = 0;
+                await this.playPlaylistItem(next);
+            }
+
+            async playPrevTrack() {
+                if (this.playlist.length === 0) return;
+                let prev = this.currentPlayIndex - 1;
+                if (prev < 0) prev = this.playlist.length - 1;
+                await this.playPlaylistItem(prev);
+            }
+
             initUI() {
                 const histContainer = document.getElementById('palette-histogram');
                 for (let i = 0; i < 16; i++) {
@@ -835,7 +990,9 @@
                     document.getElementById('osd-time-cur').innerText = this.formatTime(cur);
                     if (frame < this.totalFrames) {
                         if (this.lastFrame !== frame) { this.renderFrame(frame); this.lastFrame = frame; }
-                    } else { this.pause(); }
+                    } else {
+                        this.handleEnded();
+                    }
                 };
             }
 
@@ -1499,8 +1656,16 @@
         document.getElementById('palette-histogram').onclick = function () { this.classList.toggle('hidden'); };
 
         document.getElementById('btn-osd-play-pause').onclick = () => player.togglePlay();
+        document.getElementById('btn-osd-prev-track').onclick = () => player.playPrevTrack();
+        document.getElementById('btn-osd-next-track').onclick = () => player.playNextTrack();
         document.getElementById('btn-osd-prev-frame').onclick = () => moveFrame(-1);
         document.getElementById('btn-osd-next-frame').onclick = () => moveFrame(1);
+
+        document.getElementById('btn-repeat').onclick = () => {
+            const modes = ['off', 'all', 'one', 'shuffle'];
+            const nextMode = modes[(modes.indexOf(player.repeatMode) + 1) % modes.length];
+            player.setRepeatMode(nextMode);
+        };
 
         const volBtn = document.getElementById('btn-volume');
         const volSlider = document.getElementById('volume-slider');
