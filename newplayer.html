@@ -72,7 +72,7 @@
             background: rgba(0, 0, 0, 0.3);
             display: flex;
             flex-direction: column;
-            border-right: 1px solid #333;
+            border-left: 1px solid #333;
             box-sizing: border-box;
             cursor: pointer;
             transition: width 0.3s, opacity 0.3s, border 0.3s, background 0.3s;
@@ -97,13 +97,13 @@
             position: absolute;
             top: 0;
             bottom: 0;
-            left: 0;
+            left: 15px;
             right: 0;
-            width: 120px;
+            width: 105px;
         }
 
         .playlist-header {
-            padding: 5px 8px;
+            padding: 5px 4px;
             border-bottom: 1px solid #333;
             display: flex;
             justify-content: space-between;
@@ -117,7 +117,7 @@
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            padding: 4px;
+            padding: 2px;
             border-radius: 4px;
             transition: background 0.2s;
         }
@@ -157,7 +157,7 @@
 
         .playlist-item {
             padding: 8px 5px;
-            font-size: 11px;
+            font-size: 10px;
             color: #ccc;
             border-bottom: 1px solid #222;
             display: flex;
@@ -423,7 +423,7 @@
             flex-direction: column;
             justify-content: space-around;
             padding: 5px;
-            border-left: 1px solid #333;
+            border-right: 1px solid #333;
             box-sizing: border-box;
             cursor: pointer;
             transition: width 0.3s, opacity 0.3s, border 0.3s, background 0.3s;
@@ -451,6 +451,7 @@
             align-items: center;
             height: 5%;
             gap: 6px;
+            flex-direction: row-reverse;
         }
 
         .hist-color-box {
@@ -462,7 +463,7 @@
         .hist-bar {
             height: 8px;
             background-color: #00ffcc;
-            border-radius: 0 1px 1px 0;
+            border-radius: 1px 0 0 1px;
         }
 
         #canvas-msg-overlay {
@@ -568,34 +569,71 @@
         .osd-btn-active {
             fill: #d9534f !important;
         }
+
+        #btn-info-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            background: #444;
+            color: #fff;
+            border-radius: 50%;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-left: 10px;
+            vertical-align: middle;
+            border: 1px solid #666;
+            transition: background 0.2s;
+            user-select: none;
+        }
+
+        #btn-info-toggle:hover {
+            background: #d9534f;
+            border-color: #d9534f;
+        }
+
+        #info-block {
+            margin: 20px auto;
+            width: 968px;
+            max-width: 100vw;
+            background: #222;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            box-sizing: border-box;
+            text-align: left;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #aaa;
+            display: none;
+        }
+
+        #info-block h3 {
+            margin-top: 0;
+            color: #eee;
+            border-bottom: 1px solid #444;
+            padding-bottom: 5px;
+        }
+
+        .info-link {
+            color: #d9534f;
+            text-decoration: none;
+        }
+
+        .info-link:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 
 <body>
-    <h2>MSX2 MV Player & Recorder</h2>
+    <h2>MSX2 MV Player & Recorder <span id="btn-info-toggle" title="Credits & Info">!</span></h2>
 
     <div id="screen-wrapper">
         <div id="video-container">
-            <div id="playlist-sidebar" title="Click to Toggle Playlist">
-                <div class="playlist-content">
-                    <div class="playlist-header">
-                        <div class="playlist-header-btn" id="btn-add-playlist" title="Add File to Playlist">
-                            <svg viewBox="0 0 24 24" width="20" height="20">
-                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                            </svg>
-                        </div>
-                        <div class="playlist-header-btn" id="btn-close-playlist" title="Hide Playlist">
-                            <svg viewBox="0 0 24 24" width="20" height="20">
-                                <path
-                                    d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-                            </svg>
-                        </div>
-                    </div>
-                    <div class="playlist-items" id="playlist-items">
-                        <!-- Items will be added here -->
-                    </div>
-                </div>
-            </div>
+            <div id="palette-histogram" title="Click to Toggle Histogram"></div>
             <div id="canvas-area">
                 <canvas id="msx-screen" width="256" height="192"></canvas>
                 <div id="canvas-msg-overlay">📂 Drop .MV or .ZIP here</div>
@@ -696,7 +734,26 @@
                     </div>
                 </div>
             </div>
-            <div id="palette-histogram" title="Click to Toggle Histogram"></div>
+            <div id="playlist-sidebar" title="Click to Toggle Playlist">
+                <div class="playlist-content">
+                    <div class="playlist-header">
+                        <div class="playlist-header-btn" id="btn-add-playlist" title="Add File to Playlist">
+                            <svg viewBox="0 0 24 24" width="20" height="20">
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                            </svg>
+                        </div>
+                        <div class="playlist-header-btn" id="btn-close-playlist" title="Hide Playlist">
+                            <svg viewBox="0 0 24 24" width="20" height="20">
+                                <path
+                                    d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="playlist-items" id="playlist-items">
+                        <!-- Items will be added here -->
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1552,7 +1609,7 @@
                 this.classList.remove('hidden');
                 e.stopPropagation();
             } else if (e.offsetX < 15) {
-                // If expanded but clicked on the handle area (left 15px), toggle to hidden
+                // If expanded but clicked on the handle area (left 15px of the sidebar), toggle to hidden
                 this.classList.add('hidden');
                 e.stopPropagation();
             }
@@ -1844,6 +1901,11 @@
         player.pause = () => {
             originalPause();
             showOSD();
+        };
+
+        document.getElementById('btn-info-toggle').onclick = () => {
+            const info = document.getElementById('info-block');
+            info.style.display = info.style.display === 'block' ? 'none' : 'block';
         };
     </script>
 </body>
