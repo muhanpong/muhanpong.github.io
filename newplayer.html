@@ -62,19 +62,18 @@
             display: flex;
             align-items: stretch;
             background: #000;
-            width: 968px; /* 256*3(768) + left sidebar(120) + right histogram(80) = 968 */
+            width: 928px; /* 256*3(768) + left(80) + right(80) = 928 */
             max-width: 100vw;
             transition: width 0.2s;
         }
 
         #playlist-sidebar {
-            width: 120px;
+            width: 80px;
             background: rgba(0, 0, 0, 0.3);
             display: flex;
             flex-direction: column;
             border-left: 1px solid #333;
             box-sizing: border-box;
-            cursor: pointer;
             transition: width 0.3s, opacity 0.3s, border 0.3s, background 0.3s;
             z-index: 30;
             overflow: hidden;
@@ -87,7 +86,37 @@
             background: rgba(255, 255, 255, 0.05);
         }
 
-        #playlist-sidebar.hidden .playlist-content {
+        /* Resizer Handle */
+        #playlist-resizer {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 15px; /* Slightly wider for easier grab */
+            height: 100%;
+            cursor: ew-resize;
+            z-index: 35;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            transition: background 0.2s;
+        }
+
+        #playlist-resizer:hover {
+            background: rgba(217, 83, 79, 0.2);
+        }
+
+        #playlist-resizer svg {
+            display: none;
+            fill: #fff;
+            filter: drop-shadow(0 0 2px #000);
+        }
+
+        #playlist-resizer:hover svg {
+            display: block;
+        }
+
+        #playlist-sidebar.hidden #playlist-resizer {
             display: none;
         }
 
@@ -98,12 +127,11 @@
             top: 0;
             bottom: 0;
             left: 15px;
-            right: 0;
-            width: 105px;
+            right: 10px; /* Leave space for resizer */
         }
 
         .playlist-header {
-            padding: 5px 4px;
+            padding: 5px 2px;
             border-bottom: 1px solid #333;
             display: flex;
             justify-content: space-between;
@@ -742,6 +770,11 @@
                 </div>
             </div>
             <div id="playlist-sidebar" title="Click to Toggle Playlist">
+                <div id="playlist-resizer">
+                    <svg viewBox="0 0 24 24" width="16" height="16">
+                        <path d="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z" />
+                    </svg>
+                </div>
                 <div class="playlist-content">
                     <div class="playlist-header">
                         <div class="playlist-header-btn" id="btn-add-playlist" title="Add File to Playlist">
@@ -1610,6 +1643,47 @@
         const playlistItems = document.getElementById('playlist-items');
         const btnAddPlaylist = document.getElementById('btn-add-playlist');
         const btnClosePlaylist = document.getElementById('btn-close-playlist');
+        const playlistResizer = document.getElementById('playlist-resizer');
+        const videoContainer = document.getElementById('video-container');
+
+        let isResizing = false;
+
+        const startResizing = (e) => {
+            isResizing = true;
+            document.body.style.cursor = 'ew-resize';
+            if (e.touches) e.preventDefault();
+        };
+
+        const stopResizing = () => {
+            if (!isResizing) return;
+            isResizing = false;
+            document.body.style.cursor = 'default';
+        };
+
+        const handleResizing = (e) => {
+            if (!isResizing) return;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const rect = videoContainer.getBoundingClientRect();
+            // Calculate width from the right edge of the video container
+            let newWidth = rect.right - clientX;
+            
+            // Constrain width
+            newWidth = Math.max(80, Math.min(400, newWidth));
+            
+            playlistSidebar.style.width = newWidth + 'px';
+            const histogramWidth = document.getElementById('palette-histogram').offsetWidth;
+            videoContainer.style.width = (768 + histogramWidth + newWidth) + 'px';
+            
+            // Update playlist-content width to match
+            document.querySelector('.playlist-content').style.width = (newWidth - 15) + 'px';
+        };
+
+        playlistResizer.addEventListener('mousedown', startResizing);
+        playlistResizer.addEventListener('touchstart', startResizing, { passive: false });
+        window.addEventListener('mousemove', handleResizing);
+        window.addEventListener('touchmove', handleResizing, { passive: false });
+        window.addEventListener('mouseup', stopResizing);
+        window.addEventListener('touchend', stopResizing);
 
         playlistSidebar.onclick = function (e) {
             if (this.classList.contains('hidden')) {
