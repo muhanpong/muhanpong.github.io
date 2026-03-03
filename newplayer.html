@@ -1486,6 +1486,7 @@
             }
 
             pause() {
+                if (!this.isPlaying) return;
                 this.isPlaying = false;
                 document.getElementById('canvas-area').classList.add('paused');
 
