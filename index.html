@@ -12,14 +12,19 @@
             --eq-opacity: 0.25;
         }
 
+        html, body {
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+        }
+
         body {
             background-color: #111;
             color: #eee;
             font-family: sans-serif;
             text-align: center;
-            margin: 0;
-            padding-top: 20px;
-            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
         }
 
         #screen-wrapper {
@@ -29,7 +34,7 @@
             align-items: center;
             background-color: #000;
             width: 100%;
-            max-width: 100%;
+            height: 100dvh;
             box-sizing: border-box;
             transition: all 0.3s ease;
         }
@@ -806,6 +811,7 @@
                 this.currentPlayIndex = -1;
                 this.repeatMode = 'off';
                 this.shuffleList = [];
+                this.isScrubbing = false;
                 this.initUI();
                 this.initWorker();
                 this.setupCircularScroll();
