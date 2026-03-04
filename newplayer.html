@@ -656,8 +656,9 @@
                             <div class="osd-left-controls">
                                 <button id="btn-zoom" title="Cycle Zoom (1x-5x)" data-zoom="3x">
                                     <svg viewBox="0 0 24 24" width="22" height="22">
-                                        <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-                                        <path d="M12 10h-2v2H9v-2H7V9h2V7h1v2h2v1z"/>
+                                        <path
+                                            d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+                                        <path d="M12 10h-2v2H9v-2H7V9h2V7h1v2h2v1z" />
                                     </svg>
                                 </button>
                                 <div class="osd-save-group">
@@ -671,7 +672,8 @@
                                     </div>
                                     <button id="btn-osd-save" title="Export MP4">
                                         <svg viewBox="0 0 24 24" width="22" height="22">
-                                            <path d="M17 18v1H6v-1h11zm-.5-6.6l-.7-.7-3.8 3.7V4h-1v10.4l-3.8-3.8-.7.7 5 5 5-5z" />
+                                            <path
+                                                d="M17 18v1H6v-1h11zm-.5-6.6l-.7-.7-3.8 3.7V4h-1v10.4l-3.8-3.8-.7.7 5 5 5-5z" />
                                         </svg>
                                     </button>
                                 </div>
@@ -680,7 +682,8 @@
                             <div class="osd-right-controls">
                                 <button id="btn-osd-open" title="Open Files">
                                     <svg viewBox="0 0 24 24" width="22" height="22">
-                                        <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z" />
+                                        <path
+                                            d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z" />
                                     </svg>
                                 </button>
 
@@ -796,6 +799,7 @@
                 this.shuffleList = [];
                 this.initUI();
                 this.initWorker();
+                this.setupCircularScroll();
             }
 
             setRepeatMode(mode) {
@@ -847,54 +851,84 @@
             updatePlaylistUI() {
                 const container = document.getElementById('playlist-items');
                 container.innerHTML = '';
-                this.playlist.forEach((item, index) => {
-                    const el = document.createElement('div');
-                    el.className = `playlist-item ${index === this.currentPlayIndex ? 'active' : ''}`;
-                    el.draggable = true;
-                    el.onclick = (e) => {
-                        e.stopPropagation();
-                        if (e.target.closest('.btn-remove-item')) return;
-                        this.playPlaylistItem(index);
-                    };
+                if (this.playlist.length === 0) return;
 
-                    const thumb = document.createElement('img');
-                    thumb.className = 'playlist-thumbnail';
-                    if (item.thumbnail) thumb.src = item.thumbnail;
-                    else thumb.style.background = '#222';
+                const renderCount = this.playlist.length > 3 ? 3 : 1;
+                for (let i = 0; i < renderCount; i++) {
+                    this.playlist.forEach((item, index) => {
+                        const el = document.createElement('div');
+                        el.className = `playlist-item ${index === this.currentPlayIndex ? 'active' : ''}`;
+                        el.draggable = true;
+                        el.onclick = (e) => {
+                            e.stopPropagation();
+                            if (e.target.closest('.btn-remove-item')) return;
+                            this.playPlaylistItem(index);
+                        };
 
-                    const name = document.createElement('span');
-                    name.className = 'playlist-item-name';
-                    name.innerText = item.name;
-                    name.title = item.name;
+                        const thumb = document.createElement('img');
+                        thumb.className = 'playlist-thumbnail';
+                        if (item.thumbnail) thumb.src = item.thumbnail;
+                        else thumb.style.background = '#222';
 
-                    const removeBtn = document.createElement('button');
-                    removeBtn.className = 'btn-remove-item';
-                    removeBtn.innerHTML = '×';
-                    removeBtn.onclick = (e) => { e.stopPropagation(); this.removeFromPlaylist(index); };
+                        const name = document.createElement('span');
+                        name.className = 'playlist-item-name';
+                        name.innerText = item.name;
+                        name.title = item.name;
 
-                    el.appendChild(thumb);
-                    el.appendChild(name);
-                    el.appendChild(removeBtn);
-                    container.appendChild(el);
+                        const removeBtn = document.createElement('button');
+                        removeBtn.className = 'btn-remove-item';
+                        removeBtn.innerHTML = '×';
+                        removeBtn.onclick = (e) => { e.stopPropagation(); this.removeFromPlaylist(index); };
 
-                    el.ondragstart = (e) => { e.dataTransfer.setData('text/plain', index); el.classList.add('dragging'); };
-                    el.ondragend = () => { el.classList.remove('dragging'); this.updatePlaylistUI(); };
-                    el.ondragover = (e) => {
-                        e.preventDefault();
-                        const draggingItem = container.querySelector('.dragging');
-                        if (draggingItem && draggingItem !== el) {
-                            const rect = el.getBoundingClientRect();
-                            const next = (e.clientY - rect.top) > (rect.height / 2);
-                            container.insertBefore(draggingItem, next ? el.nextSibling : el);
+                        el.appendChild(thumb);
+                        el.appendChild(name);
+                        el.appendChild(removeBtn);
+                        container.appendChild(el);
+
+                        if (i === 1 || renderCount === 1) {
+                            el.ondragstart = (e) => { e.dataTransfer.setData('text/plain', index); el.classList.add('dragging'); };
+                            el.ondragend = () => { el.classList.remove('dragging'); this.updatePlaylistUI(); };
+                            el.ondragover = (e) => {
+                                e.preventDefault();
+                                const draggingItem = container.querySelector('.dragging');
+                                if (draggingItem && draggingItem !== el) {
+                                    const rect = el.getBoundingClientRect();
+                                    const next = (e.clientY - rect.top) > (rect.height / 2);
+                                    container.insertBefore(draggingItem, next ? el.nextSibling : el);
+                                }
+                            };
+                            el.ondrop = (e) => {
+                                e.preventDefault();
+                                const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                                const toIndex = Array.from(container.children).indexOf(el) % this.playlist.length;
+                                if (fromIndex !== toIndex) this.movePlaylistItem(fromIndex, toIndex);
+                            };
                         }
-                    };
-                    el.ondrop = (e) => {
-                        e.preventDefault();
-                        const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
-                        const toIndex = Array.from(container.children).indexOf(el);
-                        if (fromIndex !== toIndex) this.movePlaylistItem(fromIndex, toIndex);
-                    };
-                });
+                    });
+                }
+                if (renderCount === 3 && !this._isCircularInit) {
+                    this._isCircularInit = true;
+                    setTimeout(() => { container.scrollTop = container.scrollHeight / 3; }, 0);
+                }
+            }
+
+            setupCircularScroll() {
+                const container = document.getElementById('playlist-items');
+                container.onscroll = () => {
+                    if (this.playlist.length <= 3) return;
+                    const oneThird = container.scrollHeight / 3;
+                    if (container.scrollTop < 10) { container.scrollTop = oneThird + 10; }
+                    else if (container.scrollTop > (oneThird * 2)) { container.scrollTop = oneThird; }
+                };
+            }
+
+            scrollToActive() {
+                const container = document.getElementById('playlist-items');
+                const activeItems = container.querySelectorAll('.playlist-item.active');
+                if (activeItems.length > 0) {
+                    const target = activeItems.length === 3 ? activeItems[1] : activeItems[0];
+                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
             }
 
             movePlaylistItem(from, to) {
@@ -919,8 +953,7 @@
                 try {
                     let data;
                     if (file.name.toLowerCase().endsWith('.zip')) {
-                        const zip = new JSZip();
-                        const content = await zip.loadAsync(file);
+                        const zip = new JSZip(); const content = await zip.loadAsync(file);
                         const entry = Object.values(content.files).find(f => f.name.toLowerCase().endsWith('.mv') || f.name.toLowerCase().endsWith('.mv2'));
                         if (!entry) return null;
                         data = await entry.async('uint8array');
@@ -981,6 +1014,7 @@
                 if (index < 0 || index >= this.playlist.length) return;
                 this.currentPlayIndex = index;
                 this.updatePlaylistUI();
+                this.scrollToActive();
                 await this.loadFile(this.playlist[index].file);
             }
 
@@ -1260,7 +1294,7 @@
 
         const playlistFolder = document.getElementById('playlist-folder'), playlistSidebar = document.getElementById('playlist-sidebar');
         playlistFolder.onclick = (e) => { e.stopPropagation(); playlistSidebar.classList.toggle('hidden'); };
-        playlistSidebar.onclick = function(e) { if (this.classList.contains('hidden')) this.classList.remove('hidden'); };
+        playlistSidebar.onclick = function (e) { if (this.classList.contains('hidden')) this.classList.remove('hidden'); };
 
         document.getElementById('btn-osd-open').onclick = () => document.getElementById('file-input').click();
         document.getElementById('btn-osd-save').onclick = () => player.exportMP4();
@@ -1294,7 +1328,7 @@
         eqOverlay.addEventListener('mousedown', handleEqStart); window.addEventListener('mousemove', handleEqMove); window.addEventListener('mouseup', handleEqEnd);
         eqOverlay.addEventListener('touchstart', handleEqStart, { passive: false }); window.addEventListener('touchmove', handleEqMove, { passive: false }); window.addEventListener('touchend', handleEqEnd);
 
-        document.getElementById('palette-histogram').onclick = function() { this.classList.toggle('hidden'); };
+        document.getElementById('palette-histogram').onclick = function () { this.classList.toggle('hidden'); };
         document.getElementById('btn-osd-play-pause').onclick = () => player.togglePlay();
         document.getElementById('btn-osd-prev-track').onclick = () => player.playPrevTrack();
         document.getElementById('btn-osd-next-track').onclick = () => player.playNextTrack();
