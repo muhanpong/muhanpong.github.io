@@ -201,16 +201,25 @@
         }
 
         .playlist-item {
-            padding: 10px 15px;
-            font-size: 13px;
+            padding: 8px 10px;
+            font-size: 12px;
             color: #ccc;
             border-bottom: 1px solid #222;
             display: flex;
             align-items: center;
-            justify-content: space-between;
             gap: 10px;
             cursor: pointer;
             text-align: left;
+        }
+
+        .playlist-thumbnail {
+            width: 48px;
+            height: 36px;
+            background: #000;
+            border: 1px solid #444;
+            border-radius: 2px;
+            object-fit: cover;
+            flex-shrink: 0;
         }
 
         .playlist-item:hover {
@@ -415,7 +424,7 @@
         .osd-right-controls {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 5px;
         }
 
         .osd-volume-group {
@@ -424,7 +433,7 @@
             gap: 5px;
         }
 
-        #btn-volume, #btn-repeat, #btn-zoom, #btn-fullscreen-toggle {
+        #btn-volume, #btn-repeat, #btn-zoom, #btn-fullscreen-toggle, #btn-osd-open, #btn-osd-save {
             background: transparent;
             border: none;
             cursor: pointer;
@@ -432,6 +441,28 @@
             padding: 5px;
             display: flex;
             align-items: center;
+            transition: transform 0.1s;
+        }
+
+        #btn-osd-open:active, #btn-osd-save:active {
+            transform: scale(0.9);
+        }
+
+        #osd-codec-container {
+            display: flex;
+            align-items: center;
+            width: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            gap: 5px;
+        }
+
+        .osd-save-group:hover #osd-codec-container {
+            width: 130px;
+            opacity: 1;
+            margin-right: 5px;
         }
 
         #volume-slider {
@@ -676,6 +707,28 @@
                                     id="osd-time-total">00:00</span></span>
 
                             <div class="osd-right-controls">
+                                <button id="btn-osd-open" title="Open Files">
+                                    <svg viewBox="0 0 24 24" width="22" height="22">
+                                        <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z" />
+                                    </svg>
+                                </button>
+
+                                <div class="osd-save-group">
+                                    <div id="osd-codec-container">
+                                        <select id="audio-codec-select"
+                                            style="background:#222; color:white; border:1px solid #444; border-radius:3px; font-size:11px; padding:1px 3px; cursor: pointer;">
+                                            <option value="opus" selected>Opus (High Quality)</option>
+                                            <option value="aac">AAC (Standard)</option>
+                                            <option value="none">Mute (No Audio)</option>
+                                        </select>
+                                    </div>
+                                    <button id="btn-osd-save" title="Export MP4">
+                                        <svg viewBox="0 0 24 24" width="22" height="22">
+                                            <path d="M17 18v1H6v-1h11zm-.5-6.6l-.7-.7-3.8 3.7V4h-1v10.4l-3.8-3.8-.7.7 5 5 5-5z" />
+                                        </svg>
+                                    </button>
+                                </div>
+
                                 <div class="osd-volume-group">
                                     <button id="btn-volume" title="Mute/Unmute">
                                         <svg id="icon-vol-on" viewBox="0 0 24 24" width="20" height="20">
@@ -757,30 +810,6 @@
                         <!-- Items will be added here -->
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="controls">
-        <button id="btn-open-file">📁 OPEN FILE</button>
-
-        <div class="save-group" id="save-group">
-            <button id="btn-export" title="Export MP4"
-                style="display: flex; align-items: center; justify-content: center; padding: 8px; border: none; background: transparent;">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                    <path d="M17 18v1H6v-1h11zm-.5-6.6l-.7-.7-3.8 3.7V4h-1v10.4l-3.8-3.8-.7.7 5 5 5-5z" />
-                </svg>
-            </button>
-            <div id="audio-codec-container">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="#aaa">
-                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
-                </svg>
-                <select id="audio-codec-select"
-                    style="background:#222; color:white; border:1px solid #444; border-radius:3px; font-size:11px; padding:1px 3px; cursor: pointer;">
-                    <option value="opus" selected>Opus (High Quality)</option>
-                    <option value="aac">AAC (Standard)</option>
-                    <option value="none">Mute (No Audio)</option>
-                </select>
             </div>
         </div>
     </div>
@@ -870,43 +899,57 @@
             updatePlaylistUI() {
                 const container = document.getElementById('playlist-items');
                 container.innerHTML = '';
-                this.playlist.forEach((file, index) => {
-                    const item = document.createElement('div');
-                    item.className = `playlist-item ${index === this.currentPlayIndex ? 'active' : ''}`;
-                    item.draggable = true;
-                    item.ondragstart = (e) => { e.dataTransfer.setData('text/plain', index); item.classList.add('dragging'); };
-                    item.ondragend = () => { item.classList.remove('dragging'); this.updatePlaylistUI(); };
-                    item.ondragover = (e) => {
-                        e.preventDefault();
-                        const draggingItem = container.querySelector('.dragging');
-                        if (draggingItem && draggingItem !== item) {
-                            const rect = item.getBoundingClientRect();
-                            const next = (e.clientY - rect.top) > (rect.height / 2);
-                            container.insertBefore(draggingItem, next ? item.nextSibling : item);
-                        }
-                    };
-                    item.ondrop = (e) => {
-                        e.preventDefault();
-                        const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
-                        const toIndex = Array.from(container.children).indexOf(item);
-                        if (fromIndex !== toIndex) this.movePlaylistItem(fromIndex, toIndex);
-                    };
-                    item.onclick = (e) => {
+                this.playlist.forEach((item, index) => {
+                    const el = document.createElement('div');
+                    el.className = `playlist-item ${index === this.currentPlayIndex ? 'active' : ''}`;
+                    el.draggable = true;
+                    el.onclick = (e) => {
                         e.stopPropagation();
                         if (e.target.closest('.btn-remove-item')) return;
                         this.playPlaylistItem(index);
                     };
+
+                    const thumb = document.createElement('img');
+                    thumb.className = 'playlist-thumbnail';
+                    if (item.thumbnail) thumb.src = item.thumbnail;
+                    else thumb.style.background = '#222'; // Placeholder
+
                     const name = document.createElement('span');
                     name.className = 'playlist-item-name';
-                    name.innerText = file.name;
-                    name.title = file.name;
+                    name.innerText = item.name;
+                    name.title = item.name;
+
                     const removeBtn = document.createElement('button');
                     removeBtn.className = 'btn-remove-item';
                     removeBtn.innerHTML = '×';
-                    removeBtn.onclick = (e) => { e.stopPropagation(); this.removeFromPlaylist(index); };
-                    item.appendChild(name);
-                    item.appendChild(removeBtn);
-                    container.appendChild(item);
+                    removeBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        this.removeFromPlaylist(index);
+                    };
+
+                    el.appendChild(thumb);
+                    el.appendChild(name);
+                    el.appendChild(removeBtn);
+                    container.appendChild(el);
+
+                    // Re-bind drag events for the new structure
+                    el.ondragstart = (e) => { e.dataTransfer.setData('text/plain', index); el.classList.add('dragging'); };
+                    el.ondragend = () => { el.classList.remove('dragging'); this.updatePlaylistUI(); };
+                    el.ondragover = (e) => {
+                        e.preventDefault();
+                        const draggingItem = container.querySelector('.dragging');
+                        if (draggingItem && draggingItem !== el) {
+                            const rect = el.getBoundingClientRect();
+                            const next = (e.clientY - rect.top) > (rect.height / 2);
+                            container.insertBefore(draggingItem, next ? el.nextSibling : el);
+                        }
+                    };
+                    el.ondrop = (e) => {
+                        e.preventDefault();
+                        const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                        const toIndex = Array.from(container.children).indexOf(el);
+                        if (fromIndex !== toIndex) this.movePlaylistItem(fromIndex, toIndex);
+                    };
                 });
             }
 
@@ -921,9 +964,91 @@
 
             async addToPlaylist(file) {
                 if (!file) return;
-                this.playlist.push(file);
+                const item = { file, name: file.name, thumbnail: null };
+                this.playlist.push(item);
                 this.updatePlaylistUI();
+                
+                // Async thumbnail generation
+                this.generateThumbnail(file).then(thumb => {
+                    item.thumbnail = thumb;
+                    this.updatePlaylistUI();
+                });
+
                 if (this.playlist.length === 1) await this.playPlaylistItem(0);
+            }
+
+            async generateThumbnail(file) {
+                try {
+                    let data;
+                    if (file.name.toLowerCase().endsWith('.zip')) {
+                        const zip = new JSZip();
+                        const content = await zip.loadAsync(file);
+                        const entry = Object.values(content.files).find(f => f.name.toLowerCase().endsWith('.mv') || f.name.toLowerCase().endsWith('.mv2'));
+                        if (!entry) return null;
+                        data = await entry.async('uint8array');
+                    } else {
+                        data = new Uint8Array(await file.arrayBuffer());
+                    }
+
+                    const sig = String.fromCharCode(...data.slice(0, 8));
+                    const ver = String.fromCharCode(...data.slice(16, 21));
+                    let frameData = null;
+                    let palette = null;
+
+                    if (sig === "MMCSD_MV" && ver === "v1.00") {
+                        // MV1: 16k header, each frame 16k. 150th frame = 16384 + (150 * 16384)
+                        const totalFrames = Math.floor((data.length - 16384) / 16384);
+                        const targetFrame = totalFrames > 150 ? 150 : Math.min(totalFrames - 1, 10);
+                        if (targetFrame < 0) return null;
+                        const off = 16384 + (targetFrame * 16384);
+                        const b = data.subarray(off, off + 16384);
+                        frameData = { pgt: b.slice(0, 6144), ct: b.slice(6144, 12288) };
+                        palette = [[0, 0, 0], ...this.extractPal(b.slice(13232, 13262), 15)];
+                    } else {
+                        // MV2
+                        const head = sig.startsWith("MV2") ? 512 : 16384;
+                        let off = head;
+                        let framesFound = 0;
+                        const targetFrameIdx = 150; // We'll try to find up to 150
+                        while (off < data.length && framesFound <= targetFrameIdx) {
+                            const sz = (head === 512 && off === 512) ? 15872 : 16384;
+                            if (off + sz > data.length) break;
+                            if (framesFound === targetFrameIdx || (off + sz * 2 > data.length)) {
+                                const b = data.subarray(off, off + sz);
+                                frameData = { pgt: b.slice(0, 6144), ct: b.slice(6144, 12288) };
+                                palette = [[0, 0, 0], ...this.extractPal(b.slice(12288, 12318), 15)];
+                                if (framesFound === targetFrameIdx) break;
+                            }
+                            off += sz;
+                            framesFound++;
+                        }
+                        // Fallback if 150 not reached
+                        if (!frameData && framesFound > 0) { /* should be caught by last-frame logic above */ }
+                    }
+
+                    if (!frameData) return null;
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 256; canvas.height = 192;
+                    const ctx = canvas.getContext('2d');
+                    const img = ctx.createImageData(256, 192);
+                    for (let y = 0; y < 192; y++) {
+                        for (let cx = 0; cx < 32; cx++) {
+                            const off = (Math.floor(y / 8) * 32 + cx) * 8 + (y % 8);
+                            const p = frameData.pgt[off], c = frameData.ct[off], fg = c >> 4, bg = c & 15;
+                            for (let px = 0; px < 8; px++) {
+                                const cIdx = (p & (1 << (7 - px))) ? fg : bg;
+                                const rgb = palette[cIdx], i = (y * 256 + (cx * 8 + px)) * 4;
+                                img.data[i] = rgb[0]; img.data[i + 1] = rgb[1]; img.data[i + 2] = rgb[2]; img.data[i + 3] = 255;
+                            }
+                        }
+                    }
+                    ctx.putImageData(img, 0, 0);
+                    return canvas.toDataURL('image/jpeg', 0.7);
+                } catch (e) {
+                    console.error("Thumbnail gen error:", e);
+                    return null;
+                }
             }
 
             removeFromPlaylist(index) {
@@ -937,7 +1062,7 @@
                 if (index < 0 || index >= this.playlist.length) return;
                 this.currentPlayIndex = index;
                 this.updatePlaylistUI();
-                await this.loadFile(this.playlist[index]);
+                await this.loadFile(this.playlist[index].file);
             }
 
             async playNextTrack() {
@@ -1266,11 +1391,18 @@
         playlistFolder.onclick = (e) => { e.stopPropagation(); playlistSidebar.classList.toggle('hidden'); };
         playlistSidebar.onclick = function(e) { if (this.classList.contains('hidden')) this.classList.remove('hidden'); };
 
-        document.getElementById('btn-open-file').onclick = () => document.getElementById('file-input').click();
+        document.getElementById('btn-osd-open').onclick = () => document.getElementById('file-input').click();
+        document.getElementById('btn-osd-save').onclick = () => player.exportMP4();
+        
         document.getElementById('btn-add-playlist').onclick = (e) => { e.stopPropagation(); document.getElementById('file-input').click(); };
         document.getElementById('playlist-items').onclick = (e) => { if (e.target === e.currentTarget) document.getElementById('file-input').click(); };
-        document.getElementById('file-input').onchange = e => {
-            if (e.target.files.length) { for (let file of e.target.files) player.addToPlaylist(file); e.target.value = ''; }
+        document.getElementById('file-input').onchange = async e => {
+            if (e.target.files.length) { 
+                const start = player.playlist.length;
+                for (let file of e.target.files) await player.addToPlaylist(file); 
+                e.target.value = ''; 
+                await player.playPlaylistItem(start);
+            }
         };
 
         const canvasArea = document.getElementById('canvas-area');
