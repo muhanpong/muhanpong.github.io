@@ -513,7 +513,8 @@
             width: 100%;
             max-width: 960px;
             margin: 0 auto;
-            height: 50px;
+            height: auto;
+            min-height: 40px;
             background: var(--surface);
             display: flex;
             flex-direction: row;
@@ -1056,31 +1057,31 @@
                     </div>
                 </div>
             </div>
+        </div> <!-- Closing canvas-area -->
 
-            <div id="palette-histogram" title="Click to Toggle Histogram"></div>
+        <div id="palette-histogram" title="Click to Toggle Histogram"></div>
+    </div> <!-- Closing video-container -->
+
+    <div id="playlist-sidebar" title="Click Top Edge to Toggle Playlist">
+        <div id="playlist-folder" title="Toggle Playlist">
+            <svg viewBox="0 0 24 24" width="12" height="12">
+                <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+            </svg>
         </div>
-
-        <div id="playlist-sidebar" title="Click Top Edge to Toggle Playlist">
-            <div id="playlist-folder" title="Toggle Playlist">
-                <svg viewBox="0 0 24 24" width="12" height="12">
-                    <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
-                </svg>
+        <div class="playlist-content">
+            <div class="playlist-header">
+                <div class="playlist-header-btn" id="btn-add-playlist" title="Add File to Playlist">
+                    <svg viewBox="0 0 24 24" width="20" height="20">
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                    </svg>
+                </div>
             </div>
-            <div class="playlist-content">
-                <div class="playlist-header">
-                    <div class="playlist-header-btn" id="btn-add-playlist" title="Add File to Playlist">
-                        <svg viewBox="0 0 24 24" width="20" height="20">
-                            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                        </svg>
-                    </div>
-                </div>
-                <div class="playlist-items" id="playlist-items">
-                    <!-- Items will be added here -->
-                </div>
+            <div class="playlist-items" id="playlist-items">
+                <!-- Items will be added here -->
             </div>
         </div>
     </div>
-</div>
+</div> <!-- Closing screen-wrapper -->
 
 <div id="status">Ready</div>
 
