@@ -59,17 +59,17 @@
         #video-container {
             position: relative;
             display: inline-block;
-            max-width: min(100%, calc(55vh * 4 / 3));
+            max-width: min(100%, calc(55vh * 5 / 3));
             max-height: 55vh;
-            aspect-ratio: 4 / 3;
-            width: 768px;
+            aspect-ratio: 5 / 3;
+            width: 960px;
             /* Managed by JS slider */
             height: auto;
             transition: width 0.2s;
         }
 
         #screen-wrapper:fullscreen #video-container {
-            max-width: min(100vw, calc(100vh * 4 / 3));
+            max-width: min(100vw, calc(100vh * 5 / 3));
             max-height: 100vh;
             width: 100vw !important;
             height: auto !important;
@@ -614,7 +614,7 @@
 
                 const totalLen = mp3Chunks.reduce((acc, chunk) => acc + chunk.length, 0);
                 this.rawAudioBytes = new Uint8Array(totalLen);
-                
+
                 // [안전망 1] 오디오 데이터가 아예 없는 파일인 경우 뻗지 않고 무음 버퍼 생성
                 if (totalLen === 0) {
                     this.audioBuffer = this.audioCtx.createBuffer(1, Math.ceil((this.totalFrames / this.fps) * 44100), 44100);
@@ -626,7 +626,7 @@
                     this.rawAudioBytes.set(c, aOff);
                     aOff += c.length;
                 }
-                
+
                 try {
                     // 브라우저 네이티브 디코더로 MP3 해석 시도
                     this.audioBuffer = await this.audioCtx.decodeAudioData(this.rawAudioBytes.buffer.slice(0));
@@ -773,7 +773,7 @@
                         target: new Mp4Muxer.ArrayBufferTarget(),
                         video: {
                             codec: 'avc',
-                            width: 768,
+                            width: 960,
                             height: 576
                         },
                         audio: {
@@ -790,7 +790,7 @@
                     });
                     videoEncoder.configure({
                         codec: 'avc1.42001f',
-                        width: 768,
+                        width: 960,
                         height: 576,
                         bitrate: 5_000_000,
                         framerate: this.fps
@@ -831,7 +831,7 @@
                     const baseCtx = baseCanvas.getContext('2d', { willReadFrequently: true });
 
                     const scaleCanvas = document.createElement('canvas');
-                    scaleCanvas.width = 768;
+                    scaleCanvas.width = 960;
                     scaleCanvas.height = 576;
                     const scaleCtx = scaleCanvas.getContext('2d');
                     scaleCtx.imageSmoothingEnabled = false;
@@ -965,7 +965,7 @@
             const s = e.target.value;
             document.getElementById('scale-label').innerText = s + 'x';
             const container = document.getElementById('video-container');
-            container.style.width = (256 * s) + 'px';
+            container.style.width = (320 * s) + 'px';
             container.style.height = 'auto'; // let aspect-ratio compute height naturally
         });
 
@@ -1038,30 +1038,24 @@
 
         document.getElementById('btn-prev-frame').addEventListener('click', () => {
             if (!player.frames || player.frames.length === 0) return;
-            if (player.isPlaying) {
-                player.pause();
-            }
-            player.isScrubbing = true;
-            let targetFrame = player.currentFrame - 1;
-            if (targetFrame < 0) targetFrame = 0;
+            if (player.isPlaying) player.pause();
+            const curIdx = Math.round(player.pauseTime * player.fps);
+            const targetFrame = Math.max(0, curIdx - 1);
+            player.pauseTime = targetFrame / player.fps;
             player.renderFrame(targetFrame);
-            const targetTime = targetFrame / player.fps;
-            document.getElementById('time-current').innerText = player.formatTime(targetTime);
-            document.getElementById('seek-slider').value = (targetTime / player.duration) * 100;
+            document.getElementById('time-current').innerText = player.formatTime(player.pauseTime);
+            document.getElementById('seek-slider').value = (player.pauseTime / player.duration) * 100;
         });
 
         document.getElementById('btn-next-frame').addEventListener('click', () => {
             if (!player.frames || player.frames.length === 0) return;
-            if (player.isPlaying) {
-                player.pause();
-            }
-            player.isScrubbing = true;
-            let targetFrame = player.currentFrame + 1;
-            if (targetFrame >= player.totalFrames) targetFrame = player.totalFrames - 1;
+            if (player.isPlaying) player.pause();
+            const curIdx = Math.round(player.pauseTime * player.fps);
+            const targetFrame = Math.min(player.totalFrames - 1, curIdx + 1);
+            player.pauseTime = targetFrame / player.fps;
             player.renderFrame(targetFrame);
-            const targetTime = targetFrame / player.fps;
-            document.getElementById('time-current').innerText = player.formatTime(targetTime);
-            document.getElementById('seek-slider').value = (targetTime / player.duration) * 100;
+            document.getElementById('time-current').innerText = player.formatTime(player.pauseTime);
+            document.getElementById('seek-slider').value = (player.pauseTime / player.duration) * 100;
         });
     </script>
 </body>

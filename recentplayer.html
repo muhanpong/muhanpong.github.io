@@ -62,7 +62,8 @@
             display: flex;
             align-items: stretch;
             background: #000;
-            width: 968px; /* 256*3(768) + left sidebar(120) + right histogram(80) = 968 */
+            width: 1160px;
+            /* 320*3(960) + left sidebar(120) + right histogram(80) = 1160 */
             max-width: 100vw;
             transition: width 0.2s;
         }
@@ -91,6 +92,17 @@
             display: none;
         }
 
+        /* Hide sidebar panels in fullscreen */
+        #screen-wrapper:fullscreen #playlist-sidebar,
+        .ios-fullscreen-fix #playlist-sidebar {
+            display: none;
+        }
+
+        #screen-wrapper:fullscreen #palette-histogram,
+        .ios-fullscreen-fix #palette-histogram {
+            display: none;
+        }
+
         .playlist-content {
             display: flex;
             flex-direction: column;
@@ -99,7 +111,23 @@
             bottom: 0;
             left: 0;
             right: 0;
-            width: 120px;
+        }
+
+        .playlist-resize-handle {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 5px;
+            height: 100%;
+            cursor: col-resize;
+            background: transparent;
+            z-index: 35;
+            transition: background 0.2s;
+        }
+
+        .playlist-resize-handle:hover,
+        .playlist-resize-handle.active {
+            background: rgba(255, 255, 255, 0.15);
         }
 
         .playlist-header {
@@ -211,18 +239,19 @@
         #canvas-area {
             position: relative;
             flex-grow: 1;
-            aspect-ratio: 4 / 3;
+            aspect-ratio: 5 / 3;
             background: #000;
         }
 
         #screen-wrapper:fullscreen #canvas-area,
         .ios-fullscreen-fix #canvas-area {
-            flex-grow: 0;
+            flex-grow: 1;
             height: 100vh;
             height: 100dvh;
-            width: calc(100vh * 4 / 3);
-            width: calc(100dvh * 4 / 3);
-            max-width: 100vw;
+            width: 100%;
+            max-width: calc(100vh * 5 / 3);
+            max-width: calc(100dvh * 5 / 3);
+            aspect-ratio: auto;
         }
 
         #msx-screen {
@@ -559,6 +588,7 @@
                         <!-- Items will be added here -->
                     </div>
                 </div>
+                <div class="playlist-resize-handle" id="playlist-resize-handle"></div>
             </div>
             <div id="canvas-area">
                 <canvas id="msx-screen" width="256" height="192"></canvas>
@@ -665,7 +695,7 @@
 
     <div id="status" style="margin-top:10px; font-size:13px; color:#888;">Ready</div>
 
-    <input type="file" id="file-input" accept=".mv,.mv2,.zip" style="display:none;" />
+    <input type="file" id="file-input" accept=".mv,.mv2,.zip" style="display:none;" multiple />
     <canvas id="export-canvas" width="256" height="192" style="display:none;"></canvas>
 
     <script>
@@ -1092,7 +1122,7 @@
                         target: new Mp4Muxer.ArrayBufferTarget(),
                         video: {
                             codec: 'avc',
-                            width: 768,
+                            width: 960,
                             height: 576
                         },
                         fastStart: 'in-memory'
@@ -1114,7 +1144,7 @@
                     });
                     videoEncoder.configure({
                         codec: 'avc1.42001f',
-                        width: 768,
+                        width: 960,
                         height: 576,
                         bitrate: 5_000_000,
                         framerate: this.fps
@@ -1193,7 +1223,7 @@
                     const baseCtx = baseCanvas.getContext('2d', { willReadFrequently: true });
 
                     const scaleCanvas = document.createElement('canvas');
-                    scaleCanvas.width = 768;
+                    scaleCanvas.width = 960;
                     scaleCanvas.height = 576;
                     const scaleCtx = scaleCanvas.getContext('2d');
                     scaleCtx.imageSmoothingEnabled = false;
@@ -1281,6 +1311,7 @@
             }
 
             pause() {
+                if (!this.isPlaying) return;
                 this.isPlaying = false;
                 document.getElementById('canvas-area').classList.add('paused');
 
@@ -1292,6 +1323,12 @@
 
                 if (!this.isScrubbing) {
                     this.pauseTime = this.audioCtx.currentTime - this.startTime;
+                    if (this.duration > 0) this.pauseTime = Math.max(0, Math.min(this.pauseTime, this.duration));
+                }
+                // Sync slider & time display to the actual paused position
+                if (this.duration > 0 && !this.isScrubbing) {
+                    document.getElementById('osd-seek-slider').value = (this.pauseTime / this.duration) * 100;
+                    document.getElementById('osd-time-cur').innerText = this.formatTime(this.pauseTime);
                 }
                 this.updatePlayIcon(false);
                 this.timerWorker.postMessage('stop');
@@ -1387,9 +1424,9 @@
         const canvasArea = document.getElementById('canvas-area');
         canvasArea.ondragover = e => { e.preventDefault(); canvasArea.classList.add('dragover'); };
         canvasArea.ondragleave = () => canvasArea.classList.remove('dragover');
-        canvasArea.ondrop = e => { 
-            e.preventDefault(); 
-            canvasArea.classList.remove('dragover'); 
+        canvasArea.ondrop = e => {
+            e.preventDefault();
+            canvasArea.classList.remove('dragover');
             if (e.dataTransfer.files.length) {
                 for (let file of e.dataTransfer.files) {
                     player.addToPlaylist(file);
@@ -1444,7 +1481,7 @@
         window.addEventListener('touchmove', handleEqMove, { passive: false });
         window.addEventListener('touchend', handleEqEnd);
 
-        document.getElementById('scale-slider').oninput = e => document.getElementById('video-container').style.width = (256 * e.target.value + 80) + 'px';
+        document.getElementById('scale-slider').oninput = e => document.getElementById('video-container').style.width = (320 * e.target.value + 80) + 'px';
         document.getElementById('palette-histogram').onclick = function () { this.classList.toggle('hidden'); };
 
         document.getElementById('btn-osd-play-pause').onclick = () => player.togglePlay();
@@ -1509,19 +1546,27 @@
 
         const seek = document.getElementById('osd-seek-slider');
         let wasPlayingBeforeSeek = false;
-        seek.onmousedown = seek.ontouchstart = () => { wasPlayingBeforeSeek = player.isPlaying; };
-        seek.oninput = e => {
+        seek.onmousedown = seek.ontouchstart = () => {
+            wasPlayingBeforeSeek = player.isPlaying;
             player.isScrubbing = true;
             if (player.isPlaying) player.pause();
-            const t = (e.target.value / 100) * player.duration;
-            document.getElementById('osd-time-cur').innerText = player.formatTime(t);
-            player.renderFrame(Math.min(Math.floor(t * player.fps), player.totalFrames - 1));
         };
-        seek.onchange = e => {
-            player.pauseTime = (e.target.value / 100) * player.duration;
+        seek.oninput = e => {
+            const t = (e.target.value / 100) * player.duration;
+            player.pauseTime = t;
+            document.getElementById('osd-time-cur').innerText = player.formatTime(t);
+            if (player.frames.length > 0) {
+                player.renderFrame(Math.min(Math.floor(t * player.fps), player.totalFrames - 1));
+            }
+        };
+        const finishSeek = () => {
+            if (!player.isScrubbing) return;
             player.isScrubbing = false;
             if (wasPlayingBeforeSeek) player.play();
         };
+        seek.onchange = finishSeek;
+        seek.addEventListener('mouseup', finishSeek);
+        seek.addEventListener('touchend', finishSeek);
 
         const moveFrame = (d) => {
             if (!player.frames.length) return;
@@ -1536,8 +1581,7 @@
             document.getElementById('osd-time-cur').innerText = player.formatTime(player.pauseTime);
             player.renderFrame(tar);
         };
-        document.getElementById('btn-prev-frame').onclick = () => moveFrame(-1);
-        document.getElementById('btn-next-frame').onclick = () => moveFrame(1);
+        // OSD frame buttons already bound above (btn-osd-prev-frame, btn-osd-next-frame)
 
         const btnFs = document.getElementById('btn-fullscreen-toggle');
         const screenWrapper = document.getElementById('screen-wrapper');
@@ -1545,13 +1589,13 @@
         const iconComp = document.getElementById('icon-compress');
 
         const toggleFs = () => {
-            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || 
-                           document.mozFullScreenElement || document.msFullscreenElement || 
-                           screenWrapper.classList.contains('ios-fullscreen-fix'));
-            
+            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement ||
+                document.mozFullScreenElement || document.msFullscreenElement ||
+                screenWrapper.classList.contains('ios-fullscreen-fix'));
+
             if (!isFs) {
-                const req = screenWrapper.requestFullscreen || screenWrapper.webkitRequestFullscreen || 
-                            screenWrapper.mozRequestFullScreen || screenWrapper.msRequestFullscreen;
+                const req = screenWrapper.requestFullscreen || screenWrapper.webkitRequestFullscreen ||
+                    screenWrapper.mozRequestFullScreen || screenWrapper.msRequestFullscreen;
                 if (req) {
                     req.call(screenWrapper).catch(err => {
                         console.warn("Fullscreen request failed, using fallback:", err);
@@ -1563,10 +1607,10 @@
                     updateFsUI();
                 }
             } else {
-                const exit = document.exitFullscreen || document.webkitExitFullscreen || 
-                             document.mozCancelFullScreen || document.msExitFullscreen;
-                if (exit && (document.fullscreenElement || document.webkitFullscreenElement || 
-                             document.mozFullScreenElement || document.msFullscreenElement)) {
+                const exit = document.exitFullscreen || document.webkitExitFullscreen ||
+                    document.mozCancelFullScreen || document.msExitFullscreen;
+                if (exit && (document.fullscreenElement || document.webkitFullscreenElement ||
+                    document.mozFullScreenElement || document.msFullscreenElement)) {
                     exit.call(document);
                 }
                 screenWrapper.classList.remove('ios-fullscreen-fix');
@@ -1576,13 +1620,13 @@
         btnFs.onclick = toggleFs;
 
         const updateFsUI = () => {
-            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || 
-                           document.mozFullScreenElement || document.msFullscreenElement ||
-                           screenWrapper.classList.contains('ios-fullscreen-fix'));
-            
+            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement ||
+                document.mozFullScreenElement || document.msFullscreenElement ||
+                screenWrapper.classList.contains('ios-fullscreen-fix'));
+
             iconExp.style.display = isFs ? 'none' : 'block';
             iconComp.style.display = isFs ? 'block' : 'none';
-            
+
             if (isFs) {
                 document.getElementById('palette-histogram').classList.add('hidden');
             } else {
@@ -1630,6 +1674,77 @@
             originalPause();
             showOSD();
         };
+
+        // --- Playlist Resize by Dragging Right Edge ---
+        const resizeHandle = document.getElementById('playlist-resize-handle');
+        let isResizingPlaylist = false;
+        let resizeStartX = 0;
+        let resizeStartWidth = 0;
+
+        const handleResizeStart = (e) => {
+            if (playlistSidebar.classList.contains('hidden')) return;
+            e.preventDefault();
+            e.stopPropagation();
+            isResizingPlaylist = true;
+            resizeStartX = e.touches ? e.touches[0].clientX : e.clientX;
+            resizeStartWidth = playlistSidebar.offsetWidth;
+            resizeHandle.classList.add('active');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        };
+
+        const handleResizeMove = (e) => {
+            if (!isResizingPlaylist) return;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const delta = clientX - resizeStartX;
+            const newWidth = Math.max(80, Math.min(400, resizeStartWidth + delta));
+            playlistSidebar.style.width = newWidth + 'px';
+            playlistSidebar.style.transition = 'none';
+        };
+
+        const handleResizeEnd = () => {
+            if (!isResizingPlaylist) return;
+            isResizingPlaylist = false;
+            resizeHandle.classList.remove('active');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            playlistSidebar.style.transition = '';
+        };
+
+        resizeHandle.addEventListener('mousedown', handleResizeStart);
+        resizeHandle.addEventListener('touchstart', handleResizeStart, { passive: false });
+        window.addEventListener('mousemove', handleResizeMove);
+        window.addEventListener('touchmove', handleResizeMove, { passive: false });
+        window.addEventListener('mouseup', handleResizeEnd);
+        window.addEventListener('touchend', handleResizeEnd);
+
+        // --- Keyboard Shortcuts ---
+        document.addEventListener('keydown', (e) => {
+            // Ignore if focus is on an input/select/textarea
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+            switch (e.code) {
+                case 'Space':
+                    e.preventDefault();
+                    player.togglePlay();
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    moveFrame(-1);
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    moveFrame(1);
+                    break;
+                case 'KeyF':
+                    e.preventDefault();
+                    toggleFs();
+                    break;
+                case 'KeyM':
+                    e.preventDefault();
+                    volBtn.click();
+                    break;
+            }
+        });
     </script>
 </body>
 
