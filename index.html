@@ -177,7 +177,8 @@
             justify-content: center;
             font-size: 14px;
             color: #777;
-            z-index: 5;
+            z-index: 20;
+            /* Higher than OSD controls so it intercepts clicks on empty state */
             border: 1px dashed #333;
             margin: 0 40px;
             border-radius: 4px;
@@ -250,6 +251,10 @@
         .paused #osd-controls {
             opacity: 1;
             pointer-events: auto;
+        }
+
+        #canvas-area.empty #osd-controls {
+            display: none !important;
         }
 
         .osd-center-controls {
@@ -503,13 +508,45 @@
             transition: height 0.3s, opacity 0.3s;
         }
 
-        /* Auto-hide in landscape */
+        /* Landscape: Vertical Palette on the right of the video container */
         @media (orientation: landscape) {
             #palette-histogram {
-                height: 0;
-                padding: 0;
-                opacity: 0;
-                overflow: hidden;
+                position: absolute;
+                right: 0;
+                top: 50%;
+                transform: translateY(-50%);
+                width: 20px;
+                height: auto;
+                max-width: none;
+                flex-direction: column;
+                background: rgba(0, 0, 0, 0.5);
+                border-top: none;
+                border-left: 1px solid var(--border);
+                border-radius: 4px 0 0 4px;
+                padding: 5px 2px;
+                gap: 2px;
+                z-index: 20;
+            }
+
+            #palette-histogram.hidden {
+                width: 20px;
+                /* Still visible but dim/black in landscape */
+                height: auto;
+                padding: 5px 2px;
+                opacity: 0.6;
+            }
+
+            #palette-histogram .hist-row {
+                width: 100%;
+                height: 12px;
+                flex-direction: row;
+                /* Horizontal row inside the vertical container */
+                margin-bottom: 2px;
+            }
+
+            #palette-histogram .hist-bar {
+                display: none;
+                /* Never show bars in landscape */
             }
         }
 
@@ -536,6 +573,10 @@
             flex-shrink: 0;
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 2px;
+        }
+
+        #palette-histogram.hidden .hist-color-box {
+            background-color: #000 !important;
         }
 
         .hist-bar {
@@ -848,7 +889,7 @@
 
 <div id="screen-wrapper">
     <div id="video-container">
-        <div id="canvas-area">
+        <div id="canvas-area" class="empty">
             <canvas id="msx-screen" width="256" height="192"></canvas>
             <div id="canvas-msg-overlay">📂 Drop .MV or .ZIP here</div>
 
@@ -990,9 +1031,9 @@
                     </div>
                 </div>
             </div>
-        </div>
 
-        <div id="palette-histogram" title="Click to Toggle Histogram"></div>
+            <div id="palette-histogram" title="Click to Toggle Histogram"></div>
+        </div>
 
         <div id="playlist-sidebar" title="Click Top Edge to Toggle Playlist">
             <div id="playlist-folder" title="Toggle Playlist">
@@ -1110,7 +1151,14 @@
         updatePlaylistUI() {
             const container = document.getElementById('playlist-items');
             container.innerHTML = '';
-            if (this.playlist.length === 0) return;
+
+            // Toggle empty class on canvas to hide controls when no items
+            if (this.playlist.length === 0) {
+                document.getElementById('canvas-area').classList.add('empty');
+                return;
+            } else {
+                document.getElementById('canvas-area').classList.remove('empty');
+            }
 
             this.playlist.forEach((item, index) => {
                 const el = document.createElement('div');
@@ -1265,8 +1313,18 @@
 
         removeFromPlaylist(index) {
             this.playlist.splice(index, 1);
-            if (index === this.currentPlayIndex) { this.currentPlayIndex = -1; this.reset(); }
-            else if (index < this.currentPlayIndex) this.currentPlayIndex--;
+            if (this.playlist.length === 0) {
+                // Completely flushed
+                this.currentPlayIndex = -1;
+                this.reset();
+            } else if (index === this.currentPlayIndex) {
+                // Deleted currently playing, but others exist -> stop and wait or auto-play next?
+                // Let's stop and reset the view, user can click another
+                this.currentPlayIndex = -1;
+                this.reset();
+            } else if (index < this.currentPlayIndex) {
+                this.currentPlayIndex--;
+            }
             this.updatePlaylistUI();
         }
 
@@ -1308,6 +1366,12 @@
             document.getElementById('osd-time-cur').innerText = "00:00";
             document.getElementById('osd-time-total').innerText = "00:00";
             this.ctx.fillStyle = "black"; this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+            // Show drop zone again if playlist is truly empty
+            if (this.playlist && this.playlist.length === 0) {
+                document.getElementById('canvas-msg-overlay').style.display = 'flex';
+                document.getElementById('osd-controls').style.display = 'none';
+            }
         }
 
         formatTime(s) { return `${Math.floor(s / 60).toString().padStart(2, '0')}:${Math.floor(s % 60).toString().padStart(2, '0')}`; }
@@ -1571,15 +1635,28 @@
     };
 
     let userHistogramPref = null;
+    let lastAdaptiveMode = null;
 
     const applyAdaptiveUI = () => {
-        // Histogram: CSS handles mobile landscape auto-hide
         const isDesktop = window.innerWidth >= 768; // Desktop browsers (PC)
         const isPortrait = window.matchMedia('(orientation: portrait)').matches;
+        const currentMode = (isDesktop || isPortrait) ? 'portrait' : 'landscape';
 
-        // Show by default on desktop OR portrait mobile, unless user hid it
-        if ((isDesktop || isPortrait) && userHistogramPref !== false) {
-            document.getElementById('palette-histogram').classList.remove('hidden');
+        // Reset user preference upon mode switch so smart defaults apply
+        if (lastAdaptiveMode !== currentMode) {
+            userHistogramPref = null;
+            lastAdaptiveMode = currentMode;
+        }
+
+        const hist = document.getElementById('palette-histogram');
+        if (currentMode === 'portrait') {
+            // PC / Portrait: Default ON
+            if (userHistogramPref !== false) hist.classList.remove('hidden');
+            else hist.classList.add('hidden');
+        } else {
+            // Landscape: Default OFF (black boxes only)
+            if (userHistogramPref !== true) hist.classList.add('hidden');
+            else hist.classList.remove('hidden');
         }
     };
     applyAdaptiveUI(); window.addEventListener('resize', applyAdaptiveUI);
