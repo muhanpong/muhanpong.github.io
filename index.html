@@ -583,6 +583,16 @@
         .info-link:hover {
             text-decoration: underline;
         }
+
+        /* Hide sidebars in landscape fullscreen to save vertical space */
+        @media (orientation: landscape) {
+            #screen-wrapper:fullscreen #palette-histogram,
+            #screen-wrapper:fullscreen #playlist-sidebar,
+            .ios-fullscreen-fix #palette-histogram,
+            .ios-fullscreen-fix #playlist-sidebar {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 
