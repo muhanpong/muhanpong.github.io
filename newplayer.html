@@ -62,12 +62,12 @@
 
         #palette-histogram {
             width: 100%;
-            height: 30px;
+            height: 40px;
             background: rgba(0, 0, 0, 0.5);
             display: flex;
             flex-direction: row;
             justify-content: space-between;
-            padding: 2px 5px;
+            padding: 4px 5px;
             border-top: 1px solid #333;
             border-bottom: 1px solid #333;
             box-sizing: border-box;
@@ -96,13 +96,15 @@
         }
 
         .hist-color-box {
-            width: 100%;
-            height: 4px;
+            width: 14px;
+            height: 14px;
             flex-shrink: 0;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 2px;
         }
 
         .hist-bar {
-            width: 80%;
+            width: 14px;
             background-color: #00ffcc;
             border-radius: 1px 1px 0 0;
             transition: height 0.1s;
@@ -1010,7 +1012,28 @@
                     } else data = new Uint8Array(await file.arrayBuffer());
                     await this.processData(data);
                 } catch (err) {
-                    console.error(err); status.innerText = `에러: ${err.message}`; status.style.color = "#ff4444";
+                    console.error("File loading error:", err);
+                    status.innerText = `에러: ${err.message} (자동으로 다음 트랙으로 넘어갑니다)`;
+                    status.style.color = "#ff4444";
+                    
+                    // Wait a moment so user can see the error message before skipping
+                    await new Promise(r => setTimeout(r, 2000));
+                    
+                    // Use currentPlayIndex since the file object comparison might fail
+                    if (this.currentPlayIndex > -1) {
+                        const indexToRemove = this.currentPlayIndex;
+                        this.removeFromPlaylist(indexToRemove);
+                        
+                        if (this.playlist.length > 0) {
+                            // If we still have files, play the next one
+                            // (which is now at the same index, or wraps around)
+                            const nextToPlay = indexToRemove % this.playlist.length;
+                            await this.playPlaylistItem(nextToPlay);
+                        } else {
+                            this.reset();
+                            status.innerText = "모든 파일 로드 실패 또는 플레이리스트가 비어 있습니다.";
+                        }
+                    }
                 }
             }
 
