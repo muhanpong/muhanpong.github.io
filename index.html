@@ -31,8 +31,9 @@
             background-color: var(--bg);
             color: #eee;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            overflow-y: auto;
-            min-height: 100%;
+            overflow: hidden;
+            /* Prevent full page scroll */
+            height: 100vh;
             display: flex;
             flex-direction: column;
         }
@@ -87,6 +88,12 @@
             position: relative;
             background-color: #000;
             width: 100%;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+            /* Important for flex children to allow shrinking */
         }
 
         #video-container {
@@ -586,7 +593,6 @@
             transition: height 0.1s;
         }
 
-        /* ── Playlist (below video, fills remaining space) ── */
         #playlist-sidebar {
             width: 100%;
             max-width: 960px;
@@ -597,7 +603,8 @@
             border-top: 1px solid var(--border);
             overflow: hidden;
             flex-grow: 1;
-            min-height: 200px;
+            min-height: 0;
+            /* Let flexbox decide the height, critical for nested scroll */
         }
 
         #playlist-sidebar.hidden .playlist-content {
