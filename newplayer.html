@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MSX2 MV Player & Recorder (Final Integrated)</title>
+    <title>MSX2 MV Player & Recorder</title>
     <script src="https://unpkg.com/mp4-muxer/build/mp4-muxer.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
@@ -33,110 +33,102 @@
             transition: all 0.3s ease;
         }
 
-        #screen-wrapper:fullscreen {
-            width: 100vw;
-            height: 100vh;
-            height: 100dvh;
-        }
-
-        #screen-wrapper:-webkit-full-screen {
-            width: 100vw;
-            height: 100vh;
-            height: 100dvh;
-        }
-
-        .ios-fullscreen-fix {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            height: 100dvh !important;
-            z-index: 9999 !important;
-            margin: 0 !important;
-            border: none !important;
-        }
-
         #video-container {
             position: relative;
             display: flex;
-            align-items: stretch;
+            flex-direction: column;
+            align-items: center;
             background: #000;
-            width: 928px; /* 256*3(768) + left(80) + right(80) = 928 */
+            width: fit-content;
             max-width: 100vw;
+            margin: 0 auto;
             transition: width 0.2s;
         }
 
+        #canvas-area {
+            position: relative;
+            aspect-ratio: 4 / 3;
+            background: #000;
+            width: 768px; /* Default zoom 3x */
+            transition: width 0.2s;
+        }
+
+        #screen-wrapper:fullscreen #canvas-area,
+        .ios-fullscreen-fix #canvas-area {
+            width: calc(100vh * 4 / 3) !important;
+            height: 100vh !important;
+            max-width: 100vw !important;
+        }
+
+        #palette-histogram {
+            width: 100%;
+            height: 30px;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            padding: 2px 5px;
+            border-top: 1px solid #333;
+            border-bottom: 1px solid #333;
+            box-sizing: border-box;
+            cursor: pointer;
+            transition: height 0.3s, opacity 0.3s;
+            z-index: 30;
+        }
+
+        #palette-histogram.hidden {
+            height: 8px;
+            padding: 0;
+            opacity: 0.6;
+        }
+
+        #palette-histogram.hidden .hist-row {
+            display: none;
+        }
+
+        .hist-row {
+            display: flex;
+            flex-direction: column-reverse;
+            align-items: center;
+            width: calc(100% / 16);
+            height: 100%;
+            gap: 2px;
+        }
+
+        .hist-color-box {
+            width: 100%;
+            height: 4px;
+            flex-shrink: 0;
+        }
+
+        .hist-bar {
+            width: 80%;
+            background-color: #00ffcc;
+            border-radius: 1px 1px 0 0;
+            transition: height 0.1s;
+        }
+
         #playlist-sidebar {
-            width: 80px;
+            width: 100%;
+            max-height: 400px;
             background: rgba(0, 0, 0, 0.3);
             display: flex;
             flex-direction: column;
-            border-left: 1px solid #333;
             box-sizing: border-box;
-            transition: width 0.3s, opacity 0.3s, border 0.3s, background 0.3s;
+            transition: max-height 0.3s, opacity 0.3s;
             z-index: 30;
             overflow: hidden;
             position: relative;
         }
 
         #playlist-sidebar.hidden {
-            width: 15px;
+            max-height: 20px;
             opacity: 0.6;
-            background: rgba(255, 255, 255, 0.05);
         }
 
-        /* Resizer Handle */
-        #playlist-resizer {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 15px; /* Slightly wider for easier grab */
-            height: 100%;
-            cursor: ew-resize;
-            z-index: 35;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: transparent;
-            transition: background 0.2s;
-        }
-
-        #playlist-resizer:hover {
-            background: rgba(217, 83, 79, 0.2);
-        }
-
-        #playlist-resizer svg {
-            display: none;
-            fill: #fff;
-            filter: drop-shadow(0 0 2px #000);
-        }
-
-        #playlist-resizer:hover svg {
-            display: block;
-        }
-
-        #playlist-sidebar.hidden #playlist-resizer {
-            display: none;
-        }
-
-        .playlist-content {
-            display: flex;
-            flex-direction: column;
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            left: 15px;
-            right: 10px; /* Leave space for resizer */
-        }
-
-        /* Folder Handle (Left Edge) */
         #playlist-folder {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 15px;
-            height: 100%;
+            width: 100%;
+            height: 20px;
             cursor: pointer;
             z-index: 35;
             display: flex;
@@ -144,6 +136,7 @@
             justify-content: center;
             background: rgba(255, 255, 255, 0.05);
             transition: background 0.2s;
+            flex-shrink: 0;
         }
 
         #playlist-folder:hover {
@@ -153,14 +146,22 @@
         #playlist-folder svg {
             fill: #888;
             transition: transform 0.3s;
+            transform: rotate(90deg);
         }
 
         #playlist-sidebar.hidden #playlist-folder svg {
-            transform: rotate(180deg);
+            transform: rotate(270deg);
+        }
+
+        .playlist-content {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 250px;
         }
 
         .playlist-header {
-            padding: 5px 2px;
+            padding: 5px 10px;
             border-bottom: 1px solid #333;
             display: flex;
             justify-content: center;
@@ -173,7 +174,7 @@
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            padding: 2px;
+            padding: 4px;
             border-radius: 4px;
             transition: background 0.2s;
         }
@@ -195,31 +196,17 @@
             overflow-y: auto;
             scrollbar-width: thin;
             scrollbar-color: #555 transparent;
-            min-height: 0;
-        }
-
-        .playlist-items::-webkit-scrollbar {
-            width: 4px;
-        }
-
-        .playlist-items::-webkit-scrollbar-thumb {
-            background: #555;
-            border-radius: 2px;
-        }
-
-        .playlist-items::-webkit-scrollbar-track {
-            background: transparent;
         }
 
         .playlist-item {
-            padding: 8px 5px;
-            font-size: 10px;
+            padding: 10px 15px;
+            font-size: 13px;
             color: #ccc;
             border-bottom: 1px solid #222;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 4px;
+            gap: 10px;
             cursor: pointer;
             text-align: left;
         }
@@ -255,30 +242,6 @@
 
         .btn-remove-item:hover {
             color: #ff4444;
-        }
-
-        #screen-wrapper:fullscreen #video-container,
-        .ios-fullscreen-fix #video-container {
-            width: 100% !important;
-            height: 100% !important;
-            justify-content: center;
-        }
-
-        #canvas-area {
-            position: relative;
-            flex-grow: 1;
-            aspect-ratio: 4 / 3;
-            background: #000;
-        }
-
-        #screen-wrapper:fullscreen #canvas-area,
-        .ios-fullscreen-fix #canvas-area {
-            flex-grow: 0;
-            height: 100vh;
-            height: 100dvh;
-            width: calc(100vh * 4 / 3);
-            width: calc(100dvh * 4 / 3);
-            max-width: 100vw;
         }
 
         #msx-screen {
@@ -416,11 +379,6 @@
             transform: none;
         }
 
-        .btn-osd-frame {
-            width: 40px;
-            height: 40px;
-        }
-
         .osd-bottom-bar {
             display: flex;
             flex-direction: column;
@@ -464,7 +422,7 @@
             gap: 5px;
         }
 
-        #btn-volume {
+        #btn-volume, #btn-repeat, #btn-zoom, #btn-fullscreen-toggle {
             background: transparent;
             border: none;
             cursor: pointer;
@@ -487,54 +445,25 @@
             opacity: 1;
         }
 
-        #palette-histogram {
-            width: 80px;
-            background: rgba(0, 0, 0, 0.3);
-            display: flex;
-            flex-direction: column;
-            justify-content: space-around;
-            padding: 5px;
-            border-right: 1px solid #333;
-            box-sizing: border-box;
-            cursor: pointer;
-            transition: width 0.3s, opacity 0.3s, border 0.3s, background 0.3s;
-            z-index: 30;
+        .osd-btn-active {
+            fill: #d9534f !important;
         }
 
-        #palette-histogram.hidden {
-            width: 15px;
-            padding: 0;
-            opacity: 0.6;
-            background: rgba(255, 255, 255, 0.05);
+        #btn-zoom {
+            position: relative;
         }
 
-        #palette-histogram.hidden:hover {
-            opacity: 1;
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        #palette-histogram.hidden .hist-row {
-            display: none;
-        }
-
-        .hist-row {
-            display: flex;
-            align-items: center;
-            height: 5%;
-            gap: 6px;
-            flex-direction: row-reverse;
-        }
-
-        .hist-color-box {
-            width: 14px;
-            height: 14px;
-            flex-shrink: 0;
-        }
-
-        .hist-bar {
-            height: 8px;
-            background-color: #00ffcc;
-            border-radius: 1px 0 0 1px;
+        #btn-zoom::after {
+            content: attr(data-zoom);
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 9px;
+            font-weight: bold;
+            color: #d9534f;
+            background: rgba(0,0,0,0.5);
+            padding: 0 2px;
+            border-radius: 2px;
         }
 
         #canvas-msg-overlay {
@@ -559,20 +488,10 @@
             margin-top: 20px;
             display: flex;
             justify-content: center;
-            gap: 10px;
+            gap: 15px;
             align-items: center;
             flex-wrap: wrap;
             padding: 0 10px;
-        }
-
-        .panel {
-            background: #222;
-            padding: 8px 15px;
-            border-radius: 6px;
-            border: 1px solid #444;
-            display: flex;
-            align-items: center;
-            gap: 10px;
         }
 
         button {
@@ -628,19 +547,6 @@
             padding: 0 8px;
         }
 
-        #btn-fullscreen-toggle, #btn-repeat {
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            fill: white;
-            padding: 5px;
-            display: flex;
-        }
-
-        .osd-btn-active {
-            fill: #d9534f !important;
-        }
-
         #btn-info-toggle {
             display: inline-flex;
             align-items: center;
@@ -667,7 +573,7 @@
 
         #info-block {
             margin: 20px auto;
-            width: 968px;
+            width: 768px;
             max-width: 100vw;
             background: #222;
             border: 1px solid #333;
@@ -701,7 +607,7 @@
 
 <body>
     <h2>MSX2 MV Player & Recorder
-        <span id="btn-info-toggle" title="Creator: Yeongman Seo (서영만) - https://sharksym.blogspot.com/2025/10/slt-turbo-17-z80.html">
+        <span id="btn-info-toggle" title="Show Creator Info">
             <svg viewBox="0 0 24 24" width="22" height="22">
                 <path
                     d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z" />
@@ -711,7 +617,6 @@
 
     <div id="screen-wrapper">
         <div id="video-container">
-            <div id="palette-histogram" title="Click to Toggle Histogram"></div>
             <div id="canvas-area">
                 <canvas id="msx-screen" width="256" height="192"></canvas>
                 <div id="canvas-msg-overlay">📂 Drop .MV or .ZIP here</div>
@@ -784,6 +689,13 @@
                                     <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="1">
                                 </div>
 
+                                <button id="btn-zoom" title="Cycle Zoom (1x-5x)" data-zoom="3x">
+                                    <svg viewBox="0 0 24 24" width="22" height="22">
+                                        <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                                        <path d="M12 10h-2v2H9v-2H7V9h2V7h1v2h2v1z"/>
+                                    </svg>
+                                </button>
+
                                 <button id="btn-repeat" title="Repeat Mode: Off">
                                     <svg id="icon-repeat-off" viewBox="0 0 24 24" width="22" height="22">
                                         <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"
@@ -822,15 +734,13 @@
                     </div>
                 </div>
             </div>
-            <div id="playlist-sidebar" title="Click Left Edge to Toggle Playlist">
+
+            <div id="palette-histogram" title="Click to Toggle Histogram"></div>
+
+            <div id="playlist-sidebar" title="Click Top Edge to Toggle Playlist">
                 <div id="playlist-folder" title="Toggle Playlist">
                     <svg viewBox="0 0 24 24" width="12" height="12">
                         <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
-                    </svg>
-                </div>
-                <div id="playlist-resizer">
-                    <svg viewBox="0 0 24 24" width="16" height="16">
-                        <path d="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z" />
                     </svg>
                 </div>
                 <div class="playlist-content">
@@ -871,22 +781,24 @@
                 </select>
             </div>
         </div>
-
-        <div class="panel">
-            <label style="font-size:12px;">Zoom</label>
-            <input type="range" id="scale-slider" min="1" max="5" step="1" value="3" style="width:70px;">
-        </div>
     </div>
 
     <div id="status" style="margin-top:10px; font-size:13px; color:#888;">Ready</div>
+
+    <div id="info-block">
+        <h3>Creator & Format Information</h3>
+        <p><strong>Yeongman Seo (서영만)</strong></p>
+        <p>
+            MSX SLT Turbo 1.7 Z80 / MV & MV2 Format Developer<br>
+            Article: <a href="https://sharksym.blogspot.com/2025/10/slt-turbo-17-z80.html" target="_blank"
+                class="info-link">https://sharksym.blogspot.com/2025/10/slt-turbo-17-z80.html</a>
+        </p>
+    </div>
 
     <input type="file" id="file-input" accept=".mv,.mv2,.zip" style="display:none;" />
     <canvas id="export-canvas" width="256" height="192" style="display:none;"></canvas>
 
     <script>
-        // const { FFmpeg } = FFmpegWASM;
-        // const ffmpeg = new FFmpeg();
-
         class MSXMediaDemuxer {
             constructor(canvasId) {
                 this.canvas = document.getElementById(canvasId);
@@ -901,7 +813,7 @@
                 this.lastVolume = 1.0;
                 this.playlist = [];
                 this.currentPlayIndex = -1;
-                this.repeatMode = 'off'; // 'off', 'all', 'one', 'shuffle'
+                this.repeatMode = 'off';
                 this.shuffleList = [];
                 this.initUI();
                 this.initWorker();
@@ -909,9 +821,7 @@
 
             setRepeatMode(mode) {
                 this.repeatMode = mode;
-                if (mode === 'shuffle') {
-                    this.generateShuffleList();
-                }
+                if (mode === 'shuffle') this.generateShuffleList();
                 this.updateRepeatUI();
             }
 
@@ -921,7 +831,6 @@
                     const j = Math.floor(Math.random() * (i + 1));
                     [this.shuffleList[i], this.shuffleList[j]] = [this.shuffleList[j], this.shuffleList[i]];
                 }
-                // Move current index to front of shuffle list so we don't replay it immediately
                 const currentInShuffle = this.shuffleList.indexOf(this.currentPlayIndex);
                 if (currentInShuffle > -1) {
                     this.shuffleList.splice(currentInShuffle, 1);
@@ -931,52 +840,28 @@
 
             updateRepeatUI() {
                 const btn = document.getElementById('btn-repeat');
-                const icons = {
-                    off: 'icon-repeat-off',
-                    all: 'icon-repeat-all',
-                    one: 'icon-repeat-one',
-                    shuffle: 'icon-shuffle'
-                };
-
+                const icons = { off: 'icon-repeat-off', all: 'icon-repeat-all', one: 'icon-repeat-one', shuffle: 'icon-shuffle' };
                 Object.values(icons).forEach(id => document.getElementById(id).style.display = 'none');
                 document.getElementById(icons[this.repeatMode]).style.display = 'block';
-
                 btn.title = `Repeat Mode: ${this.repeatMode.charAt(0).toUpperCase() + this.repeatMode.slice(1)}`;
-                if (this.repeatMode !== 'off') {
-                    btn.classList.add('osd-btn-active');
-                } else {
-                    btn.classList.remove('osd-btn-active');
-                }
+                if (this.repeatMode !== 'off') btn.classList.add('osd-btn-active');
+                else btn.classList.remove('osd-btn-active');
             }
 
             async handleEnded() {
-                if (this.repeatMode === 'one') {
-                    await this.playPlaylistItem(this.currentPlayIndex);
-                } else if (this.repeatMode === 'all') {
-                    let next = this.currentPlayIndex + 1;
-                    if (next >= this.playlist.length) next = 0;
-                    await this.playPlaylistItem(next);
-                } else if (this.repeatMode === 'shuffle') {
-                    if (this.playlist.length <= 1) {
-                        await this.playPlaylistItem(this.currentPlayIndex);
-                        return;
+                if (this.repeatMode === 'one') await this.playPlaylistItem(this.currentPlayIndex);
+                else if (this.repeatMode === 'all') await this.playPlaylistItem((this.currentPlayIndex + 1) % this.playlist.length);
+                else if (this.repeatMode === 'shuffle') {
+                    if (this.playlist.length <= 1) await this.playPlaylistItem(this.currentPlayIndex);
+                    else {
+                        let curIdx = this.shuffleList.indexOf(this.currentPlayIndex);
+                        let nextIdx = (curIdx + 1) % this.shuffleList.length;
+                        if (nextIdx === 0) this.generateShuffleList();
+                        await this.playPlaylistItem(this.shuffleList[nextIdx]);
                     }
-                    let currentInShuffle = this.shuffleList.indexOf(this.currentPlayIndex);
-                    let nextIdxInShuffle = currentInShuffle + 1;
-                    if (nextIdxInShuffle >= this.shuffleList.length) {
-                        this.generateShuffleList();
-                        nextIdxInShuffle = 0;
-                    }
-                    await this.playPlaylistItem(this.shuffleList[nextIdxInShuffle]);
                 } else {
-                    // Off mode - just stop or play next if there is one
-                    if (this.currentPlayIndex < this.playlist.length - 1) {
-                        await this.playPlaylistItem(this.currentPlayIndex + 1);
-                    } else {
-                        this.pause();
-                        this.pauseTime = 0;
-                        this.renderFrame(0);
-                    }
+                    if (this.currentPlayIndex < this.playlist.length - 1) await this.playPlaylistItem(this.currentPlayIndex + 1);
+                    else { this.pause(); this.pauseTime = 0; this.renderFrame(0); }
                 }
             }
 
@@ -987,18 +872,8 @@
                     const item = document.createElement('div');
                     item.className = `playlist-item ${index === this.currentPlayIndex ? 'active' : ''}`;
                     item.draggable = true;
-
-                    item.ondragstart = (e) => {
-                        e.dataTransfer.setData('text/plain', index);
-                        item.classList.add('dragging');
-                    };
-
-                    item.ondragend = () => {
-                        item.classList.remove('dragging');
-                        // Re-render to fix any visual inconsistencies after DOM manipulation during dragover
-                        this.updatePlaylistUI();
-                    };
-
+                    item.ondragstart = (e) => { e.dataTransfer.setData('text/plain', index); item.classList.add('dragging'); };
+                    item.ondragend = () => { item.classList.remove('dragging'); this.updatePlaylistUI(); };
                     item.ondragover = (e) => {
                         e.preventDefault();
                         const draggingItem = container.querySelector('.dragging');
@@ -1008,35 +883,25 @@
                             container.insertBefore(draggingItem, next ? item.nextSibling : item);
                         }
                     };
-
                     item.ondrop = (e) => {
                         e.preventDefault();
                         const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
                         const toIndex = Array.from(container.children).indexOf(item);
-                        if (fromIndex !== toIndex) {
-                            this.movePlaylistItem(fromIndex, toIndex);
-                        }
+                        if (fromIndex !== toIndex) this.movePlaylistItem(fromIndex, toIndex);
                     };
-
                     item.onclick = (e) => {
-                        e.stopPropagation(); // Prevent bubbling to sidebar toggle logic
+                        e.stopPropagation();
                         if (e.target.closest('.btn-remove-item')) return;
                         this.playPlaylistItem(index);
                     };
-
                     const name = document.createElement('span');
                     name.className = 'playlist-item-name';
                     name.innerText = file.name;
                     name.title = file.name;
-
                     const removeBtn = document.createElement('button');
                     removeBtn.className = 'btn-remove-item';
                     removeBtn.innerHTML = '×';
-                    removeBtn.onclick = (e) => {
-                        e.stopPropagation();
-                        this.removeFromPlaylist(index);
-                    };
-
+                    removeBtn.onclick = (e) => { e.stopPropagation(); this.removeFromPlaylist(index); };
                     item.appendChild(name);
                     item.appendChild(removeBtn);
                     container.appendChild(item);
@@ -1046,16 +911,9 @@
             movePlaylistItem(from, to) {
                 const item = this.playlist.splice(from, 1)[0];
                 this.playlist.splice(to, 0, item);
-
-                // Update current playing index
-                if (this.currentPlayIndex === from) {
-                    this.currentPlayIndex = to;
-                } else if (from < this.currentPlayIndex && to >= this.currentPlayIndex) {
-                    this.currentPlayIndex--;
-                } else if (from > this.currentPlayIndex && to <= this.currentPlayIndex) {
-                    this.currentPlayIndex++;
-                }
-
+                if (this.currentPlayIndex === from) this.currentPlayIndex = to;
+                else if (from < this.currentPlayIndex && to >= this.currentPlayIndex) this.currentPlayIndex--;
+                else if (from > this.currentPlayIndex && to <= this.currentPlayIndex) this.currentPlayIndex++;
                 this.updatePlaylistUI();
             }
 
@@ -1063,19 +921,13 @@
                 if (!file) return;
                 this.playlist.push(file);
                 this.updatePlaylistUI();
-                if (this.playlist.length === 1) {
-                    await this.playPlaylistItem(0);
-                }
+                if (this.playlist.length === 1) await this.playPlaylistItem(0);
             }
 
             removeFromPlaylist(index) {
                 this.playlist.splice(index, 1);
-                if (index === this.currentPlayIndex) {
-                    this.currentPlayIndex = -1;
-                    this.reset();
-                } else if (index < this.currentPlayIndex) {
-                    this.currentPlayIndex--;
-                }
+                if (index === this.currentPlayIndex) { this.currentPlayIndex = -1; this.reset(); }
+                else if (index < this.currentPlayIndex) this.currentPlayIndex--;
                 this.updatePlaylistUI();
             }
 
@@ -1088,9 +940,7 @@
 
             async playNextTrack() {
                 if (this.playlist.length === 0) return;
-                let next = this.currentPlayIndex + 1;
-                if (next >= this.playlist.length) next = 0;
-                await this.playPlaylistItem(next);
+                await this.playPlaylistItem((this.currentPlayIndex + 1) % this.playlist.length);
             }
 
             async playPrevTrack() {
@@ -1102,9 +952,10 @@
 
             initUI() {
                 const histContainer = document.getElementById('palette-histogram');
+                histContainer.innerHTML = '';
                 for (let i = 0; i < 16; i++) {
                     const row = document.createElement('div'); row.className = 'hist-row';
-                    row.innerHTML = `<div class="hist-color-box" id="hist-clr-${i}"></div><div class="hist-bar" id="hist-bar-${i}" style="width: 0%"></div>`;
+                    row.innerHTML = `<div class="hist-bar" id="hist-bar-${i}" style="height: 0%"></div><div class="hist-color-box" id="hist-clr-${i}"></div>`;
                     histContainer.appendChild(row);
                 }
             }
@@ -1139,9 +990,7 @@
                     document.getElementById('osd-time-cur').innerText = this.formatTime(cur);
                     if (frame < this.totalFrames) {
                         if (this.lastFrame !== frame) { this.renderFrame(frame); this.lastFrame = frame; }
-                    } else {
-                        this.handleEnded();
-                    }
+                    } else this.handleEnded();
                 };
             }
 
@@ -1150,65 +999,42 @@
                 document.getElementById('canvas-msg-overlay').style.display = 'none';
                 const status = document.getElementById('status');
                 status.innerText = "파일 분석 중...";
-
                 try {
                     let data;
                     if (file.name.toLowerCase().endsWith('.zip')) {
-                        status.innerText = "ZIP 압축 해제 중...";
                         const zip = new JSZip();
                         const content = await zip.loadAsync(file);
                         const entry = Object.values(content.files).find(f => f.name.toLowerCase().endsWith('.mv') || f.name.toLowerCase().endsWith('.mv2'));
                         if (!entry) throw new Error("ZIP 파일 내에 .MV 또는 .MV2 파일이 없습니다.");
                         data = await entry.async('uint8array');
-                    } else {
-                        data = new Uint8Array(await file.arrayBuffer());
-                    }
+                    } else data = new Uint8Array(await file.arrayBuffer());
                     await this.processData(data);
                 } catch (err) {
-                    console.error("File loading error:", err);
-                    status.innerText = `에러: ${err.message}`;
-                    status.style.color = "#ff4444";
+                    console.error(err); status.innerText = `에러: ${err.message}`; status.style.color = "#ff4444";
                 }
             }
 
             async processData(data) {
-                const sig = String.fromCharCode(...data.slice(0, 8));
-                const ver = String.fromCharCode(...data.slice(16, 21));
+                const sig = String.fromCharCode(...data.slice(0, 8)), ver = String.fromCharCode(...data.slice(16, 21));
                 const status = document.getElementById('status');
-
                 try {
-                    if (sig === "MMCSD_MV" && ver === "v1.00") {
-                        this.fps = 12;
-                        this.isMV1 = true;
-                        await this.parseMV1(data);
-                    } else if (sig === "MMCSD_MV" && ver === "v2.00") {
-                        this.fps = 15;
-                        this.isMV1 = false;
-                        await this.parseMV2(data, 16384);
-                    } else if (sig.startsWith("MV2")) {
-                        this.fps = 15;
-                        this.isMV1 = false;
-                        await this.parseMV2(data, 512); // Legacy MV2
-                    } else {
-                        throw new Error("올바른 .MV 또는 .MV2 포맷이 아닙니다.");
-                    }
-
+                    if (sig === "MMCSD_MV" && ver === "v1.00") { this.fps = 12; this.isMV1 = true; await this.parseMV1(data); }
+                    else if (sig === "MMCSD_MV" && ver === "v2.00") { this.fps = 15; this.isMV1 = false; await this.parseMV2(data, 16384); }
+                    else if (sig.startsWith("MV2")) { this.fps = 15; this.isMV1 = false; await this.parseMV2(data, 512); }
+                    else throw new Error("올바른 .MV 또는 .MV2 포맷이 아닙니다.");
                     status.innerText = `파싱 완료! (${this.isMV1 ? 'MV1' : 'MV2'}, ${this.fps}FPS, ${this.totalFrames} 프레임)`;
                     status.style.color = "#4CAF50";
-
                     this.duration = this.totalFrames / this.fps;
                     document.getElementById('osd-time-total').innerText = this.formatTime(this.duration);
                     document.getElementById('osd-seek-slider').disabled = false;
                     await this.play();
                 } catch (err) {
-                    console.error("Data processing error:", err);
-                    status.innerText = `에러: ${err.message}`;
-                    status.style.color = "#ff4444";
+                    console.error(err); status.innerText = `에러: ${err.message}`; status.style.color = "#ff4444";
                 }
             }
 
             async parseMV1(data) {
-                this.frames = []; let off = 16384; let pcm = [];
+                this.frames = []; let off = 16384, pcm = [];
                 while (off + 16384 <= data.length) {
                     const b = data.subarray(off, off + 16384);
                     this.frames.push({ pgt: b.slice(0, 6144), ct: b.slice(6144, 12288), palette: [[0, 0, 0], ...this.extractPal(b.slice(13232, 13262), 15)], eqRaw: b.slice(13264, 13273) });
@@ -1221,44 +1047,22 @@
             }
 
             async parseMV2(data, head) {
-                this.frames = []; let off = head; let mp3 = [];
+                this.frames = []; let off = head, mp3 = [];
                 while (off < data.length) {
                     const sz = (head === 512 && off === 512) ? 15872 : 16384; if (off + sz > data.length) break;
                     const b = data.subarray(off, off + sz);
                     const mp3Chunk = b.slice(12801, 12801 + (b[12800] * 32));
-                    this.frames.push({
-                        pgt: b.slice(0, 6144),
-                        ct: b.slice(6144, 12288),
-                        palette: [[0, 0, 0], ...this.extractPal(b.slice(12288, 12318), 15)],
-                        eqRaw: b.slice(12320, 12329),
-                        mp3Chunk: mp3Chunk.length > 0 ? mp3Chunk : null
-                    });
-                    if (mp3Chunk.length > 0) mp3.push(mp3Chunk);
-                    off += sz;
+                    this.frames.push({ pgt: b.slice(0, 6144), ct: b.slice(6144, 12288), palette: [[0, 0, 0], ...this.extractPal(b.slice(12288, 12318), 15)], eqRaw: b.slice(12320, 12329), mp3Chunk: mp3Chunk.length > 0 ? mp3Chunk : null });
+                    if (mp3Chunk.length > 0) mp3.push(mp3Chunk); off += sz;
                 }
                 this.totalFrames = this.frames.length;
                 const total = mp3.reduce((a, c) => a + c.length, 0);
-
-                if (total === 0) {
-                    this.audioBuffer = this.audioCtx.createBuffer(1, Math.ceil((this.totalFrames / this.fps) * 44100), 44100);
-                    return;
-                }
-
-                this.rawAudio = new Uint8Array(total);
-                let cur = 0; mp3.forEach(c => { this.rawAudio.set(c, cur); cur += c.length; });
-
+                if (total === 0) { this.audioBuffer = this.audioCtx.createBuffer(1, Math.ceil((this.totalFrames / this.fps) * 44100), 44100); return; }
+                this.rawAudio = new Uint8Array(total); let cur = 0; mp3.forEach(c => { this.rawAudio.set(c, cur); cur += c.length; });
                 try {
                     this.audioBuffer = await this.audioCtx.decodeAudioData(this.rawAudio.buffer.slice(0));
-
-                    // [추가] iOS Safari 방어 코드: 오디오 버퍼의 길이(duration)가 오염되었는지 검사
-                    if (!this.audioBuffer || !isFinite(this.audioBuffer.duration) || this.audioBuffer.duration === 0) {
-                        throw new Error("iOS Safari: 불량 오디오 버퍼가 생성되었습니다.");
-                    }
                 } catch (err) {
-                    console.warn("오디오 디코딩 실패(무음으로 대체합니다):", err);
-                    // [수정] 프레임이 아예 없을 경우 length가 0이 되어 발생하는 에러 방지를 위해 최소 길이 1 보장
-                    const safeLength = Math.max(1, Math.ceil((this.totalFrames / this.fps) * 44100));
-                    this.audioBuffer = this.audioCtx.createBuffer(1, safeLength, 44100);
+                    console.warn(err); this.audioBuffer = this.audioCtx.createBuffer(1, Math.max(1, Math.ceil((this.totalFrames / this.fps) * 44100)), 44100);
                 }
             }
 
@@ -1267,13 +1071,11 @@
             }
 
             renderFrame(idx) {
-                const frame = this.frames[idx];
-                const img = this.ctx.createImageData(256, 192);
-                const counts = new Array(16).fill(0);
+                const frame = this.frames[idx]; if (!frame) return;
+                const img = this.ctx.createImageData(256, 192), counts = new Array(16).fill(0);
                 for (let y = 0; y < 192; y++) {
                     for (let cx = 0; cx < 32; cx++) {
-                        const off = (Math.floor(y / 8) * 32 + cx) * 8 + (y % 8);
-                        const p = frame.pgt[off], c = frame.ct[off], fg = c >> 4, bg = c & 15;
+                        const off = (Math.floor(y / 8) * 32 + cx) * 8 + (y % 8), p = frame.pgt[off], c = frame.ct[off], fg = c >> 4, bg = c & 15;
                         for (let px = 0; px < 8; px++) {
                             const cIdx = (p & (1 << (7 - px))) ? fg : bg; counts[cIdx]++;
                             const rgb = frame.palette[cIdx], i = (y * 256 + (cx * 8 + px)) * 4;
@@ -1282,23 +1084,18 @@
                     }
                 }
                 this.ctx.putImageData(img, 0, 0);
-
                 if (!document.getElementById('palette-histogram').classList.contains('hidden')) {
                     const maxLog = Math.log10(256 * 192 + 1);
                     for (let i = 0; i < 16; i++) {
                         const rgb = frame.palette[i];
                         document.getElementById(`hist-clr-${i}`).style.backgroundColor = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
-                        document.getElementById(`hist-bar-${i}`).style.width = `${(Math.log10(counts[i] + 1) / maxLog) * 100}%`;
+                        document.getElementById(`hist-bar-${i}`).style.height = `${(Math.log10(counts[i] + 1) / maxLog) * 100}%`;
                     }
                 }
-
                 const eqOverlay = document.getElementById('eq-overlay');
                 if (!eqOverlay.classList.contains('hidden')) {
                     const bars = eqOverlay.children;
-                    for (let i = 0; i < 9; i++) {
-                        const h = ((15 - Math.min(frame.eqRaw[i], 15)) / 15) * 100;
-                        bars[i].style.height = h + '%';
-                    }
+                    for (let i = 0; i < 9; i++) bars[i].style.height = ((15 - Math.min(frame.eqRaw[i], 15)) / 15 * 100) + '%';
                 }
             }
 
@@ -1315,7 +1112,6 @@
                     }
                 }
                 targetCtx.putImageData(img, 0, 0);
-
                 if (withOverlay) {
                     const op = getComputedStyle(document.documentElement).getPropertyValue('--eq-opacity').trim();
                     targetCtx.fillStyle = `rgba(255,255,255,${op})`; const eqW = 256 * 0.25, eqH = 192 * 0.25, barW = (eqW / 9) - 1;
@@ -1323,334 +1119,87 @@
                 }
             }
 
-            // async exportMP4() {
-            //     // 1. 파일이 로드되지 않은 상태에서 버튼을 누른 경우 방어
-            //     if (!this.frames || this.totalFrames === 0) {
-            //         alert("먼저 추출할 파일을 열어주세요.");
-            //         return;
-            //     }
-
-            //     const btn = document.getElementById('btn-export');
-            //     const status = document.getElementById('status');
-            //     btn.disabled = true;
-            //     status.innerText = "Preparing export... (Loading FFmpeg)";
-
-            //     // 2. FFmpeg 로드 구간에 try...catch 추가하여 멈춤 현상 원인 파악
-            //     try {
-            //         if (!ffmpeg.loaded) {
-            //             await ffmpeg.load({ coreURL: 'ffmpeg-core.js', wasmURL: 'ffmpeg-core.wasm' });
-            //         }
-            //     } catch (error) {
-            //         console.error("FFmpeg 로드 실패 상세 에러:", error);
-            //         status.innerText = "에러: FFmpeg 로드 실패. F12 개발자 도구를 확인하세요.";
-            //         alert("FFmpeg WASM 모듈을 불러오지 못했습니다.\n\n로컬 서버(http://localhost)로 실행 중인지, ffmpeg-core 파일이 같은 폴더에 있는지 확인해주세요.");
-            //         btn.disabled = false;
-            //         return; // 여기서 실행 중단
-            //     }
-
-            //     // FFmpeg 로드 성공 시 정상적으로 다음 단계 진행
-            //     const exportCanvas = document.getElementById('export-canvas');
-            //     const exportCtx = exportCanvas.getContext('2d');
-            //     const videoData = new Uint8Array(this.totalFrames * 256 * 192 * 3);
-            //     let offset = 0;
-
-            //     for (let i = 0; i < this.totalFrames; i++) {
-            //         this.renderFrameToCanvas(i, exportCtx, document.getElementById('eq-overlay').style.display !== 'none');
-            //         const pixels = exportCtx.getImageData(0, 0, 256, 192).data;
-            //         for (let j = 0; j < pixels.length; j += 4) {
-            //             videoData[offset++] = pixels[j]; videoData[offset++] = pixels[j + 1]; videoData[offset++] = pixels[j + 2];
-            //         }
-            //         if (i % 50 === 0) status.innerText = `프레임 합성 중... (${i}/${this.totalFrames})`;
-            //     }
-
-            //     await ffmpeg.writeFile('video.raw', videoData);
-
-            //     let ffmpegArgs = [];
-
-            //     // 💡 [핵심] MV1(PCM)과 MV2(MP3)를 완벽히 분기하여 FFmpeg 트랜스코딩 설정
-            //     if (this.isMV1) {
-            //         await ffmpeg.writeFile('audio.raw', this.rawAudioBytes);
-            //         ffmpegArgs = [
-            //             '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '256x192', '-r', '12', '-i', 'video.raw',
-            //             '-f', 'u8', '-ar', '11328', '-ac', '1', '-i', 'audio.raw',
-            //             '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
-            //             '-c:a', 'aac', '-b:a', '128k',
-            //             '-shortest', 'output.mp4'
-            //         ];
-            //     } else {
-            //         await ffmpeg.writeFile('audio.mp3', this.rawAudioBytes);
-            //         ffmpegArgs = [
-            //             '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '256x192', '-r', '15', '-i', 'video.raw',
-            //             '-i', 'audio.mp3',
-            //             '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
-            //             '-c:a', 'copy', // MP3는 그대로 복사 (빠르고 화질 열화 없음)
-            //             '-shortest', 'output.mp4'
-            //         ];
-            //     }
-
-            //     status.innerText = `MP4 인코딩 중... (${this.isMV1 ? 'PCM->AAC' : 'MP3 Copy'})`;
-            //     await ffmpeg.exec(ffmpegArgs);
-
-            //     const data = await ffmpeg.readFile('output.mp4');
-            //     const a = document.createElement('a');
-            //     a.href = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
-            //     a.download = `msx_export_${this.isMV1 ? 'v1' : 'v2'}.mp4`;
-            //     a.click();
-
-            //     status.innerText = "내보내기 완료!";
-            //     status.style.color = "#4CAF50";
-            //     btn.disabled = false;
-            // }
-
             async exportMP4() {
-                if (!this.frames || this.totalFrames === 0) {
-                    alert("먼저 추출할 파일을 열어주세요.");
-                    return;
-                }
-
-                if (typeof window.Mp4Muxer === 'undefined') {
-                    alert("mp4-muxer 라이브러리가 로드되지 않았습니다. 인터넷 연결을 확인해주세요.");
-                    return;
-                }
-
-                if (typeof VideoEncoder === "undefined") {
-                    alert("이 브라우저는 WebCodecs API를 지원하지 않습니다. 최신 크롬, 엣지, 사파리를 사용해주세요.");
-                    return;
-                }
-
-                const btn = document.getElementById('btn-export');
-                const status = document.getElementById('status');
-                btn.disabled = true;
-                status.innerText = "오디오 규격 변환 중 (Resampling)...";
-
+                if (!this.frames || this.totalFrames === 0) { alert("먼저 추출할 파일을 열어주세요."); return; }
+                const btn = document.getElementById('btn-export'), status = document.getElementById('status');
+                btn.disabled = true; status.innerText = "내보내기 준비 중...";
                 try {
                     const codecChoice = document.getElementById('audio-codec-select').value;
-                    // For MP3 passthrough, use the original sample rate. For others, use target.
                     const originalSampleRate = this.audioBuffer ? this.audioBuffer.sampleRate : 44100;
-                    const targetSampleRate = codecChoice === 'mp3' ? originalSampleRate : (codecChoice === 'opus' ? 48000 : 44100);
-
+                    const targetSampleRate = (codecChoice === 'mp3') ? originalSampleRate : (codecChoice === 'opus' ? 48000 : 44100);
                     let resampledAudioBuffer = null;
                     if (codecChoice !== 'none' && codecChoice !== 'mp3') {
-                        status.innerText = `오디오 규격 변환 중 (Resampling to ${targetSampleRate}Hz)...`;
                         const offlineCtx = new OfflineAudioContext(1, Math.ceil(this.duration * targetSampleRate), targetSampleRate);
-                        const source = offlineCtx.createBufferSource();
-                        source.buffer = this.audioBuffer;
-                        source.connect(offlineCtx.destination);
-                        source.start(0);
+                        const source = offlineCtx.createBufferSource(); source.buffer = this.audioBuffer; source.connect(offlineCtx.destination); source.start(0);
                         resampledAudioBuffer = await offlineCtx.startRendering();
                     }
-
-                    status.innerText = "하드웨어 가속 인코딩 준비 중...";
-
-                    const muxerConfig = {
+                    const muxer = new Mp4Muxer.Muxer({
                         target: new Mp4Muxer.ArrayBufferTarget(),
-                        video: {
-                            codec: 'avc',
-                            width: 768,
-                            height: 576
-                        },
+                        video: { codec: 'avc', width: 768, height: 576 },
+                        audio: (codecChoice !== 'none') ? { codec: codecChoice, sampleRate: targetSampleRate, numberOfChannels: 1 } : undefined,
                         fastStart: 'in-memory'
-                    };
-
-                    if (codecChoice !== 'none') {
-                        muxerConfig.audio = {
-                            codec: codecChoice,
-                            sampleRate: targetSampleRate,
-                            numberOfChannels: 1
-                        };
-                    }
-
-                    const muxer = new Mp4Muxer.Muxer(muxerConfig);
-
-                    const videoEncoder = new VideoEncoder({
-                        output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-                        error: e => console.error("비디오 인코딩 에러:", e)
                     });
-                    videoEncoder.configure({
-                        codec: 'avc1.42001f',
-                        width: 768,
-                        height: 576,
-                        bitrate: 5_000_000,
-                        framerate: this.fps
-                    });
-
+                    const videoEncoder = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: e => console.error(e) });
+                    videoEncoder.configure({ codec: 'avc1.42001f', width: 768, height: 576, bitrate: 5_000_000, framerate: this.fps });
                     let audioEncoder = null;
-                    if (codecChoice !== 'none') {
-                        if (codecChoice === 'mp3') {
-                            // MP3 Passthrough - bypass resampling and encoding
-                            status.innerText = "MP3 원본 데이터 추출 중...";
-                            const videoFrameDurationMicros = (1 / this.fps) * 1_000_000;
-                            for (let i = 0; i < this.totalFrames; i++) {
-                                const chunkData = this.frames[i].mp3Chunk;
-                                if (chunkData && chunkData.length > 0) {
-                                    // Wrap raw MP3 chunk into EncodedAudioChunk for mp4-muxer
-                                    const audioChunk = new EncodedAudioChunk({
-                                        type: 'key',
-                                        timestamp: Math.round(i * videoFrameDurationMicros),
-                                        duration: Math.round(videoFrameDurationMicros),
-                                        data: chunkData
-                                    });
-                                    muxer.addAudioChunk(audioChunk);
-                                }
-                            }
-                        } else {
-                            // AAC/Opus Encoding
-                            const audioConfig = {
-                                codec: codecChoice === 'opus' ? 'opus' : 'mp4a.40.2',
-                                sampleRate: targetSampleRate,
-                                numberOfChannels: 1,
-                                bitrate: 128_000
-                            };
-
-                            let audioSupported = false;
-                            try {
-                                const support = await AudioEncoder.isConfigSupported(audioConfig);
-                                audioSupported = support.supported;
-                            } catch (e) {
-                                audioSupported = false;
-                            }
-
-                            if (audioSupported) {
-                                audioEncoder = new AudioEncoder({
-                                    output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
-                                    error: e => console.error("오디오 인코딩 에러:", e)
-                                });
-                                audioEncoder.configure(audioConfig);
-
-                                const channelData = resampledAudioBuffer.getChannelData(0);
-                                const audioStep = codecChoice === 'opus' ? 960 : 1024;
-
-                                for (let i = 0; i < channelData.length; i += audioStep) {
-                                    const chunk = channelData.subarray(i, i + audioStep);
-                                    const audioData = new AudioData({
-                                        format: 'f32-planar',
-                                        sampleRate: targetSampleRate,
-                                        numberOfFrames: chunk.length,
-                                        numberOfChannels: 1,
-                                        timestamp: Math.round((i / targetSampleRate) * 1_000_000),
-                                        data: chunk
-                                    });
-                                    audioEncoder.encode(audioData);
-                                    audioData.close();
-                                }
-                            } else {
-                                console.warn(`${codecChoice.toUpperCase()} 오디오 인코딩이 지원되지 않아 소리 없이 비디오만 내보냅니다.`);
-                                status.innerText = "오디오 미지원: 비디오만 인코딩 중...";
-                                status.style.color = "#ff9800";
-                            }
+                    if (codecChoice !== 'none' && codecChoice !== 'mp3') {
+                        audioEncoder = new AudioEncoder({ output: (chunk, meta) => muxer.addAudioChunk(chunk, meta), error: e => console.error(e) });
+                        audioEncoder.configure({ codec: codecChoice === 'opus' ? 'opus' : 'mp4a.40.2', sampleRate: targetSampleRate, numberOfChannels: 1, bitrate: 128_000 });
+                        const channelData = resampledAudioBuffer.getChannelData(0), step = codecChoice === 'opus' ? 960 : 1024;
+                        for (let i = 0; i < channelData.length; i += step) {
+                            const chunk = channelData.subarray(i, i + step);
+                            const audioData = new AudioData({ format: 'f32-planar', sampleRate: targetSampleRate, numberOfFrames: chunk.length, numberOfChannels: 1, timestamp: Math.round(i / targetSampleRate * 1_000_000), data: chunk });
+                            audioEncoder.encode(audioData); audioData.close();
+                        }
+                    } else if (codecChoice === 'mp3') {
+                        const microsPerFrame = (1 / this.fps) * 1_000_000;
+                        for (let i = 0; i < this.totalFrames; i++) {
+                            const chunkData = this.frames[i].mp3Chunk;
+                            if (chunkData) muxer.addAudioChunk(new EncodedAudioChunk({ type: 'key', timestamp: Math.round(i * microsPerFrame), duration: Math.round(microsPerFrame), data: chunkData }));
                         }
                     }
-
-                    const baseCanvas = document.createElement('canvas');
-                    baseCanvas.width = 256;
-                    baseCanvas.height = 192;
+                    const baseCanvas = document.createElement('canvas'); baseCanvas.width = 256; baseCanvas.height = 192;
                     const baseCtx = baseCanvas.getContext('2d', { willReadFrequently: true });
-
-                    const scaleCanvas = document.createElement('canvas');
-                    scaleCanvas.width = 768;
-                    scaleCanvas.height = 576;
-                    const scaleCtx = scaleCanvas.getContext('2d');
-                    scaleCtx.imageSmoothingEnabled = false;
-
-                    const includeEQ = document.getElementById('eq-overlay').style.display !== 'none';
-
-                    // [수정 2] 1프레임당 머무르는 시간(마이크로초) 계산 (duration 에러 해결)
-                    const durationMicros = Math.round((1 / this.fps) * 1_000_000);
-
+                    const scaleCanvas = document.createElement('canvas'); scaleCanvas.width = 768; scaleCanvas.height = 576;
+                    const scaleCtx = scaleCanvas.getContext('2d'); scaleCtx.imageSmoothingEnabled = false;
+                    const includeEQ = !document.getElementById('eq-overlay').classList.contains('hidden'), durationMicros = Math.round(1 / this.fps * 1_000_000);
                     for (let i = 0; i < this.totalFrames; i++) {
-                        this.renderFrameToCanvas(i, baseCtx, includeEQ);
-                        scaleCtx.drawImage(baseCanvas, 0, 0, 256, 192, 0, 0, 768, 576);
-
-                        const timestampMicros = Math.round((i / this.fps) * 1_000_000);
-                        const frame = new VideoFrame(scaleCanvas, {
-                            timestamp: timestampMicros,
-                            duration: durationMicros // 누락되었던 duration 추가
-                        });
-
-                        videoEncoder.encode(frame);
-                        frame.close();
-
-                        if (i % 30 === 0) {
-                            status.innerText = `GPU 인코딩 중... (${i}/${this.totalFrames})`;
-                            await new Promise(r => setTimeout(r, 0));
-                        }
+                        this.renderFrameToCanvas(i, baseCtx, includeEQ); scaleCtx.drawImage(baseCanvas, 0, 0, 256, 192, 0, 0, 768, 576);
+                        const frame = new VideoFrame(scaleCanvas, { timestamp: Math.round(i / this.fps * 1_000_000), duration: durationMicros });
+                        videoEncoder.encode(frame); frame.close();
+                        if (i % 30 === 0) { status.innerText = `인코딩 중... (${i}/${this.totalFrames})`; await new Promise(r => setTimeout(r, 0)); }
                     }
-
-                    status.innerText = "스트림 병합 및 마무리 중...";
-                    await new Promise(r => setTimeout(r, 0));
-
-                    await videoEncoder.flush();
-                    await audioEncoder.flush();
+                    await videoEncoder.flush(); if (audioEncoder) await audioEncoder.flush();
                     muxer.finalize();
-
-                    const buffer = muxer.target.buffer;
-                    const blob = new Blob([buffer], { type: 'video/mp4' });
-
-                    const a = document.createElement('a');
-                    a.href = URL.createObjectURL(blob);
-                    a.download = `msx_export_gpu_${Date.now()}.mp4`;
-                    a.click();
-
-                    status.innerText = "초고속 내보내기 완료!";
-                    status.style.color = "#4CAF50";
-
+                    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([muxer.target.buffer], { type: 'video/mp4' }));
+                    a.download = `msx_export_${Date.now()}.mp4`; a.click();
+                    status.innerText = "내보내기 완료!"; status.style.color = "#4CAF50";
                 } catch (err) {
-                    console.error("인코딩 중 예외 발생:", err);
-                    status.innerText = "에러: 인코딩 실패 (콘솔 확인)";
-                    status.style.color = "#ff4444";
-                } finally {
-                    btn.disabled = false;
-                }
+                    console.error(err); status.innerText = "에러 발생 (콘솔 확인)"; status.style.color = "#ff4444";
+                } finally { btn.disabled = false; }
             }
 
             togglePlay() { this.isPlaying ? this.pause() : this.play(); }
 
             async play() {
                 if (this.isPlaying || !this.audioBuffer) return;
-                this.isPlaying = true;
-                document.getElementById('canvas-area').classList.remove('paused');
-
-                if (this.audioCtx.state === 'suspended') {
-                    await this.audioCtx.resume();
-                }
-
-                if (!this.isPlaying || !this.audioBuffer) return;
-
-                if (this.src) {
-                    try { this.src.stop(); } catch (e) { }
-                    try { this.src.disconnect(); } catch (e) { }
-                }
-
-                this.src = this.audioCtx.createBufferSource();
-                this.src.buffer = this.audioBuffer;
-                this.src.connect(this.gainNode);
-
-                // [추가] pauseTime이 NaN이나 Infinity로 오염된 경우 0으로 초기화
+                this.isPlaying = true; document.getElementById('canvas-area').classList.remove('paused');
+                if (this.audioCtx.state === 'suspended') await this.audioCtx.resume();
+                if (this.src) { try { this.src.stop(); } catch (e) { } try { this.src.disconnect(); } catch (e) { } }
+                this.src = this.audioCtx.createBufferSource(); this.src.buffer = this.audioBuffer; this.src.connect(this.gainNode);
                 const safePauseTime = isFinite(this.pauseTime) ? this.pauseTime : 0;
-                this.src.start(0, safePauseTime);
-                this.startTime = this.audioCtx.currentTime - safePauseTime;
-
-                this.updatePlayIcon(true);
-                this.timerWorker.postMessage('start');
+                this.src.start(0, safePauseTime); this.startTime = this.audioCtx.currentTime - safePauseTime;
+                this.updatePlayIcon(true); this.timerWorker.postMessage('start');
             }
 
             pause() {
                 if (!this.isPlaying) return;
-                this.isPlaying = false;
-                document.getElementById('canvas-area').classList.add('paused');
-
-                if (this.src) {
-                    try { this.src.stop(); } catch (e) { }
-                    try { this.src.disconnect(); } catch (e) { }
-                    this.src = null;
-                }
-
-                if (!this.isScrubbing) {
-                    this.pauseTime = this.audioCtx.currentTime - this.startTime;
-                }
-                this.updatePlayIcon(false);
-                this.timerWorker.postMessage('stop');
+                this.isPlaying = false; document.getElementById('canvas-area').classList.add('paused');
+                if (this.src) { try { this.src.stop(); } catch (e) { } try { this.src.disconnect(); } catch (e) { } this.src = null; }
+                if (!this.isScrubbing) this.pauseTime = this.audioCtx.currentTime - this.startTime;
+                this.updatePlayIcon(false); this.timerWorker.postMessage('stop');
             }
+
             updatePlayIcon(p) {
                 document.getElementById('icon-play').style.display = p ? 'none' : 'block';
                 document.getElementById('icon-pause').style.display = p ? 'block' : 'none';
@@ -1659,401 +1208,142 @@
 
         const player = new MSXMediaDemuxer('msx-screen');
 
-        // Adaptive UI: Hidden on mobile (< 768px), shown on PC
+        // Zoom Logic
+        let currentZoom = 3;
+        const setZoom = (z) => {
+            currentZoom = z;
+            const width = 256 * z;
+            document.getElementById('canvas-area').style.width = width + 'px';
+            document.getElementById('btn-zoom').setAttribute('data-zoom', z + 'x');
+            document.getElementById('info-block').style.width = width + 'px';
+        };
+        document.getElementById('btn-zoom').onclick = () => { let next = currentZoom + 1; if (next > 5) next = 1; setZoom(next); };
+
+        // Adaptive UI
         const applyAdaptiveUI = () => {
             const isMobile = window.innerWidth < 768;
-            const playlistSidebar = document.getElementById('playlist-sidebar');
-            const histogram = document.getElementById('palette-histogram');
-            
             if (isMobile) {
-                playlistSidebar.classList.add('hidden');
-                histogram.classList.add('hidden');
+                document.getElementById('playlist-sidebar').classList.add('hidden');
+                document.getElementById('palette-histogram').classList.add('hidden');
+                setZoom(1);
             } else {
-                playlistSidebar.classList.remove('hidden');
-                histogram.classList.remove('hidden');
+                document.getElementById('playlist-sidebar').classList.remove('hidden');
+                document.getElementById('palette-histogram').classList.remove('hidden');
+                setZoom(3);
             }
         };
         applyAdaptiveUI();
         window.addEventListener('resize', applyAdaptiveUI);
 
-        // Check codec support on load
-        async function checkAudioSupport() {
-            const aacConfig = { codec: 'mp4a.40.2', sampleRate: 44100, numberOfChannels: 1, bitrate: 128000 };
-            const opusConfig = { codec: 'opus', sampleRate: 48000, numberOfChannels: 1, bitrate: 128000 };
-
-            const select = document.getElementById('audio-codec-select');
-
-            try {
-                const opusSupport = await AudioEncoder.isConfigSupported(opusConfig);
-                if (!opusSupport.supported) {
-                    select.options[0].text += " (Unsupported)";
-                    select.options[0].style.color = "#888";
-                }
-            } catch (e) {
-                select.options[0].text += " (Error)";
-            }
-
-            try {
-                const aacSupport = await AudioEncoder.isConfigSupported(aacConfig);
-                if (!aacSupport.supported) {
-                    select.options[1].text += " (Unsupported)";
-                    select.options[1].style.color = "#888";
-                }
-            } catch (e) {
-                select.options[1].text += " (Error)";
-            }
-        }
-        checkAudioSupport();
-
         window.addEventListener('dragover', e => e.preventDefault());
         window.addEventListener('drop', e => e.preventDefault());
 
-        const playlistSidebar = document.getElementById('playlist-sidebar');
-        const playlistItems = document.getElementById('playlist-items');
-        const btnAddPlaylist = document.getElementById('btn-add-playlist');
-        const btnClosePlaylist = document.getElementById('btn-close-playlist');
-        const playlistResizer = document.getElementById('playlist-resizer');
-        const videoContainer = document.getElementById('video-container');
-
-        let isResizing = false;
-
-        const startResizing = (e) => {
-            isResizing = true;
-            document.body.style.cursor = 'ew-resize';
-            if (e.touches) e.preventDefault();
-        };
-
-        const stopResizing = () => {
-            if (!isResizing) return;
-            isResizing = false;
-            document.body.style.cursor = 'default';
-        };
-
-        const handleResizing = (e) => {
-            if (!isResizing) return;
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const sidebarRect = playlistSidebar.getBoundingClientRect();
-            // Width is the distance from the left edge of the sidebar to the mouse position
-            let newWidth = clientX - sidebarRect.left;
-            
-            // Constrain width
-            newWidth = Math.max(80, Math.min(400, newWidth));
-            
-            playlistSidebar.style.width = newWidth + 'px';
-            const histogramWidth = document.getElementById('palette-histogram').offsetWidth;
-            videoContainer.style.width = (768 + histogramWidth + newWidth) + 'px';
-            
-            // Update playlist-content width to match
-            document.querySelector('.playlist-content').style.width = (newWidth - 15) + 'px';
-        };
-
-        playlistResizer.addEventListener('mousedown', startResizing);
-        playlistResizer.addEventListener('touchstart', startResizing, { passive: false });
-        window.addEventListener('mousemove', handleResizing);
-        window.addEventListener('touchmove', handleResizing, { passive: false });
-        window.addEventListener('mouseup', stopResizing);
-        window.addEventListener('touchend', stopResizing);
-
         const playlistFolder = document.getElementById('playlist-folder');
+        const playlistSidebar = document.getElementById('playlist-sidebar');
+        playlistFolder.onclick = (e) => { e.stopPropagation(); playlistSidebar.classList.toggle('hidden'); };
+        playlistSidebar.onclick = function(e) { if (this.classList.contains('hidden')) this.classList.remove('hidden'); };
 
-        playlistFolder.onclick = (e) => {
-            e.stopPropagation();
-            playlistSidebar.classList.toggle('hidden');
-        };
-
-        playlistSidebar.onclick = function (e) {
-            if (this.classList.contains('hidden')) {
-                this.classList.remove('hidden');
-                e.stopPropagation();
-            }
-        };
-
-        // Add button logic
-        document.getElementById('btn-open-file').onclick = () => {
-            document.getElementById('file-input').click();
-        };
-
-        btnAddPlaylist.onclick = (e) => {
-            e.stopPropagation();
-            document.getElementById('file-input').click();
-        };
-
-        // Clicking empty area in playlist should also trigger add
-        playlistItems.onclick = (e) => {
-            if (e.target === playlistItems) {
-                document.getElementById('file-input').click();
-            }
-        };
-
-        // Override file input change to add to playlist instead of just loading
+        document.getElementById('btn-open-file').onclick = () => document.getElementById('file-input').click();
+        document.getElementById('btn-add-playlist').onclick = (e) => { e.stopPropagation(); document.getElementById('file-input').click(); };
+        document.getElementById('playlist-items').onclick = (e) => { if (e.target === e.currentTarget) document.getElementById('file-input').click(); };
         document.getElementById('file-input').onchange = e => {
-            if (e.target.files.length) {
-                for (let file of e.target.files) {
-                    player.addToPlaylist(file);
-                }
-                e.target.value = ''; // Reset value to allow selecting same file again
-            }
+            if (e.target.files.length) { for (let file of e.target.files) player.addToPlaylist(file); e.target.value = ''; }
         };
 
         const canvasArea = document.getElementById('canvas-area');
         canvasArea.ondragover = e => { e.preventDefault(); canvasArea.classList.add('dragover'); };
         canvasArea.ondragleave = () => canvasArea.classList.remove('dragover');
-        canvasArea.ondrop = async e => { 
-            e.preventDefault(); 
-            canvasArea.classList.remove('dragover'); 
+        canvasArea.ondrop = async e => {
+            e.preventDefault(); canvasArea.classList.remove('dragover');
             if (e.dataTransfer.files.length) {
-                const startIndex = player.playlist.length;
-                for (let file of e.dataTransfer.files) {
-                    player.addToPlaylist(file);
-                }
-                // Play the first of the newly dropped files immediately
-                await player.playPlaylistItem(startIndex);
+                const start = player.playlist.length;
+                for (let file of e.dataTransfer.files) player.addToPlaylist(file);
+                await player.playPlaylistItem(start);
             }
         };
 
         const eqOverlay = document.getElementById('eq-overlay');
-        let isDraggingEq = false;
-        let startY = 0;
-        let startOpacity = 0.25;
-        let hasMoved = false;
+        let isDraggingEq = false, startY = 0, startOpacity = 0.25, hasMoved = false;
+        const handleEqStart = (e) => { isDraggingEq = true; hasMoved = false; startY = e.touches ? e.touches[0].clientY : e.clientY; startOpacity = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--eq-opacity')); if (e.touches) e.preventDefault(); };
+        const handleEqMove = (e) => { if (!isDraggingEq) return; const currentY = e.touches ? e.touches[0].clientY : e.clientY, deltaY = startY - currentY; if (Math.abs(deltaY) > 5) hasMoved = true; let op = startOpacity + (deltaY / 200); document.documentElement.style.setProperty('--eq-opacity', Math.max(0.05, Math.min(1.0, op))); };
+        const handleEqEnd = () => { if (!isDraggingEq) return; isDraggingEq = false; if (!hasMoved) { eqOverlay.classList.toggle('hidden'); if (player.frames.length) player.renderFrame(Math.floor(player.pauseTime * player.fps)); } };
+        eqOverlay.addEventListener('mousedown', handleEqStart); window.addEventListener('mousemove', handleEqMove); window.addEventListener('mouseup', handleEqEnd);
+        eqOverlay.addEventListener('touchstart', handleEqStart, { passive: false }); window.addEventListener('touchmove', handleEqMove, { passive: false }); window.addEventListener('touchend', handleEqEnd);
 
-        const handleEqStart = (e) => {
-            isDraggingEq = true;
-            hasMoved = false;
-            startY = e.touches ? e.touches[0].clientY : e.clientY;
-            startOpacity = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--eq-opacity'));
-            // Prevent default to avoid scrolling on mobile while dragging EQ
-            if (e.touches) e.preventDefault();
-        };
-
-        const handleEqMove = (e) => {
-            if (!isDraggingEq) return;
-            const currentY = e.touches ? e.touches[0].clientY : e.clientY;
-            const deltaY = startY - currentY; // Up is positive
-            if (Math.abs(deltaY) > 5) hasMoved = true;
-
-            // Sensitivity: 100px drag = 0.5 opacity change
-            let newOpacity = startOpacity + (deltaY / 200);
-            newOpacity = Math.max(0.05, Math.min(1.0, newOpacity));
-            document.documentElement.style.setProperty('--eq-opacity', newOpacity);
-        };
-
-        const handleEqEnd = () => {
-            if (!isDraggingEq) return;
-            isDraggingEq = false;
-            if (!hasMoved) {
-                eqOverlay.classList.toggle('hidden');
-                if (player.frames.length > 0) {
-                    const currentIdx = Math.max(0, Math.min(player.totalFrames - 1, Math.floor(player.pauseTime * player.fps)));
-                    player.renderFrame(currentIdx);
-                }
-            }
-        };
-
-        eqOverlay.addEventListener('mousedown', handleEqStart);
-        window.addEventListener('mousemove', handleEqMove);
-        window.addEventListener('mouseup', handleEqEnd);
-
-        eqOverlay.addEventListener('touchstart', handleEqStart, { passive: false });
-        window.addEventListener('touchmove', handleEqMove, { passive: false });
-        window.addEventListener('touchend', handleEqEnd);
-
-        document.getElementById('scale-slider').oninput = e => document.getElementById('video-container').style.width = (256 * e.target.value + 80) + 'px';
-        document.getElementById('palette-histogram').onclick = function () { this.classList.toggle('hidden'); };
-
+        document.getElementById('palette-histogram').onclick = function() { this.classList.toggle('hidden'); };
         document.getElementById('btn-osd-play-pause').onclick = () => player.togglePlay();
         document.getElementById('btn-osd-prev-track').onclick = () => player.playPrevTrack();
         document.getElementById('btn-osd-next-track').onclick = () => player.playNextTrack();
         document.getElementById('btn-osd-prev-frame').onclick = () => moveFrame(-1);
         document.getElementById('btn-osd-next-frame').onclick = () => moveFrame(1);
+        document.getElementById('btn-repeat').onclick = () => { const modes = ['off', 'all', 'one', 'shuffle']; player.setRepeatMode(modes[(modes.indexOf(player.repeatMode) + 1) % modes.length]); };
 
-        document.getElementById('btn-repeat').onclick = () => {
-            const modes = ['off', 'all', 'one', 'shuffle'];
-            const nextMode = modes[(modes.indexOf(player.repeatMode) + 1) % modes.length];
-            player.setRepeatMode(nextMode);
-        };
-
-        const volBtn = document.getElementById('btn-volume');
-        const volSlider = document.getElementById('volume-slider');
-        const iconVolOn = document.getElementById('icon-vol-on');
-        const iconVolOff = document.getElementById('icon-vol-off');
-
+        const volBtn = document.getElementById('btn-volume'), volSlider = document.getElementById('volume-slider');
         volBtn.onclick = () => {
-            if (player.gainNode.gain.value > 0) {
-                player.lastVolume = player.gainNode.gain.value;
-                player.gainNode.gain.value = 0;
-                volSlider.value = 0;
-                iconVolOn.style.display = 'none';
-                iconVolOff.style.display = 'block';
-            } else {
-                player.gainNode.gain.value = player.lastVolume || 1.0;
-                volSlider.value = player.gainNode.gain.value;
-                iconVolOn.style.display = 'block';
-                iconVolOff.style.display = 'none';
-            }
+            if (player.gainNode.gain.value > 0) { player.lastVolume = player.gainNode.gain.value; player.gainNode.gain.value = 0; volSlider.value = 0; }
+            else { player.gainNode.gain.value = player.lastVolume || 1.0; volSlider.value = player.gainNode.gain.value; }
+            document.getElementById('icon-vol-on').style.display = player.gainNode.gain.value > 0 ? 'block' : 'none';
+            document.getElementById('icon-vol-off').style.display = player.gainNode.gain.value > 0 ? 'none' : 'block';
         };
-
         volSlider.oninput = (e) => {
-            const val = parseFloat(e.target.value);
-            player.gainNode.gain.value = val;
-            if (val > 0) {
-                iconVolOn.style.display = 'block';
-                iconVolOff.style.display = 'none';
-            } else {
-                iconVolOn.style.display = 'none';
-                iconVolOff.style.display = 'block';
-            }
+            const v = parseFloat(e.target.value); player.gainNode.gain.value = v;
+            document.getElementById('icon-vol-on').style.display = v > 0 ? 'block' : 'none';
+            document.getElementById('icon-vol-off').style.display = v > 0 ? 'none' : 'block';
         };
-
-        document.getElementById('btn-export').onclick = (e) => {
-            // If the container is not expanded, expand it first instead of exporting
-            const container = document.getElementById('audio-codec-container');
-            if (!container.classList.contains('expanded') && window.innerWidth < 768) {
-                container.classList.add('expanded');
-                e.stopPropagation();
-                return;
-            }
-            player.exportMP4();
-        };
-
-        // Toggle expand on save-group click for mobile/touch
-        document.getElementById('save-group').onclick = function (e) {
-            if (e.target.closest('#btn-export')) return; // handled above
-            document.getElementById('audio-codec-container').classList.toggle('expanded');
-        };
-
-        // Close when clicking elsewhere
-        window.addEventListener('click', (e) => {
-            if (!e.target.closest('#save-group')) {
-                document.getElementById('audio-codec-container').classList.remove('expanded');
-            }
-        });
 
         const seek = document.getElementById('osd-seek-slider');
         let wasPlayingBeforeSeek = false;
-        seek.onmousedown = seek.ontouchstart = () => { wasPlayingBeforeSeek = player.isPlaying; };
+        seek.onmousedown = seek.ontouchstart = () => wasPlayingBeforeSeek = player.isPlaying;
         seek.oninput = e => {
-            player.isScrubbing = true;
-            if (player.isPlaying) player.pause();
+            player.isScrubbing = true; if (player.isPlaying) player.pause();
             const t = (e.target.value / 100) * player.duration;
             document.getElementById('osd-time-cur').innerText = player.formatTime(t);
             player.renderFrame(Math.min(Math.floor(t * player.fps), player.totalFrames - 1));
         };
-        seek.onchange = e => {
-            player.pauseTime = (e.target.value / 100) * player.duration;
-            player.isScrubbing = false;
-            if (wasPlayingBeforeSeek) player.play();
-        };
+        seek.onchange = e => { player.pauseTime = (e.target.value / 100) * player.duration; player.isScrubbing = false; if (wasPlayingBeforeSeek) player.play(); };
 
         const moveFrame = (d) => {
-            if (!player.frames.length) return;
-            player.pause();
-
-            // Use round to get the closest frame to current pauseTime
-            const currentIdx = Math.round(player.pauseTime * player.fps);
-            const tar = Math.max(0, Math.min(player.totalFrames - 1, currentIdx + d));
-
-            player.pauseTime = tar / player.fps;
-            seek.value = (player.pauseTime / player.duration) * 100;
-            document.getElementById('osd-time-cur').innerText = player.formatTime(player.pauseTime);
-            player.renderFrame(tar);
+            if (!player.frames.length) return; player.pause();
+            const cur = Math.round(player.pauseTime * player.fps), tar = Math.max(0, Math.min(player.totalFrames - 1, cur + d));
+            player.pauseTime = tar / player.fps; seek.value = (player.pauseTime / player.duration) * 100;
+            document.getElementById('osd-time-cur').innerText = player.formatTime(player.pauseTime); player.renderFrame(tar);
         };
 
-        const btnFs = document.getElementById('btn-fullscreen-toggle');
-        const screenWrapper = document.getElementById('screen-wrapper');
-        const iconExp = document.getElementById('icon-expand');
-        const iconComp = document.getElementById('icon-compress');
-
+        const btnFs = document.getElementById('btn-fullscreen-toggle'), screenWrapper = document.getElementById('screen-wrapper');
         const toggleFs = () => {
-            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || 
-                           document.mozFullScreenElement || document.msFullscreenElement || 
-                           screenWrapper.classList.contains('ios-fullscreen-fix'));
-            
+            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement || screenWrapper.classList.contains('ios-fullscreen-fix'));
             if (!isFs) {
-                const req = screenWrapper.requestFullscreen || screenWrapper.webkitRequestFullscreen || 
-                            screenWrapper.mozRequestFullScreen || screenWrapper.msRequestFullscreen;
-                if (req) {
-                    req.call(screenWrapper).catch(err => {
-                        console.warn("Fullscreen request failed, using fallback:", err);
-                        screenWrapper.classList.add('ios-fullscreen-fix');
-                        updateFsUI();
-                    });
-                } else {
-                    screenWrapper.classList.add('ios-fullscreen-fix');
-                    updateFsUI();
-                }
+                const req = screenWrapper.requestFullscreen || screenWrapper.webkitRequestFullscreen || screenWrapper.mozRequestFullScreen || screenWrapper.msRequestFullscreen;
+                if (req) req.call(screenWrapper).catch(() => { screenWrapper.classList.add('ios-fullscreen-fix'); updateFsUI(); });
+                else { screenWrapper.classList.add('ios-fullscreen-fix'); updateFsUI(); }
             } else {
-                const exit = document.exitFullscreen || document.webkitExitFullscreen || 
-                             document.mozCancelFullScreen || document.msExitFullscreen;
-                if (exit && (document.fullscreenElement || document.webkitFullscreenElement || 
-                             document.mozFullScreenElement || document.msFullscreenElement)) {
-                    exit.call(document);
-                }
-                screenWrapper.classList.remove('ios-fullscreen-fix');
-                updateFsUI();
+                const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+                if (exit) exit.call(document); screenWrapper.classList.remove('ios-fullscreen-fix'); updateFsUI();
             }
         };
         btnFs.onclick = toggleFs;
 
         const updateFsUI = () => {
-            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || 
-                           document.mozFullScreenElement || document.msFullscreenElement ||
-                           screenWrapper.classList.contains('ios-fullscreen-fix'));
-            
-            iconExp.style.display = isFs ? 'none' : 'block';
-            iconComp.style.display = isFs ? 'block' : 'none';
-            
-            if (isFs) {
-                document.getElementById('palette-histogram').classList.add('hidden');
-            } else {
-                document.getElementById('palette-histogram').classList.remove('hidden');
-            }
+            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement || screenWrapper.classList.contains('ios-fullscreen-fix'));
+            document.getElementById('icon-expand').style.display = isFs ? 'none' : 'block';
+            document.getElementById('icon-compress').style.display = isFs ? 'block' : 'none';
+            if (isFs) document.getElementById('palette-histogram').classList.add('hidden');
+            else applyAdaptiveUI();
         };
-
-        document.addEventListener('fullscreenchange', updateFsUI);
-        document.addEventListener('webkitfullscreenchange', updateFsUI);
-        document.addEventListener('mozfullscreenchange', updateFsUI);
-        document.addEventListener('MSFullscreenChange', updateFsUI);
+        document.addEventListener('fullscreenchange', updateFsUI); document.addEventListener('webkitfullscreenchange', updateFsUI);
+        document.addEventListener('mozfullscreenchange', updateFsUI); document.addEventListener('MSFullscreenChange', updateFsUI);
 
         const showOSD = () => {
-            canvasArea.classList.add('touch-active');
-            clearTimeout(window.tTimer);
-            // 재생 중일 때만 3초 후 사라짐. 일시 정지(.paused) 상태면 CSS에 의해 계속 보임.
-            if (player.isPlaying) {
-                window.tTimer = setTimeout(() => {
-                    if (player.isPlaying) canvasArea.classList.remove('touch-active');
-                }, 3000);
-            }
+            canvasArea.classList.add('touch-active'); clearTimeout(window.tTimer);
+            if (player.isPlaying) window.tTimer = setTimeout(() => { if (player.isPlaying) canvasArea.classList.remove('touch-active'); }, 3000);
         };
-
         canvasArea.addEventListener('mousemove', showOSD);
-        canvasArea.addEventListener('touchstart', (e) => {
-            // If OSD is already hidden and playing, first touch just shows it
-            if (!canvasArea.classList.contains('touch-active') && player.isPlaying) {
-                showOSD();
-                // Optional: prevent default if you want to block the touch from clicking underlying buttons immediately
-                // e.preventDefault(); 
-            } else {
-                showOSD();
-            }
-        }, { passive: true });
-
-        // Update showOSD when state changes
-        const originalPlay = player.play.bind(player);
-        player.play = async () => {
-            await originalPlay();
-            showOSD();
-        };
-
-        const originalPause = player.pause.bind(player);
-        player.pause = () => {
-            originalPause();
-            showOSD();
-        };
+        canvasArea.addEventListener('touchstart', () => showOSD(), { passive: true });
+        const op = player.play.bind(player); player.play = async () => { await op(); showOSD(); };
+        const opa = player.pause.bind(player); player.pause = () => { opa(); showOSD(); };
 
         document.getElementById('btn-info-toggle').onclick = () => {
-            const info = document.getElementById('info-block');
-            info.style.display = info.style.display === 'block' ? 'none' : 'block';
+            const info = document.getElementById('info-block'); info.style.display = info.style.display === 'block' ? 'none' : 'block';
         };
     </script>
 </body>
