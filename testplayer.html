@@ -902,6 +902,30 @@
             document.body.style.height = window.innerHeight + 'px';
         }
     });
+    // 🍎 아이폰(iOS) 사파리 오디오 강제 잠금 해제 마법 (빈 소리 재생)
+    const unlockAudio = () => {
+        if (player.audioCtx && player.audioCtx.state === 'suspended') {
+            player.audioCtx.resume();
+        }
+        // 아주 짧은 묵음(빈 소리)을 강제로 재생하여 사파리의 오디오 권한을 탈취함
+        const buffer = player.audioCtx.createBuffer(1, 1, 22050);
+        const source = player.audioCtx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(player.audioCtx.destination);
+        if (source.start) {
+            source.start(0);
+        } else {
+            source.noteOn(0);
+        }
+        
+        // 한 번 잠금이 풀렸으니 더 이상 불필요한 이벤트는 삭제
+        document.removeEventListener('touchstart', unlockAudio);
+        document.removeEventListener('click', unlockAudio);
+    };
+    
+    // 사용자가 화면을 처음 터치하거나 클릭하는 순간 즉시 잠금 해제 발동!
+    document.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
+    document.addEventListener('click', unlockAudio, { once: true });
 </script>
 </body>
 </html>
