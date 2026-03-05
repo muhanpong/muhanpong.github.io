@@ -57,6 +57,62 @@
             border: none !important;
         }
 
+        /* ── 4:3 비율 토글 ── */
+        body.aspect-4-3 #video-container {
+            max-width: calc(55vh * 4 / 3);
+            aspect-ratio: 4 / 3 !important;
+        }
+
+        body.aspect-4-3 #canvas-area {
+            aspect-ratio: 4 / 3 !important;
+        }
+
+        body.aspect-4-3 #screen-wrapper:fullscreen #video-container,
+        body.aspect-4-3 .ios-fullscreen-fix #video-container {
+            max-width: calc(100vh * 4 / 3) !important;
+            width: 100vw !important;
+        }
+
+        body.aspect-4-3 #screen-wrapper:fullscreen #canvas-area,
+        body.aspect-4-3 .ios-fullscreen-fix #canvas-area {
+            max-width: calc(100vh * 4 / 3);
+            max-width: calc(100dvh * 4 / 3);
+            aspect-ratio: auto !important;
+        }
+
+        #os-aspect-toggle {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            color: #fff;
+            padding: 6px 10px;
+            cursor: pointer;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            font-weight: bold;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+
+        #screen-wrapper.active #os-aspect-toggle {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        @media (hover: hover) {
+            #screen-wrapper:hover #os-aspect-toggle {
+                opacity: 1;
+                visibility: visible;
+            }
+        }
+
         #video-container {
             position: relative;
             display: flex;
@@ -260,6 +316,16 @@
             object-fit: contain;
             image-rendering: pixelated;
             display: block;
+        }
+
+        #hist-toggle-zone {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 20px;
+            height: 100%;
+            z-index: 40;
+            cursor: pointer;
         }
 
         #eq-overlay {
@@ -568,6 +634,7 @@
     <h2>MSX2 MV Player & Recorder</h2>
 
     <div id="screen-wrapper">
+
         <div id="video-container">
             <div id="playlist-sidebar" title="Click to Toggle Playlist">
                 <div class="playlist-content">
@@ -647,6 +714,17 @@
                         </div>
 
                         <input type="range" id="osd-seek-slider" min="0" max="100" value="0" step="0.1" disabled>
+                        <button id="btn-aspect-toggle" title="Toggle Aspect Ratio (5:3 / 4:3)"
+                            style="background: transparent; border: none; padding: 4px; cursor: pointer; fill: #aaa; transition: fill 0.2s; display: flex; align-items: center; justify-content: center;">
+                            <svg viewBox="0 0 24 24" width="22" height="22">
+                                <path
+                                    d="M19 5H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H5V7h14v14z" />
+                                <path d="M7 9h2v2H7zm0 4h2v2H7zm4-4h2v2h-2zm0 4h2v2h-2zm4-4h2v2h-2zm0 4h2v2h-2z"
+                                    fill-opacity="0.5" />
+                            </svg>
+                            <span id="aspect-label"
+                                style="font-size: 10px; font-weight: bold; position: absolute; margin-top: 28px; opacity: 0; pointer-events: none;">5:3</span>
+                        </button>
                         <button id="btn-fullscreen-toggle">
                             <svg id="icon-expand" viewBox="0 0 24 24" width="24" height="24">
                                 <path
@@ -695,7 +773,8 @@
 
     <div id="status" style="margin-top:10px; font-size:13px; color:#888;">Ready</div>
 
-    <input type="file" id="file-input" accept=".mv,.mv2,.zip,application/octet-stream,application/zip" multiple style="display:none;" />
+    <input type="file" id="file-input" accept=".mv,.mv2,.zip,application/octet-stream,application/zip" multiple
+        style="display:none;" />
     <canvas id="export-canvas" width="256" height="192" style="display:none;"></canvas>
 
     <script>
@@ -1482,11 +1561,25 @@
         window.addEventListener('touchend', handleEqEnd);
 
         document.getElementById('scale-slider').oninput = e => document.getElementById('video-container').style.width = (320 * e.target.value + 80) + 'px';
-        document.getElementById('palette-histogram').onclick = function () { this.classList.toggle('hidden'); };
+        document.getElementById('hist-toggle-zone').onclick = (e) => {
+            e.stopPropagation();
+            const pHist = document.getElementById('palette-histogram');
+            pHist.classList.toggle('hidden');
+            if (player.frames.length > 0) player.renderFrame(Math.floor(player.pauseTime * player.fps));
+        };
 
         document.getElementById('btn-osd-play-pause').onclick = () => player.togglePlay();
         document.getElementById('btn-osd-prev-frame').onclick = () => moveFrame(-1);
         document.getElementById('btn-osd-next-frame').onclick = () => moveFrame(1);
+
+        document.getElementById('btn-aspect-toggle').onclick = (e) => {
+            e.stopPropagation();
+            document.body.classList.toggle('aspect-4-3');
+            const is43 = document.body.classList.contains('aspect-4-3');
+            document.getElementById('aspect-label').innerText = is43 ? '4:3' : '5:3';
+            document.getElementById('btn-aspect-toggle').style.fill = is43 ? '#d9534f' : '#aaa';
+            if (player.frames.length) player.renderFrame(Math.floor(player.pauseTime * player.fps));
+        };
 
         const volBtn = document.getElementById('btn-volume');
         const volSlider = document.getElementById('volume-slider');
