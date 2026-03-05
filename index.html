@@ -100,12 +100,12 @@
         .osd-btn-active { fill: var(--accent) !important; }
 
         /* ── 1. 세로 모드 전용 하단 히스토그램 (57px로 확장, 피크홀드 탑재) ── */
-        #portrait-histogram { width: 100%; max-width: 960px; height: 64px; margin: 0 auto; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; flex-direction: row; flex-shrink: 0; padding: 4px 5px 4px 5px; gap: 2px; z-index: 5; cursor: pointer; transition: height 0.3s ease, padding 0.3s ease; overflow: hidden; }
+        #portrait-histogram { width: 100%; max-width: 960px; height: 57px; margin: 0 auto; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; flex-direction: row; flex-shrink: 0; padding: 4px 5px 4px 5px; gap: 2px; z-index: 5; cursor: pointer; transition: height 0.3s ease, padding 0.3s ease; overflow: hidden; }
         @media (orientation: landscape) { #portrait-histogram { display: none !important; } }
         #screen-wrapper:fullscreen ~ #portrait-histogram, .ios-fullscreen-fix ~ #portrait-histogram { display: none !important; }
         
         /* 접혔을 때: 바와 피크는 숨기고 맨 아래 팔레트 컬러 띠만 얇게 남김 */
-        #portrait-histogram.collapsed { height: 16px; padding-top: 4px; padding-bottom: 4px; }
+        #portrait-histogram.collapsed { height: 12px; padding-top: 4px; padding-bottom: 4px; }
         #portrait-histogram.collapsed .p-hist-graph-area { display: none; }
         /* #portrait-histogram.collapsed .p-hist-color { background-color: #C3B1E1 !important; transition: background-color 0.3s; } */ /* 파스텔톤 연보라색 */
         #portrait-histogram.collapsed .p-hist-color { background-color: #030303 !important; transition: background-color 0.3s; } /* 파스텔톤 연보라색 */
@@ -118,7 +118,7 @@
 	.p-hist-bar { position: absolute; bottom: 0; width: 65%; border-radius: 2px 2px 0 0; background-color: rgba(14, 252, 254, 0.7); }
         /* 순백의 피크 선은 0~100% 공간을 물리엔진으로 날아다님 */
         .p-hist-peak { position: absolute; width: 80%; height: 1px; background: rgba(255,255,255,1); z-index: 2; transition: none; }
-        .p-hist-color { height: 8px; border-radius: 2px; width: 100%; flex-shrink: 0; }
+        .p-hist-color { height: 4px; border-radius: 1px; width: 100%; flex-shrink: 0; }
 
         /* ── 2. 가로 모드 전용 사이드카 히스토그램 (우측 바깥 영역) ── */
         #landscape-histogram { position: absolute; top: 0; height: 100%; display: flex; flex-direction: column; transition: opacity 0.3s, width 0.3s, right 0.3s; z-index: 10; pointer-events: none; gap: 0; }
