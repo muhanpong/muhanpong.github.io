@@ -4,6 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>MSX2 MV Player & Recorder</title>
     <script src="https://unpkg.com/mp4-muxer/build/mp4-muxer.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -11,7 +13,32 @@
         :root { --eq-opacity: 0.25; --accent: #d9534f; --bg: #0f0f0f; --surface: #1a1a1a; --border: #2a2a2a; }
         *, *::before, *::after { box-sizing: border-box; }
         html { height: 100%; overflow: hidden; }
-        body { margin: 0; background-color: var(--bg); color: #eee; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; overflow: hidden; display: flex; flex-direction: column; position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; }
+        body {
+            margin: 0;
+            background-color: var(--bg);
+            color: #eee;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow-y: auto; /* 스크롤이 가능해야 주소창이 숨겨짐 */
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            /* 모바일 UI가 줄어들고 늘어남에 따라 실시간으로 높이 적응 */
+            min-height: 100vh;
+            min-height: 100dvh; 
+        }
+
+        #screen-wrapper {
+            position: relative;
+            background-color: #000;
+            width: 100%;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            /* 주소창이 숨겨졌을 때 넓어진 높이를 꽉 채우도록 설정 */
+            height: 100vh;
+            height: 100dvh; 
+        }
         /* 📱 아이폰 강제 가로 모드 (세로 모드일 때 화면을 90도 꺾어버림) */
         @media screen and (orientation: portrait) {
             .ios-fullscreen-fix {
@@ -60,7 +87,7 @@
         /* ── OSD Controls ── */
         #osd-controls { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, transparent 30%, transparent 70%, rgba(0, 0, 0, 0.4) 100%); display: flex; flex-direction: column; justify-content: flex-end; padding: 10px; opacity: 0; transition: opacity 0.3s; z-index: 25; pointer-events: none; }
         @media (min-width: 768px) { #osd-controls { padding: 15px; } }
-        #canvas-area:hover #osd-controls, .touch-active #osd-controls, .paused #osd-controls { opacity: 1; pointer-events: auto; }
+        #canvas-area:.touch-active #osd-controls, .paused #osd-controls { opacity: 1; pointer-events: auto; } #osd-controls, .touch-active #osd-controls, .paused #osd-controls { opacity: 1; pointer-events: auto; }
         #canvas-area.empty #osd-controls { display: none !important; }
 
         .osd-center-controls { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 20px; pointer-events: auto; }
@@ -866,6 +893,24 @@
     const op = player.play.bind(player); player.play = async () => { await op(); showOSD(); };
     const opa = player.pause.bind(player); player.pause = () => { opa(); showOSD(); };
     document.getElementById('btn-info-toggle').onclick = () => { const info = document.getElementById('info-block'); info.style.display = info.style.display === 'block' ? 'none' : 'block'; };
+    // 📱 가로 모드 회전 감지 및 주소창 숨기기 마법
+    window.addEventListener('orientationchange', () => {
+        // 아이폰이 가로로 눕혀졌을 때 (90도 혹은 -90도)
+        if (Math.abs(window.orientation) === 90) {
+            // 브라우저가 화면을 회전시킬 시간을 아주 잠깐(0.3초) 준 뒤
+            setTimeout(() => {
+                // 화면을 아주 미세하게 아래로 스크롤하여 주소창 축소를 유도!
+                window.scrollTo({ top: 1, behavior: 'smooth' });
+            }, 300);
+        }
+    });
+
+    // 사용자가 직접 화면을 터치해서 스크롤해도 캔버스가 꽉 차도록 레이아웃 업데이트
+    window.addEventListener('scroll', () => {
+        if (Math.abs(window.orientation) === 90) {
+            document.body.style.height = window.innerHeight + 'px';
+        }
+    });
 </script>
 </body>
 </html>
