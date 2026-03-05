@@ -100,7 +100,7 @@
         .osd-btn-active { fill: var(--accent) !important; }
 
         /* ── 1. 세로 모드 전용 하단 히스토그램 (57px로 확장, 피크홀드 탑재) ── */
-        #portrait-histogram { width: 100%; max-width: 960px; height: 57px; margin: 0 auto; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; flex-direction: row; flex-shrink: 0; padding: 4px 5px 4px 5px; gap: 2px; z-index: 5; cursor: pointer; transition: height 0.3s ease, padding 0.3s ease; overflow: hidden; }
+        #portrait-histogram { width: 100%; max-width: 960px; height: 48px; margin: 0 auto; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; flex-direction: row; flex-shrink: 0; padding: 4px 5px 4px 5px; gap: 2px; z-index: 5; cursor: pointer; transition: height 0.3s ease, padding 0.3s ease; overflow: hidden; }
         @media (orientation: landscape) { #portrait-histogram { display: none !important; } }
         #screen-wrapper:fullscreen ~ #portrait-histogram, .ios-fullscreen-fix ~ #portrait-histogram { display: none !important; }
         
