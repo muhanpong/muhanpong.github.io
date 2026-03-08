@@ -938,32 +938,6 @@
             display: none;
         }
 
-        #playlist-folder {
-            width: 100%;
-            height: 32px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(255, 255, 255, 0.03);
-            transition: background 0.2s;
-            flex-shrink: 0;
-        }
-
-        #playlist-folder:hover {
-            background: rgba(255, 255, 255, 0.08);
-        }
-
-        #playlist-folder svg {
-            fill: #666;
-            transition: transform 0.3s;
-            transform: rotate(90deg);
-        }
-
-        #playlist-sidebar.hidden #playlist-folder svg {
-            transform: rotate(270deg);
-        }
-
         .playlist-content {
             display: flex;
             flex-direction: column;
@@ -1100,6 +1074,13 @@
             line-height: 1.5;
         }
 
+        .meta-info-icon {
+            color: #fff;
+            font-weight: bold;
+            margin-right: 2px;
+            font-family: serif;
+        }
+
         .playlist-item-meta .meta-duration {
             color: #888;
             font-family: monospace;
@@ -1186,6 +1167,11 @@
             color: #eee;
             border-bottom: 1px solid var(--border);
             padding-bottom: 5px;
+            cursor: pointer;
+        }
+
+        #info-block h3:hover {
+            color: #fff;
         }
 
         .info-link {
@@ -1356,7 +1342,7 @@
                                         style="font-size: 10px; font-weight: bold; position: absolute; margin-top: 28px; opacity: 0; pointer-events: none;">5:3</span>
                                 </button>
                                 <button id="btn-metadata-info" title="Track Info"
-                                    style="background: transparent; border: none; padding: 4px; cursor: pointer; fill: #aaa; transition: fill 0.2s; display: flex; align-items: center; justify-content: center;">
+                                    style="background: transparent; border: none; padding: 4px; cursor: pointer; color: #222; transition: color 0.2s; display: flex; align-items: center; justify-content: center;">
                                     <svg viewBox="0 0 24 24" width="22" height="22">
                                         <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor"
                                             stroke-width="2" />
@@ -1384,9 +1370,6 @@
         </div>
 
         <div id="playlist-sidebar" title="Click Top Edge to Toggle Playlist">
-            <div id="playlist-folder" title="Toggle Playlist"><svg viewBox="0 0 24 24" width="12" height="12">
-                    <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
-                </svg></div>
             <div class="playlist-content">
                 <div class="playlist-header">
                     <div class="playlist-header-btn" id="btn-add-playlist" title="Add File to Playlist (Append)"><svg
@@ -1526,7 +1509,11 @@
                     if (item.thumbnail) thumb.src = item.thumbnail; else thumb.style.background = '#222';
                     const name = document.createElement('span'); name.className = 'playlist-item-name'; name.innerText = item.name; name.title = item.name;
                     const meta = document.createElement('span'); meta.className = 'playlist-item-meta';
-                    if (item.totalFrames) meta.innerHTML = `${item.totalFrames}F<br><span class="meta-duration">${this.formatTime(item.duration)}</span>`;
+                    let metaHTML = `${item.totalFrames || 0}F<br><span class="meta-duration">${this.formatTime(item.duration || 0)}</span>`;
+                    if (item.hasMetadata) {
+                        metaHTML = `<span class="meta-info-icon" title="Metadata Available">ⓘ</span> ` + metaHTML;
+                    }
+                    meta.innerHTML = metaHTML;
                     const removeBtn = document.createElement('button'); removeBtn.className = 'btn-remove-item'; removeBtn.innerHTML = '×';
                     removeBtn.onclick = (e) => { e.stopPropagation(); this.removeFromPlaylist(index); };
                     el.appendChild(thumb); el.appendChild(name); el.appendChild(meta); el.appendChild(removeBtn); container.appendChild(el);
@@ -1562,7 +1549,13 @@
                 while (this.thumbQueue.length > 0) {
                     const item = this.thumbQueue.shift(); await new Promise(r => setTimeout(r, 100));
                     const meta = await this.generateThumbnail(item.file);
-                    if (meta) { item.thumbnail = meta.thumb; item.totalFrames = meta.totalFrames; item.duration = meta.duration; this.updatePlaylistUI(); }
+                    if (meta) {
+                        item.thumbnail = meta.thumb;
+                        item.totalFrames = meta.totalFrames;
+                        item.duration = meta.duration;
+                        item.hasMetadata = meta.hasMetadata;
+                        this.updatePlaylistUI();
+                    }
                 }
                 this.isProcessingThumbs = false;
             }
@@ -1593,6 +1586,12 @@
                         frameOffset = off; palette = [[0, 0, 0], ...this.extractPal(data.slice(frameOffset + 12288, frameOffset + 12318), 15)];
                     }
 
+                    let hasMetadata = false;
+                    try {
+                        const check = data.subarray(0x100, 0x100 + 4);
+                        if (check[0] === 123) hasMetadata = true; // '{'
+                    } catch (e) { }
+
                     const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 192;
                     const ctx = canvas.getContext('2d'), img = ctx.createImageData(256, 192), buf32 = new Uint32Array(img.data.buffer);
                     for (let y = 0; y < 192; y++) {
@@ -1605,7 +1604,7 @@
                             }
                         }
                     }
-                    ctx.putImageData(img, 0, 0); return { thumb: canvas.toDataURL('image/jpeg', 0.7), totalFrames, duration: totalFrames / fps };
+                    ctx.putImageData(img, 0, 0); return { thumb: canvas.toDataURL('image/jpeg', 0.7), totalFrames, duration: totalFrames / fps, hasMetadata };
                 } catch (e) { console.error(e); return null; }
             }
 
@@ -1807,15 +1806,21 @@
                     else if (sig.startsWith("MV2")) { this.fps = 15; this.isMV1 = false; await this.parseMV2(data, 512); }
                     else throw new Error("올바른 .MV 또는 .MV2 포맷이 아닙니다.");
 
-                    // Extract metadata JSON from offset 0x200
+                    // Extract metadata JSON from offset 0x100 (search up to 16KB header end)
                     this.metadata = null;
                     try {
-                        const metaBytes = data.slice(0x200, 0x200 + 256);
-                        let end = metaBytes.indexOf(0);
-                        if (end === -1) end = metaBytes.length;
-                        const metaStr = new TextDecoder('utf-8').decode(metaBytes.subarray(0, end)).trim();
-                        if (metaStr.startsWith('{')) {
-                            this.metadata = JSON.parse(metaStr);
+                        const searchEnd = Math.min(data.length, 16384);
+                        let end = -1;
+                        for (let i = 0x100; i < searchEnd; i++) {
+                            if (data[i] === 0) { end = i; break; }
+                        }
+                        if (end === -1) end = searchEnd;
+                        
+                        if (end > 0x100) {
+                            const metaStr = new TextDecoder('utf-8').decode(data.subarray(0x100, end)).trim();
+                            if (metaStr.startsWith('{')) {
+                                this.metadata = JSON.parse(metaStr);
+                            }
                         }
                     } catch (e) { console.warn('Metadata parse error:', e); }
                     this.updateMetadataUI();
@@ -1834,19 +1839,21 @@
             }
 
             updateMetadataUI() {
-                const el = document.getElementById('metadata-content');
-                if (!el) return;
-                if (!this.metadata) {
-                    el.className = 'meta-empty';
-                    el.innerHTML = 'No metadata available';
-                    return;
+                const info = document.getElementById('info-block');
+                const btnMeta = document.getElementById('btn-metadata-info');
+                if (btnMeta) btnMeta.style.color = this.metadata ? '#fff' : '#222';
+                
+                if (info && info._showingMeta && info.style.display === 'block') {
+                    if (this.metadata) {
+                        let html = '<h3>ⓘ Track Metadata</h3>';
+                        for (const [key, val] of Object.entries(this.metadata)) {
+                            html += `<p><strong>${key}:</strong> ${val}</p>`;
+                        }
+                        info.innerHTML = html;
+                    } else {
+                        info.innerHTML = '<h3>ⓘ Track Metadata</h3><p style="color:#888;">No metadata available</p>';
+                    }
                 }
-                el.className = '';
-                let html = '';
-                for (const [key, val] of Object.entries(this.metadata)) {
-                    html += `<div class="meta-row"><span class="meta-key">${key}</span><span class="meta-val">${val}</span></div>`;
-                }
-                el.innerHTML = html;
             }
 
             async parseMV1(data) {
@@ -2163,8 +2170,7 @@
 
         window.addEventListener('dragover', e => e.preventDefault()); window.addEventListener('drop', e => e.preventDefault());
 
-        const playlistFolder = document.getElementById('playlist-folder'), playlistSidebar = document.getElementById('playlist-sidebar');
-        playlistFolder.onclick = (e) => { e.stopPropagation(); playlistSidebar.classList.toggle('hidden'); };
+        const playlistSidebar = document.getElementById('playlist-sidebar');
         // 빈 영역 터치 시 이벤트 무시 (기능 제거됨)
         playlistSidebar.onclick = function (e) { if (this.classList.contains('hidden')) this.classList.remove('hidden'); };
 
@@ -2383,6 +2389,18 @@
                 }
                 info._showingMeta = true;
                 info.style.display = 'block';
+            }
+        };
+
+        // info-block 클릭 시 헤더(H3)를 클릭하면 닫히도록 설정
+        document.getElementById('info-block').onclick = (e) => {
+            if (e.target.tagName === 'H3') {
+                const info = document.getElementById('info-block');
+                if (info._showingMeta) {
+                    info.innerHTML = info._originalHTML;
+                    info._showingMeta = false;
+                }
+                info.style.display = 'none';
             }
         };
 
