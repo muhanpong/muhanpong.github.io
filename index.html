@@ -295,16 +295,6 @@
             transition: height 0.05s ease-out;
         }
 
-        #hist-toggle-zone {
-            position: absolute;
-            top: 0;
-            right: -20px;
-            width: 20px;
-            height: 100%;
-            z-index: 40;
-            cursor: pointer;
-        }
-
         /* ── OSD Controls ── */
         #osd-controls {
             position: absolute;
@@ -415,11 +405,29 @@
         }
 
         .osd-frame-controls {
+            position: relative;
             display: none;
             justify-content: center;
             gap: 10px;
             margin-bottom: 5px;
             pointer-events: auto;
+        }
+
+        #seek-frame-tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-bottom: 8px;
+            background: rgba(128, 128, 128, 0.5);
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 13px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            pointer-events: none;
+            display: none;
+            white-space: nowrap;
         }
 
         @media (min-width: 600px) {
@@ -545,9 +553,10 @@
             font-family: monospace;
             font-size: 11px;
             color: #ddd;
-            min-width: 75px;
-            text-align: left;
+            min-width: 85px;
+            text-align: right;
             white-space: nowrap;
+            cursor: pointer;
         }
 
         .osd-volume-group {
@@ -594,36 +603,130 @@
             overflow: hidden;
         }
 
+        /* ── Metadata Info Overlay ── */
+        #metadata-overlay {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(20, 20, 20, 0.92);
+            color: #ddd;
+            border-radius: 12px;
+            padding: 20px 24px;
+            z-index: 100;
+            min-width: 220px;
+            max-width: 80%;
+            max-height: 70%;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+        }
+
+        #metadata-overlay.visible {
+            display: block;
+        }
+
+        #metadata-overlay h3 {
+            margin: 0 0 12px 0;
+            font-size: 14px;
+            color: #fff;
+        }
+
+        #metadata-overlay .meta-row {
+            display: flex;
+            gap: 8px;
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        #metadata-overlay .meta-key {
+            color: #888;
+            min-width: 80px;
+        }
+
+        #metadata-overlay .meta-val {
+            color: #eee;
+            word-break: break-all;
+        }
+
+        #metadata-overlay .meta-empty {
+            color: #666;
+            font-style: italic;
+        }
+
         @media (orientation: landscape) {
             #portrait-histogram {
                 display: none !important;
             }
         }
 
-        #screen-wrapper:fullscreen~#portrait-histogram,
-        .ios-fullscreen-fix~#portrait-histogram {
+        #screen-wrapper:fullscreen #portrait-histogram,
+        .ios-fullscreen-fix #portrait-histogram {
             display: none !important;
         }
 
-        /* 접혔을 때: 바와 피크는 숨기고 맨 아래 팔레트 컬러 띠만 얇게 남김 */
-        #portrait-histogram.collapsed {
+        /* ── Portrait Histogram Modes ── */
+        .p-hist-fold-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #888;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0 8px;
+            user-select: none;
+        }
+
+        /* [상태 0] 1st phase: 원본 컬러 바닥면 (12px) - 아이콘: ▼ */
+        #portrait-histogram.p-hist-mode-0 {
             height: 12px;
             padding-top: 4px;
             padding-bottom: 4px;
         }
 
-        #portrait-histogram.collapsed .p-hist-graph-area {
+        #portrait-histogram.p-hist-mode-0 .p-hist-graph-area {
             display: none;
         }
 
-        /* #portrait-histogram.collapsed .p-hist-color { background-color: #C3B1E1 !important; transition: background-color 0.3s; } */
-        /* 파스텔톤 연보라색 */
-        #portrait-histogram.collapsed .p-hist-color {
-            background-color: #030303 !important;
-            transition: background-color 0.3s;
+        #portrait-histogram.p-hist-mode-0 .p-hist-color {
+            /* no override: real palette colors show naturally */
         }
 
-        /* 파스텔톤 연보라색 */
+        #portrait-histogram.p-hist-mode-0 .p-hist-fold-btn {
+            font-size: 14px;
+        }
+
+        /* [상태 1] 2nd phase: 풀 사이즈 (48px) - 아이콘: ▲ */
+        #portrait-histogram.p-hist-mode-1 {
+            height: 48px;
+        }
+
+        /* [상태 2] 3rd phase: 딤드 컬러 바닥면 (12px) - 아이콘: ▼ */
+        #portrait-histogram.p-hist-mode-2 {
+            height: 12px;
+            padding-top: 4px;
+            padding-bottom: 4px;
+        }
+
+        #portrait-histogram.p-hist-mode-2 .p-hist-graph-area {
+            display: none;
+        }
+
+        #portrait-histogram.p-hist-mode-2 .p-hist-color {
+            background-color: #030303 !important;
+            opacity: 0.3;
+        }
+
+        #portrait-histogram.p-hist-mode-2 .p-hist-fold-btn {
+            font-size: 14px;
+            opacity: 0.5;
+        }
 
         .p-hist-row {
             flex: 1;
@@ -631,6 +734,17 @@
             flex-direction: column;
             height: 100%;
             gap: 1px;
+            cursor: pointer;
+        }
+
+        .p-hist-row.color-hidden .p-hist-color {
+            opacity: 0.15;
+            filter: grayscale(100%);
+        }
+
+        .l-hist-row.color-hidden {
+            opacity: 0.15 !important;
+            filter: grayscale(100%);
         }
 
         .p-hist-graph-area {
@@ -663,10 +777,11 @@
         }
 
         .p-hist-color {
-            height: 4px;
+            height: 14px;
             border-radius: 1px;
             width: 100%;
             flex-shrink: 0;
+            cursor: pointer;
         }
 
         /* ── 2. 가로 모드 전용 사이드카 히스토그램 (좌우 바깥 영역) ── */
@@ -699,12 +814,13 @@
             }
         }
 
-        /* [상태 0] 완전 숨김 */
+        /* [상태 0] 접힘 상태 (아이콘만 표시) */
         #landscape-histogram-l.hist-mode-0,
         #landscape-histogram-r.hist-mode-0 {
-            opacity: 0;
-            width: calc(100% / 64);
-            background-color: rgba(128, 128, 128, 0.4);
+            opacity: 1;
+            width: 30px;
+            background-color: transparent;
+            pointer-events: none;
         }
 
         #canvas-area.osd-visible #landscape-histogram-l.hist-mode-0,
@@ -719,12 +835,14 @@
             display: none;
         }
 
-        /* [상태 1] 컬러 띠 (1/64 폭 고정) */
+        /* [상태 1] 컬러 띠 (아이콘 + 얇은 띠) */
         #landscape-histogram-l.hist-mode-1,
         #landscape-histogram-r.hist-mode-1 {
             opacity: 1;
             width: calc(100% / 64);
+            min-width: 30px;
             background-color: transparent;
+            pointer-events: none;
         }
 
         #landscape-histogram-l.hist-mode-1 .l-hist-bar,
@@ -743,11 +861,33 @@
 
         #landscape-histogram-l.hist-mode-2 .l-hist-row {
             justify-content: flex-start;
+            pointer-events: auto;
+            cursor: pointer;
         }
 
         /* 좌측(바깥쪽)을 베이스로 오른쪽(안쪽)으로 자람 */
         #landscape-histogram-r.hist-mode-2 .l-hist-row {
             justify-content: flex-end;
+            pointer-events: auto;
+            cursor: pointer;
+        }
+
+        .l-hist-fold-btn {
+            display: block;
+            color: #888;
+            font-size: 20px;
+            font-weight: bold;
+            text-align: center;
+            cursor: pointer;
+            padding: 10px 0;
+            user-select: none;
+            pointer-events: auto;
+        }
+
+        #landscape-histogram-l.hist-mode-2,
+        #landscape-histogram-r.hist-mode-2 {
+            pointer-events: auto;
+            cursor: pointer;
         }
 
         /* 우측(바깥쪽)을 베이스로 왼쪽(안쪽)으로 자람 */
@@ -1099,7 +1239,6 @@
                     <div class="overlay-eq-bar"></div>
                 </div>
 
-                <div id="hist-toggle-zone" title="Toggle Landscape Histogram"></div>
                 <div id="landscape-histogram-l" class="hist-mode-0"></div>
                 <div id="landscape-histogram-r" class="hist-mode-0"></div>
 
@@ -1123,6 +1262,7 @@
                             </svg></button>
                     </div>
                     <div class="osd-frame-controls">
+                        <div id="seek-frame-tooltip">0F</div>
                         <button id="btn-osd-prev-frame" class="osd-frame-btn" title="Previous Frame"><svg
                                 viewBox="0 0 24 24" width="18" height="18">
                                 <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
@@ -1134,8 +1274,8 @@
                     </div>
                     <div class="osd-bottom-bar">
                         <div class="osd-slider-row">
-                            <span class="osd-time"><span id="osd-time-cur">00:00</span> / <span
-                                    id="osd-time-total">00:00</span></span>
+                            <span class="osd-time" style="cursor: pointer;" title="Toggle Time/Frame"><span
+                                    id="osd-time-cur">00:00</span> / <span id="osd-time-total">00:00</span></span>
                             <input type="range" id="osd-seek-slider" min="0" max="100" value="0" step="0.1" disabled>
                         </div>
                         <div class="osd-controls-row">
@@ -1215,6 +1355,15 @@
                                     <span id="aspect-label"
                                         style="font-size: 10px; font-weight: bold; position: absolute; margin-top: 28px; opacity: 0; pointer-events: none;">5:3</span>
                                 </button>
+                                <button id="btn-metadata-info" title="Track Info"
+                                    style="background: transparent; border: none; padding: 4px; cursor: pointer; fill: #aaa; transition: fill 0.2s; display: flex; align-items: center; justify-content: center;">
+                                    <svg viewBox="0 0 24 24" width="22" height="22">
+                                        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor"
+                                            stroke-width="2" />
+                                        <text x="12" y="16" font-size="13" font-family="serif" font-weight="bold"
+                                            fill="currentColor" text-anchor="middle">i</text>
+                                    </svg>
+                                </button>
                                 <button id="btn-fullscreen-toggle">
                                     <svg id="icon-expand" viewBox="0 0 24 24" width="24" height="24">
                                         <path
@@ -1230,10 +1379,9 @@
                         </div>
                     </div>
                 </div>
+                <div id="portrait-histogram" title="Click to Toggle Histogram"></div>
             </div>
         </div>
-
-        <div id="portrait-histogram" title="Click to Toggle Histogram"></div>
 
         <div id="playlist-sidebar" title="Click Top Edge to Toggle Playlist">
             <div id="playlist-folder" title="Toggle Playlist"><svg viewBox="0 0 24 24" width="12" height="12">
@@ -1301,14 +1449,22 @@
                 this.thumbQueue = [];
                 this.isProcessingThumbs = false;
 
+                // ── 상태 추가 ──
+                this.timeDisplayMode = 'time'; // 'time' or 'frame'
+                this.hiddenColors = new Array(16).fill(false); // 특정 색상별 렌더링 활성/비활성 여부
+
                 // ── 피크 홀드 물리 엔진 배열 (위치 & 가속도) ──
                 this.peakY = new Float32Array(16); // 피크 선의 높이 (0~100%)
                 this.peakV = new Float32Array(16); // 피크 선의 속도/가속도
+                this.targetCounts = new Float32Array(16); // 물리 엔진 타겟 배열
 
                 window.landscapeHistMode = 0;
 
                 this.initUI();
                 this.initWorker();
+
+                // ── 분리된 루프 애니메이션 시작 ──
+                this.loopHistogramPhysics();
             }
 
             setRepeatMode(mode) {
@@ -1473,7 +1629,10 @@
             initUI() {
                 const pHist = document.getElementById('portrait-histogram');
                 if (pHist) {
-                    pHist.innerHTML = '';
+                    pHist.innerHTML = '<div class="p-hist-fold-btn" id="p-hist-fold">▼</div>';
+                    window.portraitHistMode = 0;
+                    pHist.className = `p-hist-mode-0`;
+
                     for (let i = 0; i < 16; i++) {
                         pHist.innerHTML += `
                         <div class="p-hist-row">
@@ -1484,26 +1643,85 @@
                             <div class="p-hist-color" id="p-hist-clr-${i}"></div>
                         </div>`;
                     }
-                    // 접기/펴기 토글 및 색상 통일 마법
-                    pHist.onclick = () => {
-                        pHist.classList.toggle('collapsed');
-                        if (!pHist.classList.contains('collapsed')) {
-                            // 다시 폈을 때 물리 엔진이 꼬이지 않도록 초기화
-                            this.peakY.fill(0);
-                            this.peakV.fill(0);
+
+                    setTimeout(() => {
+                        // 접기/펴기 3단계 순환 로직
+                        pHist.onclick = (e) => {
+                            // 개별 컬러를 컨트롤 할때는 화면 크기 조작 안함. 명시적인 빈 공간이나 아이콘 클릭 시 작동
+                            if (e.target.closest('.p-hist-fold-btn') || e.target === pHist) {
+                                window.portraitHistMode = (window.portraitHistMode + 1) % 3;
+                                pHist.className = `p-hist-mode-${window.portraitHistMode}`;
+
+                                const foldBtn = document.getElementById('p-hist-fold');
+                                // Mode 1 = full histogram => upward triangle ▲; Mode 0,2 = basements => downward triangle ▼
+                                foldBtn.innerText = window.portraitHistMode === 1 ? '▲' : '▼';
+
+                                this.peakY.fill(0);
+                                this.peakV.fill(0);
+                            }
+                        };
+                    }, 50);
+
+                    // Add color toggles
+                    setTimeout(() => {
+                        for (let i = 0; i < 16; i++) {
+                            const setupToggle = (el, row) => {
+                                if (!el) return;
+                                el.onclick = (e) => {
+                                    e.stopPropagation();
+                                    this.hiddenColors[i] = !this.hiddenColors[i];
+                                    if (row) row.classList.toggle('color-hidden', this.hiddenColors[i]);
+                                    const lR = document.getElementById(`l-hist-bar-r-${i}`);
+                                    const lL = document.getElementById(`l-hist-bar-l-${i}`);
+                                    if (lR) lR.parentElement.classList.toggle('color-hidden', this.hiddenColors[i]);
+                                    if (lL) lL.parentElement.classList.toggle('color-hidden', this.hiddenColors[i]);
+
+                                    if (!this.isPlaying && this.frames.length > 0) {
+                                        this.renderFrame(Math.min(Math.floor(this.pauseTime * this.fps), this.totalFrames - 1));
+                                    }
+                                };
+                            };
+                            const t1 = document.getElementById(`p-hist-clr-${i}`);
+                            const t2 = document.getElementById(`p-hist-bar-${i}`);
+                            const t3 = document.getElementById(`l-hist-bar-l-${i}`);
+                            const t4 = document.getElementById(`l-hist-bar-r-${i}`);
+
+                            setupToggle(t1, t1 ? t1.closest('.p-hist-row') : null);
+                            setupToggle(t2 ? t2.parentElement : null, t1 ? t1.closest('.p-hist-row') : null);
+                            setupToggle(t3 ? t3.parentElement : null, null);
+                            setupToggle(t4 ? t4.parentElement : null, null);
                         }
-                    };
+                    }, 100);
                 }
 
                 const lHistL = document.getElementById('landscape-histogram-l');
                 const lHistR = document.getElementById('landscape-histogram-r');
                 if (lHistL && lHistR) {
-                    lHistL.innerHTML = '';
-                    lHistR.innerHTML = '';
+                    lHistL.innerHTML = '<div class="l-hist-fold-btn" id="l-hist-fold-l">&gt;&gt;</div>';
+                    lHistR.innerHTML = '<div class="l-hist-fold-btn" id="l-hist-fold-r">&gt;&gt;</div>';
                     for (let i = 0; i < 16; i++) {
                         lHistL.innerHTML += `<div class="l-hist-row"><div class="l-hist-bar" id="l-hist-bar-l-${i}"></div></div>`;
                         lHistR.innerHTML += `<div class="l-hist-row"><div class="l-hist-bar" id="l-hist-bar-r-${i}"></div></div>`;
                     }
+                    setTimeout(() => {
+                        const cycleFunc = (e) => {
+                            e.stopPropagation();
+                            window.landscapeHistMode = (window.landscapeHistMode + 1) % 3;
+                            lHistL.className = `hist-mode-${window.landscapeHistMode}`;
+                            lHistR.className = `hist-mode-${window.landscapeHistMode}`;
+
+                            const isMax = window.landscapeHistMode === 2;
+                            // 사용자 요청에 맞춰 확장일 땐 '>>', 접힐 땐 '<<' 로직으로 좌우 패널 통일
+                            document.getElementById('l-hist-fold-l').innerText = isMax ? '<<' : '>>';
+                            document.getElementById('l-hist-fold-r').innerText = isMax ? '<<' : '>>';
+
+                            if (player.frames.length > 0) player.renderFrame(Math.floor(player.pauseTime * player.fps));
+                        };
+                        document.getElementById('l-hist-fold-l').onclick = cycleFunc;
+                        document.getElementById('l-hist-fold-r').onclick = cycleFunc;
+                        lHistL.onclick = cycleFunc;
+                        lHistR.onclick = cycleFunc;
+                    }, 50);
                 }
             }
 
@@ -1516,7 +1734,18 @@
                 if (this.playlist && this.playlist.length === 0) { document.getElementById('canvas-msg-overlay').style.display = 'flex'; document.getElementById('osd-controls').style.display = 'none'; }
             }
 
-            formatTime(s) { return `${Math.floor(s / 60).toString().padStart(2, '0')}:${Math.floor(s % 60).toString().padStart(2, '0')}`; }
+            formatTime(s) {
+                const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+                return `${m < 10 ? '0' : ''}${m}:${sec < 10 ? '0' : ''}${sec}`;
+            }
+
+            formatDisplayTime(cur, suffix = '') {
+                if (this.timeDisplayMode === 'time') {
+                    return this.formatTime(cur);
+                } else {
+                    return `${Math.floor(cur * this.fps)}${suffix}`;
+                }
+            }
 
             initWorker() {
                 const blob = new Blob([`let t=null;self.onmessage=e=>{if(e.data==='start'){t=setInterval(()=>self.postMessage('tick'),16)}else{clearInterval(t);t=null}}`], { type: 'application/javascript' });
@@ -1527,7 +1756,7 @@
                     const frame = Math.floor(cur * this.fps);
 
                     document.getElementById('osd-seek-slider').value = (cur / this.duration) * 100;
-                    document.getElementById('osd-time-cur').innerText = this.formatTime(cur);
+                    document.getElementById('osd-time-cur').innerText = this.formatDisplayTime(cur, 'F');
 
                     if (frame < this.totalFrames) {
                         if (this.lastFrame !== frame) {
@@ -1578,6 +1807,19 @@
                     else if (sig.startsWith("MV2")) { this.fps = 15; this.isMV1 = false; await this.parseMV2(data, 512); }
                     else throw new Error("올바른 .MV 또는 .MV2 포맷이 아닙니다.");
 
+                    // Extract metadata JSON from offset 0x200
+                    this.metadata = null;
+                    try {
+                        const metaBytes = data.slice(0x200, 0x200 + 256);
+                        let end = metaBytes.indexOf(0);
+                        if (end === -1) end = metaBytes.length;
+                        const metaStr = new TextDecoder('utf-8').decode(metaBytes.subarray(0, end)).trim();
+                        if (metaStr.startsWith('{')) {
+                            this.metadata = JSON.parse(metaStr);
+                        }
+                    } catch (e) { console.warn('Metadata parse error:', e); }
+                    this.updateMetadataUI();
+
                     this.duration = this.totalFrames / this.fps;
                     if (this.currentPlayIndex >= 0 && this.currentPlayIndex < this.playlist.length) {
                         const item = this.playlist[this.currentPlayIndex];
@@ -1586,9 +1828,25 @@
                     }
                     const msg = `${this.isMV1 ? 'MV1' : 'MV2'} · ${this.fps}FPS · ${this.totalFrames}F`;
                     status.innerText = msg; showStatusIcon(msg, 'success');
-                    document.getElementById('osd-time-total').innerText = this.formatTime(this.duration);
+                    document.getElementById('osd-time-total').innerText = this.formatDisplayTime(this.duration, 'F');
                     document.getElementById('osd-seek-slider').disabled = false; await this.play();
                 } catch (err) { console.error(err); status.innerText = `에러: ${err.message}`; showStatusIcon(`에러: ${err.message}`, 'error'); }
+            }
+
+            updateMetadataUI() {
+                const el = document.getElementById('metadata-content');
+                if (!el) return;
+                if (!this.metadata) {
+                    el.className = 'meta-empty';
+                    el.innerHTML = 'No metadata available';
+                    return;
+                }
+                el.className = '';
+                let html = '';
+                for (const [key, val] of Object.entries(this.metadata)) {
+                    html += `<div class="meta-row"><span class="meta-key">${key}</span><span class="meta-val">${val}</span></div>`;
+                }
+                el.innerHTML = html;
             }
 
             async parseMV1(data) {
@@ -1640,30 +1898,65 @@
                         const fg = c >> 4, bg = c & 15;
                         for (let px = 0; px < 8; px++) {
                             const cIdx = (p & (1 << (7 - px))) ? fg : bg; counts[cIdx]++;
-                            const rgb = frame.palette[cIdx];
-                            buf32[y * 256 + (cx * 8 + px)] = (255 << 24) | (rgb[2] << 16) | (rgb[1] << 8) | rgb[0];
+
+                            if (this.hiddenColors[cIdx]) {
+                                // 단색 투명 처리 (배경색 비침)
+                                buf32[y * 256 + (cx * 8 + px)] = 0x00000000;
+                            } else {
+                                const rgb = frame.palette[cIdx];
+                                buf32[y * 256 + (cx * 8 + px)] = (255 << 24) | (rgb[2] << 16) | (rgb[1] << 8) | rgb[0];
+                            }
                         }
                     }
                 }
 
                 this.ctx.putImageData(this.renderImg, 0, 0);
 
-                // ── 물리 엔진 탑재 및 LUT를 활용한 듀얼 히스토그램 렌더링 ──
+                // 물리 엔진용 타겟 업데이트
+                for (let i = 0; i < 16; i++) {
+                    this.targetCounts[i] = counts[i];
+                }
+
+                const eqOverlay = document.getElementById('eq-overlay');
+                if (!eqOverlay.classList.contains('hidden')) {
+                    const bars = eqOverlay.children;
+                    for (let i = 0; i < 9; i++) bars[i].style.height = ((15 - Math.min(frame.eqRaw[i], 15)) / 15 * 100) + '%';
+                }
+            }
+
+            loopHistogramPhysics() {
+                requestAnimationFrame(() => this.loopHistogramPhysics());
+
+                // 만약 현재 재생중이 아니며 탐색중도 아니라면 => 서서히 바닥으로 추락
+                if (!this.isPlaying && !this.isScrubbing) {
+                    for (let i = 0; i < 16; i++) {
+                        this.targetCounts[i] = Math.max(0, this.targetCounts[i] - 1500); // 서서히 감소
+                    }
+                }
+
+                if (this.frames.length === 0) return;
+
+                // 현재 보여지고 있는 프레임(또는 최근 렌더링된 프레임)의 팔레트
+                const currentFrameIdx = Math.min(Math.floor(this.pauseTime * this.fps), Math.max(0, this.totalFrames - 1));
+                let frame = this.frames[currentFrameIdx] || this.frames[0];
+                if (!frame) return;
+
                 const pHist = document.getElementById('portrait-histogram');
                 const isCollapsed = pHist && pHist.classList.contains('collapsed');
 
                 for (let i = 0; i < 16; i++) {
                     const rgb = frame.palette[i];
                     // 미리 만들어둔 LUT에서 O(1) 속도로 값을 가져옴 (0~100%)
-                    const pct = logLUT[counts[i]];
+                    const pct = logLUT[Math.min(maxMSXPixels, Math.floor(this.targetCounts[i]))];
                     const rgbStr = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
 
                     // [세로 모드 렌더링 (닫혀있지 않을 때만 물리 연산)]
                     if (!isCollapsed) {
-                        const barPct = pct * 0.62; // 푸른 바는 최대 62% 까지만
+                        // 0 늘어났을 때 최고점까지 올라가도록 비율 수정 (기존 0.62에서 +50% 증가한 0.93)
+                        const barPct = Math.min(pct * 0.93, 100);
 
-                        // 1. 중력 가속도 적용 (매 프레임 1.5% 속도 감소)
-                        this.peakV[i] -= 1.5;
+                        // 1. 중력 가속도 적용 (매 프레임 0.45% 속도 감소 - 원래 15fps를 60fps로 이식하며 쫀득함 유지)
+                        this.peakV[i] -= 0.45;
                         this.peakY[i] += this.peakV[i];
 
                         // 2. 바닥 충돌 (히스토그램 바가 피크 선을 때림)
@@ -1673,7 +1966,7 @@
 
                             // 강하게 때렸을 경우, 수량(pct)에 비례하는 추진력을 얻어 튕겨 오름
                             if (hitSpeed > 0) {
-                                this.peakV[i] = (hitSpeed * 0.7) + (pct * 0.3);
+                                this.peakV[i] = (hitSpeed * 0.49) + (pct * 0.21);
                             } else {
                                 this.peakV[i] = 0;
                             }
@@ -1692,6 +1985,13 @@
 
                         if (pClr && pBar && pPeak) {
                             pClr.style.backgroundColor = rgbStr;
+
+                            // 3rd phase color for portrait bars
+                            const rgbaStr = (rgb[0] === 0 && rgb[1] === 0 && rgb[2] === 0)
+                                ? `rgba(255, 255, 255, 0.12)`
+                                : `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.5)`;
+                            pBar.style.backgroundColor = rgbaStr;
+
                             pBar.style.height = `${barPct}%`;
                             pPeak.style.bottom = `${this.peakY[i]}%`;
                         }
@@ -1707,8 +2007,8 @@
                             lBarL.style.width = '100%'; lBarR.style.width = '100%';
                             lBarL.style.height = '100%'; lBarR.style.height = '100%';
                             lBarL.style.transform = 'none'; lBarR.style.transform = 'none';
-                            lBarL.style.opacity = counts[i] > 0 ? '1' : '0.1';
-                            lBarR.style.opacity = counts[i] > 0 ? '1' : '0.1';
+                            lBarL.style.opacity = pct > 0 ? '1' : '0.1';
+                            lBarR.style.opacity = pct > 0 ? '1' : '0.1';
                             lBarL.parentElement.style.backgroundColor = 'transparent';
                             lBarR.parentElement.style.backgroundColor = 'transparent';
                         } else {
@@ -1725,12 +2025,6 @@
                             lBarR.parentElement.style.backgroundColor = rgbaStr;
                         }
                     }
-                }
-
-                const eqOverlay = document.getElementById('eq-overlay');
-                if (!eqOverlay.classList.contains('hidden')) {
-                    const bars = eqOverlay.children;
-                    for (let i = 0; i < 9; i++) bars[i].style.height = ((15 - Math.min(frame.eqRaw[i], 15)) / 15 * 100) + '%';
                 }
             }
 
@@ -1846,7 +2140,7 @@
                 }
                 if (this.duration > 0) {
                     document.getElementById('osd-seek-slider').value = (this.pauseTime / this.duration) * 100;
-                    document.getElementById('osd-time-cur').innerText = this.formatTime(this.pauseTime);
+                    document.getElementById('osd-time-cur').innerText = this.formatDisplayTime(this.pauseTime, 'F');
                 }
                 this.updatePlayIcon(false);
             }
@@ -1920,26 +2214,19 @@
         eqOverlay.addEventListener('mousedown', handleEqStart); window.addEventListener('mousemove', handleEqMove); window.addEventListener('mouseup', handleEqEnd);
         eqOverlay.addEventListener('touchstart', handleEqStart, { passive: false }); window.addEventListener('touchmove', handleEqMove, { passive: false }); window.addEventListener('touchend', handleEqEnd);
 
-        // ── 가로 모드 3단계 사이드카 히스토그램 순환 마법 ──
-        const histToggleZone = document.getElementById('hist-toggle-zone');
-        const lHistL = document.getElementById('landscape-histogram-l');
-        const lHistR = document.getElementById('landscape-histogram-r');
-        histToggleZone.addEventListener('click', (e) => {
-            e.stopPropagation();
-            showOSD();
-
-            window.landscapeHistMode = (window.landscapeHistMode + 1) % 3;
-            if (lHistL) lHistL.className = `hist-mode-${window.landscapeHistMode}`;
-            if (lHistR) lHistR.className = `hist-mode-${window.landscapeHistMode}`;
-
-            if (player.frames.length > 0) {
-                player.renderFrame(Math.floor(player.pauseTime * player.fps));
-            }
-        });
+        // ── 가로 모드 3단계 사이드카 히스토그램 순환 마법 (아이콘 클릭으로 대체됨) ──
 
         document.getElementById('btn-osd-play-pause').onclick = () => player.togglePlay();
         document.getElementById('btn-osd-prev-track').onclick = () => player.playPrevTrack();
         document.getElementById('btn-osd-next-track').onclick = () => player.playNextTrack();
+
+        document.querySelector('.osd-time').onclick = () => {
+            player.timeDisplayMode = player.timeDisplayMode === 'time' ? 'frame' : 'time';
+            if (player.duration > 0) {
+                document.getElementById('osd-time-cur').innerText = player.formatDisplayTime(player.pauseTime, 'F');
+                document.getElementById('osd-time-total').innerText = player.formatDisplayTime(player.duration, 'F');
+            }
+        };
         document.getElementById('btn-osd-prev-frame').onclick = () => moveFrame(-1);
         document.getElementById('btn-osd-next-frame').onclick = () => moveFrame(1);
         document.getElementById('btn-repeat').onclick = () => { const modes = ['off', 'all', 'one', 'shuffle']; player.setRepeatMode(modes[(modes.indexOf(player.repeatMode) + 1) % modes.length]); };
@@ -1957,10 +2244,22 @@
         seek.onmousedown = seek.ontouchstart = () => { wasPlayingBeforeSeek = player.isPlaying; player.isScrubbing = true; if (player.isPlaying) player.pause(); };
         seek.oninput = e => {
             const t = (e.target.value / 100) * player.duration; player.pauseTime = t;
-            document.getElementById('osd-time-cur').innerText = player.formatTime(t);
-            if (player.frames.length > 0) player.renderFrame(Math.min(Math.floor(t * player.fps), player.totalFrames - 1));
+            const curFrame = Math.min(Math.floor(t * player.fps), player.totalFrames - 1);
+
+            document.getElementById('osd-time-cur').innerText = player.formatDisplayTime(t, 'F');
+
+            const tooltip = document.getElementById('seek-frame-tooltip');
+            tooltip.innerText = `${curFrame}F`;
+            tooltip.style.display = 'block';
+
+            if (player.frames.length > 0) player.renderFrame(curFrame);
         };
-        const finishSeek = () => { if (!player.isScrubbing) return; player.isScrubbing = false; if (wasPlayingBeforeSeek) player.play(); };
+        const finishSeek = () => {
+            if (!player.isScrubbing) return;
+            player.isScrubbing = false;
+            document.getElementById('seek-frame-tooltip').style.display = 'none';
+            if (wasPlayingBeforeSeek) player.play();
+        };
         seek.onchange = finishSeek; seek.addEventListener('mouseup', finishSeek); seek.addEventListener('touchend', finishSeek);
 
         const moveFrame = (d) => {
@@ -1968,6 +2267,10 @@
             const cur = Math.round(player.pauseTime * player.fps), tar = Math.max(0, Math.min(player.totalFrames - 1, cur + d));
             player.pauseTime = tar / player.fps; seek.value = (player.pauseTime / player.duration) * 100;
             document.getElementById('osd-time-cur').innerText = player.formatTime(player.pauseTime); player.renderFrame(tar);
+
+            const tooltip = document.getElementById('seek-frame-tooltip');
+            tooltip.innerText = `${tar}F`;
+            tooltip.style.display = 'block';
         };
 
         const btnFs = document.getElementById('btn-fullscreen-toggle'), screenWrapper = document.getElementById('screen-wrapper');
@@ -2034,10 +2337,18 @@
             }
         });
 
-        const op = player.play.bind(player); player.play = async () => { await op(); showOSD(); };
+        const op = player.play.bind(player); player.play = async () => { document.getElementById('seek-frame-tooltip').style.display = 'none'; await op(); showOSD(); };
         const opa = player.pause.bind(player); player.pause = () => { opa(); showOSD(); };
 
-        document.getElementById('btn-info-toggle').onclick = () => { const info = document.getElementById('info-block'); info.style.display = info.style.display === 'block' ? 'none' : 'block'; };
+        document.getElementById('btn-info-toggle').onclick = () => {
+            const info = document.getElementById('info-block');
+            // If showing metadata, restore original first
+            if (info._showingMeta) {
+                info.innerHTML = info._originalHTML;
+                info._showingMeta = false;
+            }
+            info.style.display = info.style.display === 'block' ? 'none' : 'block';
+        };
 
         document.getElementById('btn-aspect-toggle').onclick = () => {
             document.body.classList.toggle('aspect-4-3');
@@ -2045,6 +2356,34 @@
             document.getElementById('aspect-label').innerText = is43 ? '4:3' : '5:3';
             document.getElementById('btn-aspect-toggle').style.fill = is43 ? 'var(--accent)' : '#888';
             if (player.frames.length) player.renderFrame(Math.floor(player.pauseTime * player.fps));
+        };
+
+        // ⓘ 메타데이터 인포 버튼 — info-block 내용을 임시로 메타데이터로 덮어쓰기
+        document.getElementById('btn-metadata-info').onclick = (e) => {
+            e.stopPropagation();
+            const info = document.getElementById('info-block');
+            const isVisible = info.style.display === 'block';
+
+            if (isVisible && info._showingMeta) {
+                // Already showing metadata → restore and hide
+                info.innerHTML = info._originalHTML;
+                info._showingMeta = false;
+                info.style.display = 'none';
+            } else {
+                // Save original and replace with metadata
+                if (!info._originalHTML) info._originalHTML = info.innerHTML;
+                if (player.metadata) {
+                    let html = '<h3>ⓘ Track Metadata</h3>';
+                    for (const [key, val] of Object.entries(player.metadata)) {
+                        html += `<p><strong>${key}:</strong> ${val}</p>`;
+                    }
+                    info.innerHTML = html;
+                } else {
+                    info.innerHTML = '<h3>ⓘ Track Metadata</h3><p style="color:#888;">No metadata available</p>';
+                }
+                info._showingMeta = true;
+                info.style.display = 'block';
+            }
         };
 
         const unlockAudio = () => {

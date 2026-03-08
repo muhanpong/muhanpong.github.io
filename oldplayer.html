@@ -158,18 +158,20 @@
             color: #4CAF50;
         }
 
-        #dashboard {
+        #dashboards-wrapper {
             display: flex;
             justify-content: center;
-            gap: 40px;
+            gap: 20px;
+            /* Space between the two panels */
             margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .dashboard-panel {
             padding: 15px;
             background: #1a1a1a;
             border: 1px solid #333;
             border-radius: 8px;
-            width: fit-content;
-            margin-left: auto;
-            margin-right: auto;
         }
 
         .dash-section {
@@ -405,14 +407,18 @@
 
     <div id="status">대기 중... .MV, .MV2 또는 .ZIP 파일을 선택하세요.</div>
 
-    <div id="dashboard">
-        <div class="dash-section">
-            <div class="dash-title">PALETTE MEMORY (16 COLORS)</div>
-            <div id="vis-palette"></div>
+    <div id="dashboards-wrapper">
+        <div id="dashboard-palette" class="dashboard-panel">
+            <div class="dash-section">
+                <div class="dash-title">PALETTE MEMORY (16 COLORS)</div>
+                <div id="vis-palette"></div>
+            </div>
         </div>
-        <div class="dash-section">
-            <div class="dash-title">STEREO EQ SPECTRUM (18 BANDS)</div>
-            <div id="vis-eq"></div>
+        <div id="dashboard-eq" class="dashboard-panel">
+            <div class="dash-section">
+                <div class="dash-title">STEREO EQ SPECTRUM (18 BANDS)</div>
+                <div id="vis-eq"></div>
+            </div>
         </div>
     </div>
 
@@ -1017,7 +1023,7 @@
         });
 
         document.getElementById('toggle-dashboard').addEventListener('change', e => {
-            document.getElementById('dashboard').style.display = e.target.checked ? 'flex' : 'none';
+            document.getElementById('dashboards-wrapper').style.display = e.target.checked ? 'flex' : 'none';
         });
 
         document.getElementById('toggle-overlay-btn').addEventListener('click', e => {
