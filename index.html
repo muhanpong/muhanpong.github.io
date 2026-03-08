@@ -1365,8 +1365,8 @@
                         </div>
                     </div>
                 </div>
-                <div id="portrait-histogram" title="Click to Toggle Histogram"></div>
             </div>
+            <div id="portrait-histogram" title="Click to Toggle Histogram"></div>
         </div>
 
         <div id="playlist-sidebar" title="Click Top Edge to Toggle Playlist">
@@ -1726,6 +1726,7 @@
 
             reset() {
                 this.pause(); this.frames = []; this.fileData = null; this.audioBuffer = null; this.rawAudio = null; this.pauseTime = 0; this.lastFrame = -1; this.duration = 0;
+                this.currentRenderedFrameIdx = null;
                 this.peakY.fill(0); this.peakV.fill(0); // 물리 배열 초기화
                 const seek = document.getElementById('osd-seek-slider'); seek.value = 0; seek.disabled = true;
                 document.getElementById('osd-time-cur').innerText = "00:00"; document.getElementById('osd-time-total').innerText = "00:00";
@@ -1893,6 +1894,7 @@
             extractPal(d, n) { let p = []; for (let i = 0; i < n; i++) p.push([Math.round(((d[i * 2] >> 4) & 7) * 255 / 7), Math.round((d[i * 2 + 1] & 7) * 255 / 7), Math.round((d[i * 2] & 7) * 255 / 7)]); return p; }
 
             renderFrame(idx) {
+                this.currentRenderedFrameIdx = idx;
                 const frame = this.frames[idx]; if (!frame) return;
                 const counts = new Array(16).fill(0);
                 const buf32 = this.renderBuf32;
@@ -1944,7 +1946,7 @@
                 if (this.frames.length === 0) return;
 
                 // 현재 보여지고 있는 프레임(또는 최근 렌더링된 프레임)의 팔레트
-                const currentFrameIdx = Math.min(Math.floor(this.pauseTime * this.fps), Math.max(0, this.totalFrames - 1));
+                const currentFrameIdx = this.currentRenderedFrameIdx !== undefined && this.currentRenderedFrameIdx !== null ? this.currentRenderedFrameIdx : Math.min(Math.floor(this.pauseTime * this.fps), Math.max(0, this.totalFrames - 1));
                 let frame = this.frames[currentFrameIdx] || this.frames[0];
                 if (!frame) return;
 
