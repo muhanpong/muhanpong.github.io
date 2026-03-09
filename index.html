@@ -584,11 +584,11 @@
             fill: var(--accent) !important;
         }
 
-        /* ── 1. 세로 모드 전용 하단 히스토그램 (57px로 확장, 피크홀드 탑재) ── */
+        /* ── 1. 세로 모드 전용 하단 히스토그램 (58px로 확장, 피크홀드 탑재) ── */
         #portrait-histogram {
             width: 100%;
             max-width: 960px;
-            height: 48px;
+            height: 58px;
             margin: 0 auto;
             background: var(--surface);
             border-bottom: 1px solid var(--border);
@@ -743,9 +743,9 @@
             font-size: 14px;
         }
 
-        /* [상태 1] 2nd phase: 풀 사이즈 (48px) - 아이콘: ▲ */
+        /* [상태 1] 2nd phase: 풀 사이즈 (58px) - 아이콘: ▲ */
         #portrait-histogram.p-hist-mode-1 {
-            height: 48px;
+            height: 58px;
         }
 
         /* [상태 2] 3rd phase: 딤드 컬러 바닥면 (12px) - 아이콘: ▼ */
@@ -818,7 +818,7 @@
         }
 
         .p-hist-color {
-            height: 14px;
+            height: 11px;
             border-radius: 1px;
             width: 100%;
             flex-shrink: 0;
@@ -1224,7 +1224,8 @@
             text-decoration: underline;
         }
 
-        .dragover #canvas-msg-overlay {
+        .dragover #canvas-msg-overlay,
+        #playlist-sidebar.dragover {
             border-color: #4CAF50;
             color: #4CAF50;
         }
@@ -1823,11 +1824,20 @@
             reset() {
                 this.pause(); this.frames = []; this.fileData = null; this.audioBuffer = null; this.rawAudio = null; this.pauseTime = 0; this.lastFrame = -1; this.duration = 0;
                 this.currentRenderedFrameIdx = null;
+                this.metadata = null;
                 this.peakY.fill(0); this.peakV.fill(0); // 물리 배열 초기화
                 const seek = document.getElementById('osd-seek-slider'); seek.value = 0; seek.disabled = true;
                 document.getElementById('osd-time-cur').innerText = "00:00"; document.getElementById('osd-time-total').innerText = "00:00";
                 this.ctx.fillStyle = "black"; this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
                 if (this.playlist && this.playlist.length === 0) { document.getElementById('canvas-msg-overlay').style.display = 'flex'; document.getElementById('osd-controls').style.display = 'none'; }
+                
+                // Info block state recovery
+                const info = document.getElementById('info-block');
+                if (info && info._showingMeta) {
+                    info.innerHTML = info._originalHTML;
+                    info._showingMeta = false;
+                }
+                this.updateMetadataUI();
             }
 
             formatTime(s) {
@@ -2041,10 +2051,10 @@
             loopHistogramPhysics() {
                 requestAnimationFrame(() => this.loopHistogramPhysics());
 
-                // 만약 현재 재생중이 아니며 탐색중도 아니라면 => 서서히 바닥으로 추락
+                // 만약 현재 재생중이 아니라면 => 서서히 바닥으로 추락 (탐색 중에도 멈춰있으면 추락)
                 // (가로 모드에서는 수치를 유지하라는 요청에 따라 분기 처리)
                 const isLandscape = window.innerHeight < window.innerWidth;
-                if (!this.isPlaying && !this.isScrubbing && !isLandscape) {
+                if (!this.isPlaying && !isLandscape) {
                     for (let i = 0; i < 16; i++) {
                         this.targetCounts[i] = Math.max(0, this.targetCounts[i] - 1500); // 서서히 감소
                     }
@@ -2068,8 +2078,8 @@
 
                     // [세로 모드 렌더링 (닫혀있지 않을 때만 물리 연산)]
                     if (!isCollapsed) {
-                        // 0 늘어났을 때 최고점까지 올라가도록 비율 수정 (기존 0.62에서 +50% 증가한 0.93)
-                        const barPct = Math.min(pct * 0.93, 100);
+                        // 0 늘어났을 때 0.75 까지
+                        const barPct = Math.min(pct * 0.75, 100);
 
                         // 1. 중력 가속도 적용 (매 프레임 0.45% 속도 감소 - 원래 15fps를 60fps로 이식하며 쫀득함 유지)
                         this.peakV[i] -= 0.45;
@@ -2406,7 +2416,7 @@
                 }
             } else {
                 const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
-                if (exit && (document.fullscreenElement || document.webkitFullscreenElement)) {
+                if (exit && (document.fullscreenElement || document.webkitExitFullscreen)) {
                     exit.call(document).catch(() => { });
                 }
                 if (screen.orientation && screen.orientation.unlock) {
