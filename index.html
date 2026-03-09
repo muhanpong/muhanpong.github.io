@@ -603,6 +603,47 @@
             overflow: hidden;
         }
 
+
+        /* ── Tooltip for Histogram Bars ── */
+        .hist-tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-family: monospace;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 1000;
+            white-space: nowrap;
+            transform: translate(-50%, -100%);
+            margin-top: -8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .p-hist-row, .l-hist-row {
+            transition: transform 0.1s ease;
+            transform-origin: bottom center;
+        }
+
+        #landscape-histogram-l .l-hist-row {
+            transform-origin: right center;
+        }
+
+        #landscape-histogram-r .l-hist-row {
+            transform-origin: left center;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            .p-hist-row:hover, .l-hist-row:hover {
+                transform: scale(1.1);
+                z-index: 20;
+                position: relative;
+            }
+        }
+
         /* ── Metadata Info Overlay ── */
         #metadata-overlay {
             display: none;
@@ -1440,6 +1481,7 @@
                 this.peakY = new Float32Array(16); // 피크 선의 높이 (0~100%)
                 this.peakV = new Float32Array(16); // 피크 선의 속도/가속도
                 this.targetCounts = new Float32Array(16); // 물리 엔진 타겟 배열
+                this.actualCounts = new Float32Array(16); // 툴팁용 실제 픽셀 수
 
                 window.landscapeHistMode = 0;
 
@@ -1448,7 +1490,62 @@
 
                 // ── 분리된 루프 애니메이션 시작 ──
                 this.loopHistogramPhysics();
+                this.setupTooltip();
             }
+
+            setupTooltip() {
+                this.histTooltip = document.createElement('div');
+                this.histTooltip.className = 'hist-tooltip';
+                document.body.appendChild(this.histTooltip);
+
+                const showTooltip = (e, i) => {
+                    // Only show tooltip when paused
+                    if (this.isPlaying && !this.isScrubbing) return;
+                    
+                    // Only for PC browser (hover capable)
+                    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+                    
+                    const count = Math.floor(this.actualCounts[i] || 0);
+                    const pct = ((count / (256 * 192)) * 100).toFixed(1);
+                    this.histTooltip.innerHTML = `${count}, ${pct}%`;
+                    
+                    this.histTooltip.style.opacity = '1';
+                    this.histTooltip.style.left = e.pageX + 'px';
+                    this.histTooltip.style.top = e.pageY + 'px';
+                };
+
+                const hideTooltip = () => {
+                    this.histTooltip.style.opacity = '0';
+                };
+
+                const moveTooltip = (e) => {
+                    if (this.histTooltip.style.opacity === '1') {
+                        this.histTooltip.style.left = e.pageX + 'px';
+                        this.histTooltip.style.top = e.pageY + 'px';
+                    }
+                };
+
+                setTimeout(() => {
+                    for (let i = 0; i < 16; i++) {
+                        const attachEvents = (row) => {
+                            if (!row) return;
+                            row.addEventListener('mouseenter', (e) => showTooltip(e, i));
+                            row.addEventListener('mouseleave', hideTooltip);
+                            row.addEventListener('mousemove', moveTooltip);
+                        };
+
+                        const pClr = document.getElementById(`p-hist-clr-${i}`);
+                        if (pClr) attachEvents(pClr.closest('.p-hist-row'));
+                        
+                        const lBarL = document.getElementById(`l-hist-bar-l-${i}`);
+                        if (lBarL) attachEvents(lBarL.parentElement);
+                        
+                        const lBarR = document.getElementById(`l-hist-bar-r-${i}`);
+                        if (lBarR) attachEvents(lBarR.parentElement);
+                    }
+                }, 500);
+            }
+
 
             setRepeatMode(mode) {
                 this.repeatMode = mode;
@@ -1696,7 +1793,7 @@
                 const lHistL = document.getElementById('landscape-histogram-l');
                 const lHistR = document.getElementById('landscape-histogram-r');
                 if (lHistL && lHistR) {
-                    lHistL.innerHTML = '<div class="l-hist-fold-btn" id="l-hist-fold-l">&gt;&gt;</div>';
+                    lHistL.innerHTML = '<div class="l-hist-fold-btn" id="l-hist-fold-l">&lt;&lt;</div>';
                     lHistR.innerHTML = '<div class="l-hist-fold-btn" id="l-hist-fold-r">&gt;&gt;</div>';
                     for (let i = 0; i < 16; i++) {
                         lHistL.innerHTML += `<div class="l-hist-row"><div class="l-hist-bar" id="l-hist-bar-l-${i}"></div></div>`;
@@ -1710,8 +1807,7 @@
                             lHistR.className = `hist-mode-${window.landscapeHistMode}`;
 
                             const isMax = window.landscapeHistMode === 2;
-                            // 사용자 요청에 맞춰 확장일 땐 '>>', 접힐 땐 '<<' 로직으로 좌우 패널 통일
-                            document.getElementById('l-hist-fold-l').innerText = isMax ? '<<' : '>>';
+                            document.getElementById('l-hist-fold-l').innerText = isMax ? '>>' : '<<';
                             document.getElementById('l-hist-fold-r').innerText = isMax ? '<<' : '>>';
 
                             if (player.frames.length > 0) player.renderFrame(Math.floor(player.pauseTime * player.fps));
@@ -1847,9 +1943,17 @@
                 if (info && info._showingMeta && info.style.display === 'block') {
                     if (this.metadata) {
                         let html = '<h3>ⓘ Track Metadata</h3>';
-                        for (const [key, val] of Object.entries(this.metadata)) {
-                            html += `<p><strong>${key}:</strong> ${val}</p>`;
-                        }
+                        const formatMeta = (obj, indent = 0) => {
+                            for (const [key, val] of Object.entries(obj)) {
+                                if (typeof val === 'object' && val !== null) {
+                                    html += `<p style="margin-left:${indent}px"><strong>${key}:</strong></p>`;
+                                    formatMeta(val, indent + 15);
+                                } else {
+                                    html += `<p style="margin-left:${indent}px"><strong>${key}:</strong> ${val}</p>`;
+                                }
+                            }
+                        };
+                        formatMeta(this.metadata);
                         info.innerHTML = html;
                     } else {
                         info.innerHTML = '<h3>ⓘ Track Metadata</h3><p style="color:#888;">No metadata available</p>';
@@ -1921,9 +2025,10 @@
 
                 this.ctx.putImageData(this.renderImg, 0, 0);
 
-                // 물리 엔진용 타겟 업데이트
+                // 물리 엔진용 타겟 및 실제 수량 업데이트
                 for (let i = 0; i < 16; i++) {
                     this.targetCounts[i] = counts[i];
+                    this.actualCounts[i] = counts[i];
                 }
 
                 const eqOverlay = document.getElementById('eq-overlay');
@@ -1937,7 +2042,9 @@
                 requestAnimationFrame(() => this.loopHistogramPhysics());
 
                 // 만약 현재 재생중이 아니며 탐색중도 아니라면 => 서서히 바닥으로 추락
-                if (!this.isPlaying && !this.isScrubbing) {
+                // (가로 모드에서는 수치를 유지하라는 요청에 따라 분기 처리)
+                const isLandscape = window.innerHeight < window.innerWidth;
+                if (!this.isPlaying && !this.isScrubbing && !isLandscape) {
                     for (let i = 0; i < 16; i++) {
                         this.targetCounts[i] = Math.max(0, this.targetCounts[i] - 1500); // 서서히 감소
                     }
@@ -2382,9 +2489,17 @@
                 if (!info._originalHTML) info._originalHTML = info.innerHTML;
                 if (player.metadata) {
                     let html = '<h3>ⓘ Track Metadata</h3>';
-                    for (const [key, val] of Object.entries(player.metadata)) {
-                        html += `<p><strong>${key}:</strong> ${val}</p>`;
-                    }
+                    const formatMeta = (obj, indent = 0) => {
+                        for (const [key, val] of Object.entries(obj)) {
+                            if (typeof val === 'object' && val !== null) {
+                                html += `<p style="margin-left:${indent}px"><strong>${key}:</strong></p>`;
+                                formatMeta(val, indent + 15);
+                            } else {
+                                html += `<p style="margin-left:${indent}px"><strong>${key}:</strong> ${val}</p>`;
+                            }
+                        }
+                    };
+                    formatMeta(player.metadata);
                     info.innerHTML = html;
                 } else {
                     info.innerHTML = '<h3>ⓘ Track Metadata</h3><p style="color:#888;">No metadata available</p>';

@@ -1,5 +1,6 @@
 .gemini
-*md2
+*md
+    
 *mv2
 !README.md
 !GEMINI.md

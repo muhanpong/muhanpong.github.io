@@ -30,3 +30,22 @@
 - **Visual Refinement:**
     - Increased dimming of the OSD metadata info icon (`#btn-metadata-info`) from `#aaa` to `#222` (almost black) when no metadata is present to provide maximum visual contrast.
     - Standardized `style.color` usage for the OSD info icon to correctly support `currentColor` inheritance in the SVG.
+
+## 2026-03-09 10:00:00 Histogram Enhancements & UI Polish
+
+- **Landscape Histogram Alignment:**
+    - Rotated the default fold/expand icons on the left side to `<<` (outward) to symmetrically match the right side `>>`.
+- **Histogram Color Synchronization:**
+    - Fixed an issue where the histogram color palette would not update dynamically during video playback. Tied the physical loop directly to `this.currentRenderedFrameIdx` instead of the static `this.pauseTime`.
+- **Tooltip Implementation:**
+    - Implemented hover tooltips on PC browsers for the histogram bars and bases.
+    - Added `actualCounts` array to retain accurate pixel quantities (disconnected from the physics drop animation) for tooltips while paused.
+    - Ensured tooltip indicates the precise pixel count and screen percentage in `count, n%` format.
+    - Added a subtle 10% size expansion (`transform: scale(1.1)`) effect when hovering over indicators.
+
+## 2026-03-09 11:30:00 Histogram Persistence in Landscape Mode
+
+- **Landscape Histogram Optimization:**
+    - Modified `loopHistogramPhysics` to prevent histogram values from falling to zero when the player is paused in landscape orientation.
+    - Added orientation detection (`window.innerHeight < window.innerWidth`) to conditionally bypass the physics drop animation.
+    - This ensures that the detailed analysis provided by the sidecar histograms remains visible and stable for inspection while the video is paused in landscape mode, while preserving the "falling" visual effect in portrait mode.
