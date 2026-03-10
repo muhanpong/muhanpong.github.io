@@ -578,6 +578,24 @@
                 this.isProcessingThumbs = false;
             }
 
+            removeFromPlaylist(index) {
+                if (index < 0 || index >= this.playlist.length) return;
+                this.playlist.splice(index, 1);
+                if (this.playlist.length === 0) { this.currentPlayIndex = -1; this.reset(); }
+                else if (index === this.currentPlayIndex) { this.currentPlayIndex = -1; this.reset(); }
+                else if (index < this.currentPlayIndex) { this.currentPlayIndex--; }
+                this.updatePlaylistUI();
+            }
+
+            async playPlaylistItem(index) {
+                if (index < 0 || index >= this.playlist.length) return;
+                this.currentPlayIndex = index; this.updatePlaylistUI(); this.scrollToActive();
+                await this.loadFile(this.playlist[index].file);
+            }
+
+            async playNextTrack() { if (this.playlist.length === 0) return; await this.playPlaylistItem((this.currentPlayIndex + 1) % this.playlist.length); }
+            async playPrevTrack() { if (this.playlist.length === 0) return; let prev = this.currentPlayIndex - 1; if (prev < 0) prev = this.playlist.length - 1; await this.playPlaylistItem(prev); }
+
             async generateThumbnail(file) {
                 try {
                     let data;
@@ -980,7 +998,8 @@
                     if (!isCollapsed) {
                         const barPct = Math.min(pct * 0.75, 100);
 
-                        this.peakV[i] -= 0.45;
+                        // MANDATE: Peak holder fall speed must remain slow (approx 0.1-0.2) for visual clarity. DO NOT INCREASE.
+                        this.peakV[i] -= 0.15;
                         this.peakY[i] += this.peakV[i];
 
                         if (this.peakY[i] <= barPct) {
