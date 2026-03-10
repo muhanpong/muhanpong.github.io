@@ -394,6 +394,9 @@
                 this.thumbQueue = [];
                 this.isProcessingThumbs = false;
 
+                // ── 극강의 최적화: Bit-mask LUT (Look-Up Table) ──
+                this.bitLUT = new Uint8Array([128, 64, 32, 16, 8, 4, 2, 1]);
+
                 // ── 상태 추가 ──
                 this.timeDisplayMode = 'time'; 
                 this.hiddenColors = new Array(16).fill(false); 
@@ -939,7 +942,7 @@
                         const c = this.fileData[frame.offset + 6144 + off];
                         const fg = c >> 4, bg = c & 15;
                         for (let px = 0; px < 8; px++) {
-                            const cIdx = (p & (1 << (7 - px))) ? fg : bg; 
+                            const cIdx = (p & this.bitLUT[px]) ? fg : bg; 
                             this.colorCounts[cIdx]++;
 
                             if (this.hiddenColors[cIdx]) {
@@ -989,7 +992,8 @@
                 for (let i = 0; i < 16; i++) {
                     const rgb = frame.palette[i];
                     const pct = logLUT[Math.min(maxMSXPixels, Math.floor(this.targetCounts[i]))];
-                    const rgbStr = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+                    // Optimized string concatenation
+                    const rgbStr = 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')';
 
                     const pClr = this.dom.pClr[i];
                     const pBar = this.dom.pBar[i];
@@ -1021,13 +1025,13 @@
                         if (pClr && pBar && pPeak) {
                             pClr.style.backgroundColor = rgbStr;
                             const rgbaStr = (rgb[0] === 0 && rgb[1] === 0 && rgb[2] === 0)
-                                ? `rgba(255, 255, 255, 0.12)`
-                                : `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.5)`;
+                                ? 'rgba(255, 255, 255, 0.12)'
+                                : 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ', 0.5)';
                             pBar.style.backgroundColor = rgbaStr;
                             
                             // GPU 가속을 위해 height, bottom 대신 transform 사용
-                            pBar.style.transform = `scaleY(${barPct / 100})`;
-                            pPeak.style.transform = `translateY(calc(-${this.peakY[i]}px * 0.58))`; // 전체 58px 기준 대략적인 매핑
+                            pBar.style.transform = 'scaleY(' + (barPct / 100) + ')';
+                            pPeak.style.transform = 'translateY(calc(-' + this.peakY[i] + 'px * 0.58))'; // 전체 58px 기준 대략적인 매핑
                         }
                     }
 
@@ -1046,12 +1050,12 @@
                         } else {
                             // GPU 가속 스케일링 적용 (4px 보정을 위해 width 혼합 조작 제거, 순수 Transform)
                             const scaleVal = Math.max(0.05, pct / 100);
-                            lBarL.style.transform = `scaleX(${scaleVal})`; 
-                            lBarR.style.transform = `scaleX(${scaleVal})`;
+                            lBarL.style.transform = 'scaleX(' + scaleVal + ')'; 
+                            lBarR.style.transform = 'scaleX(' + scaleVal + ')';
                             lBarL.style.opacity = '1'; lBarR.style.opacity = '1';
                             const rgbaStr = (rgb[0] === 0 && rgb[1] === 0 && rgb[2] === 0)
-                                ? `rgba(255, 255, 255, 0.12)`
-                                : `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.2)`;
+                                ? 'rgba(255, 255, 255, 0.12)'
+                                : 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ', 0.2)';
                             lBarL.parentElement.style.backgroundColor = rgbaStr;
                             lBarR.parentElement.style.backgroundColor = rgbaStr;
                         }
@@ -1067,7 +1071,7 @@
                         const p = this.fileData[frame.offset + off], c = this.fileData[frame.offset + 6144 + off];
                         const fg = c >> 4, bg = c & 15;
                         for (let px = 0; px < 8; px++) {
-                            const cIdx = (p & (1 << (7 - px))) ? fg : bg; const rgb = frame.palette[cIdx];
+                            const cIdx = (p & this.bitLUT[px]) ? fg : bg; const rgb = frame.palette[cIdx];
                             buf32[y * 256 + (cx * 8 + px)] = (255 << 24) | (rgb[2] << 16) | (rgb[1] << 8) | rgb[0];
                         }
                     }
@@ -1075,7 +1079,7 @@
                 targetCtx.putImageData(imgBuffer, 0, 0);
                 if (withOverlay) {
                     const op = getComputedStyle(document.documentElement).getPropertyValue('--eq-opacity').trim();
-                    targetCtx.fillStyle = `rgba(255,255,255,${op})`; const eqW = 256 * 0.25, eqH = 192 * 0.25, barW = (eqW / 9) - 1;
+                    targetCtx.fillStyle = 'rgba(255,255,255,' + op + ')'; const eqW = 256 * 0.25, eqH = 192 * 0.25, barW = (eqW / 9) - 1;
                     for (let i = 0; i < 9; i++) { const h = ((15 - Math.min(frame.eqRaw[i], 15)) / 15) * (eqH * 0.9); targetCtx.fillRect(2 + i * (barW + 1), eqH - h + 2, barW, Math.max(1, h)); }
                 }
             }
