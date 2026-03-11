@@ -613,14 +613,14 @@
 
                     if (sig === "MMCSD_MV" && ver === "v1.00") {
                         fps = 12; totalFrames = Math.floor((data.length - 16384) / 16384);
-                        const targetFrame = totalFrames > 10 ? 10 : 0; frameOffset = 16384 + (targetFrame * 16384);
+                        const targetFrame = totalFrames > 15 ? 15 : 0; frameOffset = 16384 + (targetFrame * 16384);
                         if (frameOffset + 16384 > data.length) return null;
                         palette = [[0, 0, 0], ...this.extractPal(data.slice(frameOffset + 13232, frameOffset + 13262), 15)];
                     } else {
                         fps = 15; const isMv2 = sig.startsWith("MV2"), head = isMv2 ? 512 : 16384;
                         if (isMv2) totalFrames = 1 + Math.floor((data.length - 16384) / 16384);
                         else totalFrames = Math.floor((data.length - 16384) / 16384);
-                        const targetFrame = totalFrames > 10 ? 10 : 0; let off = head;
+                        const targetFrame = totalFrames > 15 ? 15 : 0; let off = head;
                         for (let i = 0; i < targetFrame; i++) { const sz = (head === 512 && off === 512) ? 15872 : 16384; if (off + sz > data.length) break; off += sz; }
                         frameOffset = off; palette = [[0, 0, 0], ...this.extractPal(data.slice(frameOffset + 12288, frameOffset + 12318), 15)];
                     }
