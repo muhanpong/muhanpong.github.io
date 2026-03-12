@@ -970,13 +970,8 @@
             loopHistogramPhysics() {
                 requestAnimationFrame(() => this.loopHistogramPhysics());
 
-                const isLandscape = window.innerHeight < window.innerWidth;
-                if (!this.isPlaying && !isLandscape) {
-                    for (let i = 0; i < 16; i++) {
-                        this.targetCounts[i] = Math.max(0, this.targetCounts[i] - 1500); 
-                    }
-                }
-
+                // MANDATE: When paused, color bars MUST sustain their height (no decay).
+                // Peaks must still fall natively due to gravity (this.peakV logic below).
                 if (this.frames.length === 0) return;
 
                 const currentFrameIdx = this.currentRenderedFrameIdx !== undefined && this.currentRenderedFrameIdx !== null ? this.currentRenderedFrameIdx : Math.min(Math.floor(this.pauseTime * this.fps), Math.max(0, this.totalFrames - 1));

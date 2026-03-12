@@ -2052,15 +2052,8 @@
             loopHistogramPhysics() {
                 requestAnimationFrame(() => this.loopHistogramPhysics());
 
-                // 만약 현재 재생중이 아니라면 => 서서히 바닥으로 추락 (탐색 중에도 멈춰있으면 추락)
-                // (가로 모드에서는 수치를 유지하라는 요청에 따라 분기 처리)
-                const isLandscape = window.innerHeight < window.innerWidth;
-                if (!this.isPlaying && !isLandscape) {
-                    for (let i = 0; i < 16; i++) {
-                        this.targetCounts[i] = Math.max(0, this.targetCounts[i] - 1500); // 서서히 감소
-                    }
-                }
-
+                // MANDATE: When paused, color bars MUST sustain their height (no decay).
+                // Peaks must still fall natively due to gravity (this.peakV logic below).
                 if (this.frames.length === 0) return;
 
                 // 현재 보여지고 있는 프레임(또는 최근 렌더링된 프레임)의 팔레트
