@@ -1002,7 +1002,9 @@
                             this.peakY[i] = barPct; 
 
                             if (hitSpeed > 0) {
-                                this.peakV[i] = (hitSpeed * 0.49) + (pct * 0.21);
+                                // MANDATE: When paused, peaks should settle on bars. 
+                                // Only apply the signal-based (pct) boost when playing.
+                                this.peakV[i] = (hitSpeed * 0.49) + (this.isPlaying ? (pct * 0.21) : 0);
                             } else {
                                 this.peakV[i] = 0;
                             }
