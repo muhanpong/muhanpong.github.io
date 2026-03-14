@@ -57,3 +57,6 @@
 - Modified index.html and newplayer.html to stop histogram bars from shrinking when paused.
 - Peak holders (white lines) still fall naturally via gravitational physics until they hit the static bars.
 - This allows users to inspect color distribution statistics of a static frame while maintaining dynamic peak feedback.
+## 2026-03-13 16:15 - Bug Fix: MP4 Export Functionality
+- Fixed missing click event listener for 'btn-osd-save' in index.html and newplayer.html.
+- Added visual feedback via showStatusIcon and status text timeouts in exportMP4().

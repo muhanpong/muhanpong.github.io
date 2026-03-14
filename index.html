@@ -2233,7 +2233,9 @@
                     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([muxer.target.buffer], { type: 'video/mp4' }));
                     a.download = `msx_export_${Date.now()}.mp4`; a.click();
                     status.innerText = "내보내기 완료!"; status.style.color = "#4CAF50";
-                } catch (err) { console.error(err); status.innerText = "에러 발생 (콘솔 확인)"; status.style.color = "#ff4444"; }
+                    showStatusIcon("내보내기 완료!", 'success');
+                    setTimeout(() => { status.innerText = ""; }, 3000);
+                } catch (err) { console.error(err); status.innerText = "에러 발생 (콘솔 확인)"; status.style.color = "#ff4444"; showStatusIcon("에러 발생", 'error'); }
                 finally { btn.disabled = false; }
             }
 
@@ -2359,6 +2361,8 @@
             document.getElementById('icon-vol-off').style.display = player.gainNode.gain.value > 0 ? 'none' : 'block';
         };
         volSlider.oninput = (e) => { const v = parseFloat(e.target.value); player.gainNode.gain.value = v; document.getElementById('icon-vol-on').style.display = v > 0 ? 'block' : 'none'; document.getElementById('icon-vol-off').style.display = v > 0 ? 'none' : 'block'; };
+
+        document.getElementById('btn-osd-save').onclick = () => player.exportMP4();
 
         const seek = document.getElementById('osd-seek-slider'); let wasPlayingBeforeSeek = false;
         seek.onmousedown = seek.ontouchstart = () => { wasPlayingBeforeSeek = player.isPlaying; player.isScrubbing = true; if (player.isPlaying) player.pause(); };
