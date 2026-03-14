@@ -1239,6 +1239,7 @@
                 <path
                     d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM8 15l4.5-6 3.5 4.51 2.5-3.01L21 15z" />
             </svg>
+            <!-- Keep the title -->
             MSX2 MV Player (2026.3 Geppetto)
         </div>
         <div style="display: flex; gap: 8px;">
@@ -2051,6 +2052,8 @@
             loopHistogramPhysics() {
                 requestAnimationFrame(() => this.loopHistogramPhysics());
 
+                // MANDATE: When paused, color bars MUST sustain their height (no decay).
+                // Peaks must still fall natively due to gravity (this.peakV logic below).
                 if (this.frames.length === 0) return;
 
                 // 현재 보여지고 있는 프레임(또는 최근 렌더링된 프레임)의 팔레트
@@ -2081,9 +2084,10 @@
                             let hitSpeed = barPct - this.peakY[i]; // 충격 깊이
                             this.peakY[i] = barPct; // 선을 바닥(바의 높이)에 걸침
 
-                            // 강하게 때렸을 경우, 수량(pct)에 비례하는 추진력을 얻어 튕겨 오름
                             if (hitSpeed > 0) {
-                                this.peakV[i] = (hitSpeed * 0.49) + (pct * 0.21);
+                                // MANDATE: When paused, peaks should settle on bars. 
+                                // Only apply the signal-based (pct) boost when playing.
+                                this.peakV[i] = (hitSpeed * 0.49) + (this.isPlaying ? (pct * 0.21) : 0);
                             } else {
                                 this.peakV[i] = 0;
                             }
