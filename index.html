@@ -2051,15 +2051,6 @@
             loopHistogramPhysics() {
                 requestAnimationFrame(() => this.loopHistogramPhysics());
 
-                // 만약 현재 재생중이 아니라면 => 서서히 바닥으로 추락 (탐색 중에도 멈춰있으면 추락)
-                // (가로 모드에서는 수치를 유지하라는 요청에 따라 분기 처리)
-                const isLandscape = window.innerHeight < window.innerWidth;
-                if (!this.isPlaying && !isLandscape) {
-                    for (let i = 0; i < 16; i++) {
-                        this.targetCounts[i] = Math.max(0, this.targetCounts[i] - 1500); // 서서히 감소
-                    }
-                }
-
                 if (this.frames.length === 0) return;
 
                 // 현재 보여지고 있는 프레임(또는 최근 렌더링된 프레임)의 팔레트
@@ -2078,8 +2069,8 @@
 
                     // [세로 모드 렌더링 (닫혀있지 않을 때만 물리 연산)]
                     if (!isCollapsed) {
-                        // 0 늘어났을 때 0.75 까지
-                        const barPct = Math.min(pct * 0.75, 100);
+                        // 0 늘어났을 때 최고점까지 올라가도록 비율 수정 (기존 0.62에서 +50% 증가한 0.93)
+                        const barPct = Math.min(pct * 0.93, 100);
 
                         // 1. 중력 가속도 적용 (매 프레임 0.45% 속도 감소 - 원래 15fps를 60fps로 이식하며 쫀득함 유지)
                         this.peakV[i] -= 0.45;

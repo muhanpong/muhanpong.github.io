@@ -973,13 +973,6 @@
             loopHistogramPhysics() {
                 requestAnimationFrame(() => this.loopHistogramPhysics());
 
-                const isLandscape = window.innerHeight < window.innerWidth;
-                if (!this.isPlaying && !isLandscape) {
-                    for (let i = 0; i < 16; i++) {
-                        this.targetCounts[i] = Math.max(0, this.targetCounts[i] - 1500); 
-                    }
-                }
-
                 if (this.frames.length === 0) return;
 
                 const currentFrameIdx = this.currentRenderedFrameIdx !== undefined && this.currentRenderedFrameIdx !== null ? this.currentRenderedFrameIdx : Math.min(Math.floor(this.pauseTime * this.fps), Math.max(0, this.totalFrames - 1));
@@ -1000,10 +993,10 @@
                     const pPeak = this.dom.pPeak[i];
 
                     if (!isCollapsed) {
-                        const barPct = Math.min(pct * 0.75, 100);
+                        const barPct = Math.min(pct * 0.93, 100);
 
-                        // MANDATE: Peak holder fall speed must remain slow (approx 0.1-0.2) for visual clarity. DO NOT INCREASE.
-                        this.peakV[i] -= 0.15;
+                        // 1. 중력 가속도 적용 (매 프레임 0.45% 속도 감소 - 원래 15fps를 60fps로 이식하며 쫀득함 유지)
+                        this.peakV[i] -= 0.45;
                         this.peakY[i] += this.peakV[i];
 
                         if (this.peakY[i] <= barPct) {

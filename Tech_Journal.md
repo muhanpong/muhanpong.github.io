@@ -49,3 +49,11 @@
     - Modified `loopHistogramPhysics` to prevent histogram values from falling to zero when the player is paused in landscape orientation.
     - Added orientation detection (`window.innerHeight < window.innerWidth`) to conditionally bypass the physics drop animation.
     - This ensures that the detailed analysis provided by the sidecar histograms remains visible and stable for inspection while the video is paused in landscape mode, while preserving the "falling" visual effect in portrait mode.
+## 2026-03-13 15:45 - Physics Synchronization
+- Applied refined histogram physics from index.html to newplayer.html.
+- Synchronized bar scaling factor (0.93) and gravity coefficient (0.45).
+- Verified 'natural fall' behavior during scrubbing in both player versions.
+## 2026-03-13 16:00 - UI/UX Refinement: Static Histogram Bars on Pause
+- Modified index.html and newplayer.html to stop histogram bars from shrinking when paused.
+- Peak holders (white lines) still fall naturally via gravitational physics until they hit the static bars.
+- This allows users to inspect color distribution statistics of a static frame while maintaining dynamic peak feedback.
