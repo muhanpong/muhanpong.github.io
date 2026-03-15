@@ -63,3 +63,7 @@
 ## 2026-03-13 16:30 - UI refinement: Swapped Download Icon and Dropdown
 - Swapped the HTML order of #btn-osd-save and #osd-codec-container in index.html and newplayer.html.
 - Updated CSS .osd-save-group:hover #osd-codec-container to use margin-left: 5px instead of margin-right.
+## 2026-03-13 16:45 - Bug Fix: AudioEncoder DOMException in MP4 Export
+- Improved AudioEncoder error handling with detailed console logging and UI feedback.
+- Robustified AudioEncoder configuration: ensured sampleRate is explicitly 48000 for Opus codec to comply with encoder requirements.
+- Applied these fixes to both index.html and newplayer.html.

@@ -1101,8 +1101,20 @@
                     videoEncoder.configure({ codec: 'avc1.42001f', width: 768, height: 576, bitrate: 5_000_000, framerate: this.fps });
                     let audioEncoder = null;
                     if (codecChoice !== 'none' && codecChoice !== 'mp3') {
-                        audioEncoder = new AudioEncoder({ output: (chunk, meta) => muxer.addAudioChunk(chunk, meta), error: e => console.error(e) });
-                        audioEncoder.configure({ codec: codecChoice === 'opus' ? 'opus' : 'mp4a.40.2', sampleRate: targetSampleRate, numberOfChannels: 1, bitrate: 128_000 });
+                        audioEncoder = new AudioEncoder({
+                            output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+                            error: e => {
+                                console.error('AudioEncoder error:', e);
+                                status.innerText = `오디오 인코딩 에러: ${e.message}`;
+                                showStatusIcon("오디오 에러", 'error');
+                            }
+                        });
+                        audioEncoder.configure({
+                            codec: codecChoice === 'opus' ? 'opus' : 'mp4a.40.2',
+                            sampleRate: codecChoice === 'opus' ? 48000 : targetSampleRate,
+                            numberOfChannels: 1,
+                            bitrate: 128_000
+                        });
                         const channelData = resampledAudioBuffer.getChannelData(0), step = codecChoice === 'opus' ? 960 : 1024;
                         for (let i = 0; i < channelData.length; i += step) {
                             const chunk = channelData.subarray(i, i + step);
