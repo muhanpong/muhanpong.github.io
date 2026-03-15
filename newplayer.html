@@ -126,7 +126,7 @@
         #btn-zoom { display: none !important; }
         #osd-codec-container { display: flex; align-items: center; width: 0; opacity: 0; overflow: hidden; transition: all 0.3s ease; white-space: nowrap; gap: 5px; }
         .osd-save-group { display: flex; align-items: center; }
-        .osd-save-group:hover #osd-codec-container { width: 130px; opacity: 1; margin-right: 5px; }
+        .osd-save-group:hover #osd-codec-container { width: 130px; opacity: 1; margin-left: 5px; }
         #osd-seek-slider { flex-grow: 1; cursor: pointer; accent-color: #ff0000; margin: 0; height: 20px; }
         .osd-time { font-family: monospace; font-size: 11px; color: #ddd; min-width: 85px; text-align: right; white-space: nowrap; cursor: pointer; }
         .osd-volume-group { display: flex; align-items: center; gap: 2px; }
@@ -289,6 +289,7 @@
                                 <div style="width: 10px;"></div>
                                 <button id="btn-zoom" title="Cycle Zoom (1x-5x)" data-zoom="3x"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /><path d="M12 10h-2v2H9v-2H7V9h2V7h1v2h2v1z" /></svg></button>
                                 <div class="osd-save-group">
+                                    <button id="btn-osd-save" title="Export MP4"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M17 18v1H6v-1h11zm-.5-6.6l-.7-.7-3.8 3.7V4h-1v10.4l-3.8-3.8-.7.7 5 5 5-5z" /></svg></button>
                                     <div id="osd-codec-container">
                                         <select id="audio-codec-select" style="background:#222; color:white; border:1px solid #444; border-radius:3px; font-size:11px; padding:1px 3px; cursor: pointer;">
                                             <option value="opus" selected>Opus (High Quality)</option>
@@ -296,7 +297,6 @@
                                             <option value="none">Mute (No Audio)</option>
                                         </select>
                                     </div>
-                                    <button id="btn-osd-save" title="Export MP4"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M17 18v1H6v-1h11zm-.5-6.6l-.7-.7-3.8 3.7V4h-1v10.4l-3.8-3.8-.7.7 5 5 5-5z" /></svg></button>
                                 </div>
                             </div>
                             <div class="osd-right-controls">

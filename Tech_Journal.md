@@ -60,3 +60,6 @@
 ## 2026-03-13 16:15 - Bug Fix: MP4 Export Functionality
 - Fixed missing click event listener for 'btn-osd-save' in index.html and newplayer.html.
 - Added visual feedback via showStatusIcon and status text timeouts in exportMP4().
+## 2026-03-13 16:30 - UI refinement: Swapped Download Icon and Dropdown
+- Swapped the HTML order of #btn-osd-save and #osd-codec-container in index.html and newplayer.html.
+- Updated CSS .osd-save-group:hover #osd-codec-container to use margin-left: 5px instead of margin-right.
