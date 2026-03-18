@@ -242,6 +242,24 @@
                     const pcmSlice = pcmInt16.subarray(startSample, endSample);
                     const mp3Chunk = mp3Encoder.encodeBuffer(pcmSlice);
                     const finalMp3Chunk = mp3Chunk.length > 0 ? new Uint8Array(mp3Chunk) : undefined;
+		    const mp3Chunk = mp3Encoder.encodeBuffer(pcmSlice);
+   		    let finalMp3Chunk = mp3Chunk.length > 0 ? new Uint8Array(mp3Chunk) : undefined;
+   
+   		    // 🚀 [핵심 추가] 마지막 프레임일 때, LAME 인코더 내부의 잔여 버퍼를 쏟아냅니다.
+   		    if (frameIdx === totalFrames - 1) {
+   		        const leftoverMp3 = mp3Encoder.flush();
+   		        if (leftoverMp3.length > 0) {
+   		    	if (finalMp3Chunk) {
+   		    	    // 기존 청크와 잔여 청크 병합
+   		    	    const merged = new Uint8Array(finalMp3Chunk.length + leftoverMp3.length);
+   		    	    merged.set(finalMp3Chunk);
+   		    	    merged.set(leftoverMp3, finalMp3Chunk.length);
+   		    	    finalMp3Chunk = merged;
+   		    	} else {
+   		    	    finalMp3Chunk = new Uint8Array(leftoverMp3);
+   		    	}
+   		        }
+   		    }
 
                     // 🚀 Worker에게 한 프레임 연산을 지시하고 끝날 때까지 대기
                     await new Promise((resolve, reject) => {
