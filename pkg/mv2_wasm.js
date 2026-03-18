@@ -1,5 +1,4 @@
 /* @ts-self-types="./mv2_wasm.d.ts" */
-/* build at: 2026/03/18 23:21 KST */
 
 export class Mv2Encoder {
     __destroy_into_raw() {
