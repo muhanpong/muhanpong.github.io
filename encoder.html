@@ -248,7 +248,7 @@
                     offset += chunk.length;
                 }
 
-                const totalFrames = Math.floor(video.duration * TARGET_FPS);
+                //const totalFrames = Math.floor(video.duration * TARGET_FPS);
                 
                 // 🚀 [핵심 수정] 원본 비디오 해상도 유지! WASM에서 종횡비를 처리하도록 합니다.
                 const origW = video.videoWidth;
