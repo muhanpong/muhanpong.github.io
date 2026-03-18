@@ -217,20 +217,19 @@
 
 		    // 🚀 [수정 후] 완벽한 프레임 안착을 보장하는 강력한 Seek 대기 로직
 		    video.currentTime = frameIdx / TARGET_FPS;
-		    await new Promise((resolve) => {
-		        const onSeeked = () => {
-		    	video.removeEventListener('seeked', onSeeked);
-		    	clearTimeout(fallback);
-		    	resolve();
-		        };
-		        video.addEventListener('seeked', onSeeked);
-		        
-		        // MP4 디코딩이 지연될 경우를 대비한 1초(1000ms)의 넉넉한 안전망
-		        const fallback = setTimeout(() => {
-		    	video.removeEventListener('seeked', onSeeked);
-		    	resolve(); 
-		        }, 1000); 
-		    });
+            await new Promise((resolve) => {
+                if ('requestVideoFrameCallback' in video) {
+                    // 비디오 텍스처가 렌더링 파이프라인에 완전히 올라갔을 때 발동
+                    video.requestVideoFrameCallback(() => resolve());
+                } else {
+                    // 구형 브라우저 폴백
+                    const onSeeked = () => {
+                        video.removeEventListener('seeked', onSeeked);
+                        requestAnimationFrame(() => resolve());
+                    };
+                    video.addEventListener('seeked', onSeeked);
+                }
+            });
 
 
                     offCtx.drawImage(video, 0, 0, 256, 192);
