@@ -209,10 +209,29 @@
                     progressBar.value = frameIdx + 1;
 
                     video.currentTime = frameIdx / TARGET_FPS;
-                    await new Promise(resolve => { 
-                        video.onseeked = resolve; 
-                        setTimeout(resolve, 50); 
-                    });
+		    // [수정 전]
+		    // await new Promise(resolve => { 
+		    //     video.onseeked = resolve; 
+		    //     setTimeout(resolve, 50); 
+		    // });
+
+		    // 🚀 [수정 후] 완벽한 프레임 안착을 보장하는 강력한 Seek 대기 로직
+		    video.currentTime = frameIdx / TARGET_FPS;
+		    await new Promise((resolve) => {
+		        const onSeeked = () => {
+		    	video.removeEventListener('seeked', onSeeked);
+		    	clearTimeout(fallback);
+		    	resolve();
+		        };
+		        video.addEventListener('seeked', onSeeked);
+		        
+		        // MP4 디코딩이 지연될 경우를 대비한 1초(1000ms)의 넉넉한 안전망
+		        const fallback = setTimeout(() => {
+		    	video.removeEventListener('seeked', onSeeked);
+		    	resolve(); 
+		        }, 1000); 
+		    });
+
 
                     offCtx.drawImage(video, 0, 0, 256, 192);
                     const frameData = offCtx.getImageData(0, 0, 256, 192);
