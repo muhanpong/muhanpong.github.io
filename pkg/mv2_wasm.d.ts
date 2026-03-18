@@ -6,6 +6,7 @@ export class Mv2Encoder {
     [Symbol.dispose](): void;
     add_frame(rgba_data: Uint8Array, in_w: number, in_h: number, channels: number, mp3_data?: Uint8Array | null, pcm_data?: Int16Array | null): void;
     finish(): Uint8Array;
+    finish_rgb(): Uint8Array;
     get_last_dithered_frame(): Uint8Array;
     constructor(config_json: string);
 }
@@ -22,6 +23,7 @@ export interface InitOutput {
     readonly init_panic_hook: () => void;
     readonly mv2encoder_add_frame: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
     readonly mv2encoder_finish: (a: number) => any;
+    readonly mv2encoder_finish_rgb: (a: number) => any;
     readonly mv2encoder_get_last_dithered_frame: (a: number) => any;
     readonly mv2encoder_new: (a: number, b: number) => [number, number, number];
     readonly test_anchor_resolution: (a: number, b: number, c: number) => any;

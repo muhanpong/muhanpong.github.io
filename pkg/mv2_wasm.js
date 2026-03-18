@@ -38,6 +38,13 @@ export class Mv2Encoder {
     /**
      * @returns {Uint8Array}
      */
+    finish_rgb() {
+        const ret = wasm.mv2encoder_finish_rgb(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {Uint8Array}
+     */
     get_last_dithered_frame() {
         const ret = wasm.mv2encoder_get_last_dithered_frame(this.__wbg_ptr);
         return ret;
