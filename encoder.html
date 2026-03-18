@@ -120,7 +120,7 @@
     </div>
 
     <div class="panel">
-        <label style="display: block; text-align: center; margin-bottom: 10px;">Real-time Dither Preview (512x384)</label>
+        <label style="display: block; text-align: center; margin-bottom: 10px;">Real-time Dither Preview (768x596)</label>
         <canvas id="previewCanvas" width="256" height="192"></canvas>
     </div>
 
@@ -220,13 +220,19 @@
                 }
 
                 const totalFrames = Math.floor(video.duration * TARGET_FPS);
-                const mp3BytesPerFrame = totalMp3Len / totalFrames;
                 
+                // 🚀 [핵심 수정] 원본 비디오 해상도 유지! WASM에서 종횡비를 처리하도록 합니다.
+                const origW = video.videoWidth;
+                const origH = video.videoHeight;
                 const offscreenCanvas = document.createElement('canvas');
-                offscreenCanvas.width = 256; offscreenCanvas.height = 192;
+                offscreenCanvas.width = origW; 
+                offscreenCanvas.height = origH;
                 const offCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
 
                 progressBar.max = totalFrames;
+
+                let globalMp3Offset = 0;
+                const bps = 16000; // 128kbps / 8
 
                 // 2. 메인 인코딩 루프
                 for (let frameIdx = 0; frameIdx < totalFrames; frameIdx++) {
@@ -247,14 +253,23 @@
                         }
                     });
 
-                    offCtx.drawImage(video, 0, 0, 256, 192);
-                    const frameData = offCtx.getImageData(0, 0, 256, 192);
+                    // 🚀 원본 해상도 그대로 캡처합니다.
+                    offCtx.drawImage(video, 0, 0, origW, origH);
+                    const frameData = offCtx.getImageData(0, 0, origW, origH);
                     const rgbaBytes = new Uint8Array(frameData.data.buffer);
 
-                    // MP3 bytes for this specific frame
-                    const startByte = Math.floor(frameIdx * mp3BytesPerFrame);
-                    const endByte = Math.floor((frameIdx + 1) * mp3BytesPerFrame);
-                    const mp3Chunk = fullMp3.slice(startByte, endByte);
+                    // MP3 bytes for this specific frame (Must be aligned to 32-byte chunks like new_encoder.py)
+                    const target_a = Math.floor((frameIdx + 1) * (bps / TARGET_FPS));
+                    let sz_blocks = Math.max(1, Math.min(111, Math.ceil((target_a - globalMp3Offset) / 32)));
+                    
+                    let chunkByteSize = sz_blocks * 32;
+                    let mp3Chunk;
+                    if (globalMp3Offset >= fullMp3.length) {
+                        mp3Chunk = new Uint8Array(0); // EOF
+                    } else {
+                        mp3Chunk = fullMp3.slice(globalMp3Offset, globalMp3Offset + chunkByteSize);
+                        globalMp3Offset += chunkByteSize;
+                    }
                     
                     // Audio EQ analysis needs raw PCM
                     const samplesPerFrame = Math.floor(TARGET_SAMPLE_RATE / TARGET_FPS);
@@ -283,7 +298,8 @@
                         
                         worker.postMessage({ 
                             type: 'ENCODE_FRAME', 
-                            payload: { rgbaBytes, mp3Chunk, pcmSlice, frameIdx } 
+                            // 🚀 origW, origH를 같이 넘겨 WASM이 패딩/크롭을 수행하게 합니다.
+                            payload: { rgbaBytes, origW, origH, mp3Chunk, pcmSlice, frameIdx } 
                         });
                     });
                 }
@@ -291,6 +307,8 @@
                 // 3. 인코딩 마무리
                 statusText.innerText = "Finalizing & Muxing binary files...";
                 
+                const remainingMp3 = fullMp3.slice(globalMp3Offset);
+
                 await new Promise((resolve, reject) => {
                     worker.onmessage = (e) => {
                         if (e.data.type === 'FINISHED') {
@@ -301,7 +319,7 @@
                         }
                         if (e.data.type === 'ERROR') reject(e.data.payload);
                     };
-                    worker.postMessage({ type: 'FINISH' });
+                    worker.postMessage({ type: 'FINISH', payload: { remainingMp3 } });
                 });
 
                 statusText.innerText = "Encoding Complete! 🎉";

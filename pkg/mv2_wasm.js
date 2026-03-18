@@ -29,10 +29,13 @@ export class Mv2Encoder {
         wasm.mv2encoder_add_frame(this.__wbg_ptr, ptr0, len0, in_w, in_h, channels, ptr1, len1, ptr2, len2);
     }
     /**
+     * @param {Uint8Array | null} [remaining_mp3]
      * @returns {Uint8Array}
      */
-    finish() {
-        const ret = wasm.mv2encoder_finish(this.__wbg_ptr);
+    finish(remaining_mp3) {
+        var ptr0 = isLikeNone(remaining_mp3) ? 0 : passArray8ToWasm0(remaining_mp3, wasm.__wbindgen_malloc);
+        var len0 = WASM_VECTOR_LEN;
+        const ret = wasm.mv2encoder_finish(this.__wbg_ptr, ptr0, len0);
         return ret;
     }
     /**
