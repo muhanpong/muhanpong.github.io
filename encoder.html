@@ -9,14 +9,16 @@
         .panel { background: #2a2a2a; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
         label { font-size: 0.9em; color: #aaa; }
-        input, select { width: 100%; padding: 8px; margin-top: 4px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; }
-        button { width: 100%; padding: 12px; background: #007acc; color: white; border: none; border-radius: 4px; font-size: 1.1em; cursor: pointer; }
+        input, select { width: 100%; padding: 8px; margin-top: 4px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #007acc; color: white; border: none; border-radius: 4px; font-size: 1.1em; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #005f9e; }
         button:disabled { background: #555; cursor: not-allowed; }
         canvas { background: #000; display: block; margin: 0 auto; image-rendering: pixelated; width: 512px; height: 384px; border: 2px solid #555; }
         #progress-container { display: none; margin-top: 15px; }
-        progress { width: 100%; height: 20px; }
+        progress { width: 100%; height: 20px; margin-top: 5px; }
+        #statusText { font-weight: bold; color: #4db8ff; }
     </style>
-    <!-- 가벼운 순수 JS MP3 인코더 라이브러리 -->
+    <!-- 브라우저용 가벼운 순수 JS MP3 인코더 라이브러리 -->
     <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
 </head>
 <body>
@@ -70,23 +72,25 @@
     </div>
 
     <script type="module">
-        // [중요] wasm-pack으로 빌드한 실제 JS/WASM 경로로 수정해야 합니다!
+        // =========================================================================
+        // [중요] 실제 Rust WASM 모듈을 연동할 때 아래 주석을 해제하세요!
         // import init, { Mv2Encoder } from './pkg/msx_encoder.js';
+        // =========================================================================
 
-                // [테스트용 Mock 객체 - 실제 연동 시 삭제]
+        // [테스트용 Mock 객체 - WASM 모듈 연동 후 이 클래스는 통째로 삭제하세요]
         class MockMv2Encoder {
-            constructor(config) {}
+            constructor(config) { console.log("Encoder init with config:", JSON.parse(config)); }
             add_frame(rgba, w, h, ch, mp3, pcm) {
-                // WASM 연산 시뮬레이션을 위한 약간의 딜레이 (실제 연동 시 삭제)
+                // WASM 연산 시뮬레이션을 위한 약간의 딜레이
                 let sum = 0; for(let i=0; i<100000; i++) sum += i; 
             }
             get_last_dithered_frame() { 
-                // 노이즈 화면 생성 (작동 확인용)
+                // TV 노이즈 화면 생성 (실시간 재생 확인용)
                 const arr = new Uint8Array(256 * 192 * 3);
                 for(let i=0; i<arr.length; i++) arr[i] = Math.random() * 255;
                 return arr;
             }
-            finish() { return new Uint8Array([0x4D, 0x4D, 0x43, 0x53, 0x44, 0x5F, 0x4D, 0x56]); }
+            finish() { return new Uint8Array([0x4D, 0x4D, 0x43, 0x53, 0x44, 0x5F, 0x4D, 0x56]); } // "MMCSD_MV"
             finish_rgb() { return new Uint8Array(100); }
         }
 
@@ -97,6 +101,7 @@
         const canvas = document.getElementById('previewCanvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
+        // 인코딩 타겟 스펙
         const TARGET_FPS = 15.0;
         const TARGET_SAMPLE_RATE = 44100;
 
@@ -108,10 +113,10 @@
             document.getElementById('progress-container').style.display = 'block';
 
             try {
-                // 1. WASM 초기화 (실제 연결 시 주석 해제)
+                // 1. WASM 모듈 초기화 (실제 연결 시 주석 해제)
                 // await init();
 
-                // 2. 설정 JSON 구성 (WASM 전달용)
+                // 2. 사용자 입력값을 가져와 JSON 설정 생성
                 const config = {
                     width: 256,
                     height: 192,
@@ -127,20 +132,23 @@
                     sample_rate: TARGET_SAMPLE_RATE, fps: TARGET_FPS, metric: "euclidean"
                 };
 
+                // Rust 인코더 인스턴스 생성 (Mock 교체 지점)
                 const encoder = new MockMv2Encoder(JSON.stringify(config)); // 실제: new Mv2Encoder(...)
 
                 statusText.innerText = "Extracting Audio & Preparing Video...";
+                
+                // 3. 비디오 파일 로드 (가상의 비디오 태그 활용)
                 const videoURL = URL.createObjectURL(file);
                 const video = document.createElement('video');
                 video.src = videoURL;
                 video.muted = true;
                 await new Promise(resolve => { video.onloadedmetadata = resolve; });
 
-                // 3. 오디오 추출 (PCM 변환)
-                const audioCtx = new AudioContext({ sampleRate: TARGET_SAMPLE_RATE });
+                // 4. 오디오 추출 및 변환 (WAV -> Float32 -> Int16)
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: TARGET_SAMPLE_RATE });
                 const arrayBuffer = await file.arrayBuffer();
                 const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-                const pcmFloat32 = audioBuffer.getChannelData(0); 
+                const pcmFloat32 = audioBuffer.getChannelData(0); // 첫 번째 채널(Mono) 추출
                 
                 const pcmInt16 = new Int16Array(pcmFloat32.length);
                 for (let i = 0; i < pcmFloat32.length; i++) {
@@ -148,11 +156,10 @@
                     pcmInt16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                 }
 
-                const mp3Encoder = new lamejs.Mp3Encoder(1, TARGET_SAMPLE_RATE, 128); 
+                const mp3Encoder = new lamejs.Mp3Encoder(1, TARGET_SAMPLE_RATE, 128); // 채널, 샘플레이트, kbps
                 const samplesPerFrame = Math.floor(TARGET_SAMPLE_RATE / TARGET_FPS);
                 
-                // 4. [병목 해결 1] 비디오 캡처용 캔버스를 무조건 256x192로 고정!
-                // 브라우저 GPU가 하드웨어 가속으로 빠르게 리사이징 해줍니다.
+                // 5. 프레임 추출을 위한 숨겨진 캔버스 (크기를 256x192로 고정하여 GPU 다운스케일링 유도)
                 const offscreenCanvas = document.createElement('canvas');
                 offscreenCanvas.width = 256;
                 offscreenCanvas.height = 192;
@@ -161,59 +168,66 @@
                 const totalFrames = Math.floor(video.duration * TARGET_FPS);
                 progressBar.max = totalFrames;
 
-                // 5. 비동기 인코딩 루프 (화면 멈춤 현상 해결)
+                // 6. 메인 인코딩 루프 (Frame by Frame)
                 for (let frameIdx = 0; frameIdx < totalFrames; frameIdx++) {
                     
-                    // [병목 해결 2] 브라우저 UI 스레드에 렌더링할 시간을 양보합니다 (실시간 재생의 핵심!)
+                    // [중요] 브라우저 UI 스레드에 렌더링할 시간(숨통)을 양보합니다. (화면 멈춤 방지)
                     await new Promise(resolve => requestAnimationFrame(resolve));
                     
                     statusText.innerText = `Encoding Frame ${frameIdx + 1} / ${totalFrames}...`;
-                    progressBar.value = frameIdx;
+                    progressBar.value = frameIdx + 1;
 
-                    // 비디오 프레임 탐색
+                    // 6-A. 비디오 시간을 특정 프레임으로 이동
                     video.currentTime = frameIdx / TARGET_FPS;
-                    await new Promise(resolve => { video.onseeked = resolve; });
+                    await new Promise(resolve => { 
+                        video.onseeked = resolve; 
+                        // 간혹 seek 이벤트가 씹히는 브라우저 버그를 위한 폴백
+                        setTimeout(resolve, 100); 
+                    });
 
-                    // [병목 해결 1] 1080p 원본을 그리는 즉시 256x192로 초고속 GPU 리사이징
+                    // 6-B. GPU 가속을 이용해 1080p -> 256x192 로 즉시 축소 렌더링
                     offCtx.drawImage(video, 0, 0, 256, 192);
                     
-                    // 메모리 복사량 대폭 감소 (8MB -> 147KB)
+                    // 축소된 이미지의 RGBA 바이트 배열 추출 (메모리 복사량 극소화)
                     const frameData = offCtx.getImageData(0, 0, 256, 192);
                     const rgbaBytes = new Uint8Array(frameData.data.buffer);
 
-                    // 오디오 슬라이스 및 MP3 압축
+                    // 6-C. 오디오 배열 슬라이싱 및 MP3 Chunk 압축
                     const startSample = frameIdx * samplesPerFrame;
-                    const endSample = startSample + samplesPerFrame;
+                    const endSample = Math.min(startSample + samplesPerFrame, pcmInt16.length);
                     const pcmSlice = pcmInt16.subarray(startSample, endSample);
                     const mp3Chunk = mp3Encoder.encodeBuffer(pcmSlice);
                     const finalMp3Chunk = mp3Chunk.length > 0 ? new Uint8Array(mp3Chunk) : undefined;
 
-                    // 🚀 RUST (WASM) 호출
-                    // 이미 256x192로 잘라서 넘기므로, Rust 내부의 Transform 로직 부하도 사라집니다.
+                    // 6-D. 🚀 RUST (WASM) 호출 - 모든 무거운 연산(양자화, 디더링, VRAM 패킹)
                     encoder.add_frame(rgbaBytes, 256, 192, 4, finalMp3Chunk, pcmSlice);
 
-                    // 🎨 실시간 디더링 프리뷰 그리기 (Repaint 양보 덕분에 이제 부드럽게 보입니다!)
+                    // 6-E. 🎨 실시간 프리뷰 그리기
                     const ditheredRGB = encoder.get_last_dithered_frame();
                     const previewData = ctx.createImageData(256, 192);
+                    // RGB 데이터를 RGBA(Canvas 규격)로 변환
                     for (let i = 0, j = 0; i < ditheredRGB.length; i += 3, j += 4) {
                         previewData.data[j] = ditheredRGB[i];
                         previewData.data[j+1] = ditheredRGB[i+1];
                         previewData.data[j+2] = ditheredRGB[i+2];
-                        previewData.data[j+3] = 255; 
+                        previewData.data[j+3] = 255; // Alpha 불투명
                     }
                     ctx.putImageData(previewData, 0, 0);
                 }
 
+                // 7. 인코딩 마무리 
                 statusText.innerText = "Finalizing & Muxing binary files...";
-                const leftoverMp3 = mp3Encoder.flush(); 
+                const leftoverMp3 = mp3Encoder.flush(); // 잔여 버퍼 비우기 (MV2 구조상 생략해도 무방함)
                 
+                // Rust 마무리 호출 및 바이너리 획득
                 const mv2Bytes = encoder.finish();
                 const rgbBytes = encoder.finish_rgb();
 
+                // 8. 브라우저 다운로드 트리거
                 downloadFile(mv2Bytes, "retro_output.mv2", "application/octet-stream");
                 downloadFile(rgbBytes, "retro_output.rgb", "application/octet-stream");
 
-                statusText.innerText = "Encoding Complete! 🎉";
+                statusText.innerText = "Encoding Complete! 🎉 (Files downloaded)";
 
             } catch (err) {
                 console.error(err);
@@ -223,6 +237,7 @@
             }
         });
 
+        // 파일 다운로드 헬퍼 함수
         function downloadFile(uint8Array, filename, mimeType) {
             const blob = new Blob([uint8Array], { type: mimeType });
             const url = URL.createObjectURL(blob);
