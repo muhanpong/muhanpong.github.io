@@ -149,6 +149,44 @@
             document.getElementById('progress-container').style.display = 'block';
 
             try {
+                statusText.innerText = "Extracting Audio & Preparing Video...";
+                
+                // 1. 비디오 메타데이터 먼저 로드하여 duration 확보
+                const videoURL = URL.createObjectURL(file);
+                const video = document.createElement('video');
+                video.src = videoURL;
+                video.muted = true;
+                await new Promise(resolve => { video.onloadedmetadata = resolve; });
+
+                const totalFrames = Math.floor(video.duration * TARGET_FPS);
+                
+                // Format play_time as MM:SS.ms
+                const m = Math.floor(video.duration / 60);
+                const s = Math.floor(video.duration % 60);
+                const ms = Math.floor((video.duration % 1) * 100);
+                const playTime = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+
+                // 2. 풍부한 Recipe JSON 메타데이터 생성 (PLAYER_METADATA_SPEC.md 호환)
+                const recipeMeta = {
+                    encoder: "MV2 Web Encoder (WASM)",
+                    source: file.name,
+                    date: new Date().toISOString(),
+                    duration_sec: video.duration,
+                    play_time: playTime,
+                    total_frames: totalFrames,
+                    settings: {
+                        quantizer: document.getElementById('cfg_quantizer').value,
+                        dither: "Fs",
+                        dither_strength: parseInt(document.getElementById('cfg_dither').value),
+                        anchors: document.getElementById('cfg_anchors').value.length,
+                        anchor_colors: document.getElementById('cfg_anchors').value,
+                        extra_colors: parseInt(document.getElementById('cfg_colors').value),
+                        aspect: document.getElementById('cfg_aspect').value,
+                        metric: document.getElementById('cfg_metric').value,
+                        nv: false // Web version does not use Nvidia HW
+                    }
+                };
+
                 const config = {
                     width: 256, height: 192,
                     quantizer: document.getElementById('cfg_quantizer').value,
@@ -157,7 +195,7 @@
                     max_extra_colors: parseInt(document.getElementById('cfg_colors').value),
                     quant_iters_initial: parseInt(document.getElementById('cfg_iter_init').value),
                     quant_iters_subsequent: parseInt(document.getElementById('cfg_iter_sub').value),
-                    metadata: JSON.stringify({ filename: file.name }),
+                    metadata: JSON.stringify(recipeMeta),
                     aspect_mode: document.getElementById('cfg_aspect').value, 
                     crop_left: parseFloat(document.getElementById('cfg_crop_left').value), 
                     crop_up: parseFloat(document.getElementById('cfg_crop_up').value),
@@ -167,7 +205,7 @@
 
                 statusText.innerText = "Initializing WASM Worker...";
 
-                // 1. Worker에 초기화 명령 전달 및 대기
+                // 3. Worker에 초기화 명령 전달 및 대기
                 await new Promise((resolve, reject) => {
                     worker.onmessage = (e) => {
                         if (e.data.type === 'INIT_DONE') resolve();
@@ -175,15 +213,6 @@
                     };
                     worker.postMessage({ type: 'INIT', payload: { config: JSON.stringify(config) } });
                 });
-
-                statusText.innerText = "Extracting Audio & Preparing Video...";
-                
-                // (기존과 동일한 비디오/오디오 준비 로직)
-                const videoURL = URL.createObjectURL(file);
-                const video = document.createElement('video');
-                video.src = videoURL;
-                video.muted = true;
-                await new Promise(resolve => { video.onloadedmetadata = resolve; });
 
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: TARGET_SAMPLE_RATE });
                 const arrayBuffer = await file.arrayBuffer();
