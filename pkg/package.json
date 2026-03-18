@@ -1,5 +1,6 @@
 {
   "name": "mv2_wasm",
+  "type": "module",
   "version": "0.1.0",
   "files": [
     "mv2_wasm_bg.wasm",
@@ -7,5 +8,8 @@
     "mv2_wasm.d.ts"
   ],
   "main": "mv2_wasm.js",
-  "types": "mv2_wasm.d.ts"
+  "types": "mv2_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
 }
