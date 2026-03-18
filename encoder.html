@@ -71,6 +71,29 @@
                 <label>Subsequent Iterations (Speed)</label>
                 <input type="number" id="cfg_iter_sub" value="3" min="1">
             </div>
+            <div>
+                <label>Distance Metric</label>
+                <select id="cfg_metric">
+                    <option value="redmean">Redmean (Skin/Natural Video)</option>
+                    <option value="euclidean">Euclidean (Test Patterns/Anime)</option>
+                </select>
+            </div>
+            <div>
+                <label>Aspect Mode</label>
+                <select id="cfg_aspect">
+                    <option value="crop">Crop (Pan & Scan)</option>
+                    <option value="pad">Pad (Letterbox)</option>
+                    <option value="force">Force (Stretch)</option>
+                </select>
+            </div>
+            <div>
+                <label>Crop Left Offset (%)</label>
+                <input type="number" id="cfg_crop_left" value="0" min="-100" max="100">
+            </div>
+            <div>
+                <label>Crop Up Offset (%)</label>
+                <input type="number" id="cfg_crop_up" value="0" min="-100" max="100">
+            </div>
         </div>
 
         <button id="btnStart">Start Encoding</button>
@@ -122,9 +145,12 @@
                     quant_iters_initial: parseInt(document.getElementById('cfg_iter_init').value),
                     quant_iters_subsequent: parseInt(document.getElementById('cfg_iter_sub').value),
                     metadata: JSON.stringify({ filename: file.name }),
-                    aspect_mode: "crop",
-                    crop_left: 0.0, crop_up: 0.0,
-                    sample_rate: TARGET_SAMPLE_RATE, fps: TARGET_FPS, metric: "euclidean"
+                    aspect_mode: document.getElementById('cfg_aspect').value,
+                    crop_left: parseFloat(document.getElementById('cfg_crop_left').value),
+                    crop_up: parseFloat(document.getElementById('cfg_crop_up').value),
+                    sample_rate: TARGET_SAMPLE_RATE,
+                    fps: TARGET_FPS,
+                    metric: document.getElementById('cfg_metric').value
                 };
 
                 
