@@ -193,14 +193,36 @@
                     pcmInt16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                 }
 
+                statusText.innerText = "Encoding MP3 Audio...";
                 const mp3Encoder = new lamejs.Mp3Encoder(1, TARGET_SAMPLE_RATE, 128); 
-                const samplesPerFrame = Math.floor(TARGET_SAMPLE_RATE / TARGET_FPS);
+                const mp3Data = [];
+                
+                // Encode in chunks to prevent UI freeze
+                const mp3ChunkSize = 1152 * 10;
+                for (let i = 0; i < pcmInt16.length; i += mp3ChunkSize) {
+                    const chunk = pcmInt16.subarray(i, i + mp3ChunkSize);
+                    const mp3buf = mp3Encoder.encodeBuffer(chunk);
+                    if (mp3buf.length > 0) mp3Data.push(new Uint8Array(mp3buf));
+                }
+                const leftover = mp3Encoder.flush();
+                if (leftover.length > 0) mp3Data.push(new Uint8Array(leftover));
+                
+                // Merge all MP3 chunks into one Uint8Array
+                const totalMp3Len = mp3Data.reduce((acc, curr) => acc + curr.length, 0);
+                const fullMp3 = new Uint8Array(totalMp3Len);
+                let offset = 0;
+                for (const chunk of mp3Data) {
+                    fullMp3.set(chunk, offset);
+                    offset += chunk.length;
+                }
+
+                const totalFrames = Math.floor(video.duration * TARGET_FPS);
+                const mp3BytesPerFrame = totalMp3Len / totalFrames;
                 
                 const offscreenCanvas = document.createElement('canvas');
                 offscreenCanvas.width = 256; offscreenCanvas.height = 192;
                 const offCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
 
-                const totalFrames = Math.floor(video.duration * TARGET_FPS);
                 progressBar.max = totalFrames;
 
                 // 2. 메인 인코딩 루프
@@ -208,55 +230,34 @@
                     statusText.innerText = `Encoding Frame ${frameIdx + 1} / ${totalFrames}...`;
                     progressBar.value = frameIdx + 1;
 
-                    video.currentTime = frameIdx / TARGET_FPS;
-		    // [수정 전]
-		    // await new Promise(resolve => { 
-		    //     video.onseeked = resolve; 
-		    //     setTimeout(resolve, 50); 
-		    // });
-
-		    // 🚀 [수정 후] 완벽한 프레임 안착을 보장하는 강력한 Seek 대기 로직
+		    // 🚀 완벽한 프레임 안착을 보장하는 강력한 Seek 대기 로직
 		    video.currentTime = frameIdx / TARGET_FPS;
-            await new Promise((resolve) => {
-                if ('requestVideoFrameCallback' in video) {
-                    // 비디오 텍스처가 렌더링 파이프라인에 완전히 올라갔을 때 발동
-                    video.requestVideoFrameCallback(() => resolve());
-                } else {
-                    // 구형 브라우저 폴백
-                    const onSeeked = () => {
-                        video.removeEventListener('seeked', onSeeked);
-                        requestAnimationFrame(() => resolve());
-                    };
-                    video.addEventListener('seeked', onSeeked);
-                }
-            });
-
+                    await new Promise((resolve) => {
+                        if ('requestVideoFrameCallback' in video) {
+                            video.requestVideoFrameCallback(() => resolve());
+                        } else {
+                            const onSeeked = () => {
+                                video.removeEventListener('seeked', onSeeked);
+                                requestAnimationFrame(() => resolve());
+                            };
+                            video.addEventListener('seeked', onSeeked);
+                        }
+                    });
 
                     offCtx.drawImage(video, 0, 0, 256, 192);
                     const frameData = offCtx.getImageData(0, 0, 256, 192);
                     const rgbaBytes = new Uint8Array(frameData.data.buffer);
 
+                    // MP3 bytes for this specific frame
+                    const startByte = Math.floor(frameIdx * mp3BytesPerFrame);
+                    const endByte = Math.floor((frameIdx + 1) * mp3BytesPerFrame);
+                    const mp3Chunk = fullMp3.slice(startByte, endByte);
+                    
+                    // Audio EQ analysis needs raw PCM
+                    const samplesPerFrame = Math.floor(TARGET_SAMPLE_RATE / TARGET_FPS);
                     const startSample = frameIdx * samplesPerFrame;
                     const endSample = Math.min(startSample + samplesPerFrame, pcmInt16.length);
                     const pcmSlice = pcmInt16.subarray(startSample, endSample);
-		    const mp3Chunk = mp3Encoder.encodeBuffer(pcmSlice);
-   		    let finalMp3Chunk = mp3Chunk.length > 0 ? new Uint8Array(mp3Chunk) : undefined;
-   
-   		    // 🚀 [핵심 추가] 마지막 프레임일 때, LAME 인코더 내부의 잔여 버퍼를 쏟아냅니다.
-   		    if (frameIdx === totalFrames - 1) {
-   		        const leftoverMp3 = mp3Encoder.flush();
-   		        if (leftoverMp3.length > 0) {
-   		    	if (finalMp3Chunk) {
-   		    	    // 기존 청크와 잔여 청크 병합
-   		    	    const merged = new Uint8Array(finalMp3Chunk.length + leftoverMp3.length);
-   		    	    merged.set(finalMp3Chunk);
-   		    	    merged.set(leftoverMp3, finalMp3Chunk.length);
-   		    	    finalMp3Chunk = merged;
-   		    	} else {
-   		    	    finalMp3Chunk = new Uint8Array(leftoverMp3);
-   		    	}
-   		        }
-   		    }
 
                     // 🚀 Worker에게 한 프레임 연산을 지시하고 끝날 때까지 대기
                     await new Promise((resolve, reject) => {
@@ -264,27 +265,22 @@
 			    if (e.data.type === 'FRAME_DONE') {
 				const ditheredRGB = e.data.payload.ditheredRGB; // 256 * 192 * 3 바이트
 				
-				// 🚀 [확인] 픽셀을 복사할 영역 크기는 반드시 내부 해상도인 256, 192여야 합니다.
 				const previewData = ctx.createImageData(256, 192);
-				
 				for (let i = 0, j = 0; i < ditheredRGB.length; i += 3, j += 4) {
 				    previewData.data[j] = ditheredRGB[i];
 				    previewData.data[j+1] = ditheredRGB[i+1];
 				    previewData.data[j+2] = ditheredRGB[i+2];
 				    previewData.data[j+3] = 255;
 				}
-				
-				// 🚀 [확인] 그리는 위치도 0,0 좌표에 256x192 크기 그대로 그립니다.
 				ctx.putImageData(previewData, 0, 0);
-				
-				resolve(); // 다음 프레임 진행
+				resolve();
 			    }
                             if (e.data.type === 'ERROR') reject(e.data.payload);
                         };
                         
                         worker.postMessage({ 
                             type: 'ENCODE_FRAME', 
-                            payload: { rgbaBytes, mp3Chunk: finalMp3Chunk, pcmSlice, frameIdx } 
+                            payload: { rgbaBytes, mp3Chunk, pcmSlice, frameIdx } 
                         });
                     });
                 }
