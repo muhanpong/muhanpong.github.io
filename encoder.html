@@ -110,8 +110,9 @@
     </div>
 
     <script type="module">
-        import init, { Mv2Encoder } from './pkg/mv2_wasm.js';
-        
+	// ⚠️ 맨 위쪽의 WASM import 구문은 삭제하세요! (Worker가 대신 합니다)
+        //import init, { Mv2Encoder } from './pkg/mv2_wasm.js';
+
         const videoInput = document.getElementById('videoInput');
         const btnStart = document.getElementById('btnStart');
         const progressBar = document.getElementById('progressBar');
@@ -119,9 +120,11 @@
         const canvas = document.getElementById('previewCanvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-        // 인코딩 타겟 스펙
         const TARGET_FPS = 15.0;
         const TARGET_SAMPLE_RATE = 44100;
+
+        // Web Worker 생성 (타입을 module로 지정해야 import가 작동함)
+        const worker = new Worker('./worker.js', { type: 'module' });
 
         btnStart.addEventListener('click', async () => {
             if (!videoInput.files.length) return alert("Please select a video file first!");
@@ -131,13 +134,8 @@
             document.getElementById('progress-container').style.display = 'block';
 
             try {
-                // 1. WASM 모듈 초기화 (실제 연결 시 주석 해제)
-                await init();
-
-                // 2. 사용자 입력값을 가져와 JSON 설정 생성
                 const config = {
-                    width: 256,
-                    height: 192,
+                    width: 256, height: 192,
                     quantizer: document.getElementById('cfg_quantizer').value,
                     dither_strength: parseInt(document.getElementById('cfg_dither').value),
                     anchor_colors: document.getElementById('cfg_anchors').value,
@@ -145,31 +143,34 @@
                     quant_iters_initial: parseInt(document.getElementById('cfg_iter_init').value),
                     quant_iters_subsequent: parseInt(document.getElementById('cfg_iter_sub').value),
                     metadata: JSON.stringify({ filename: file.name }),
-                    aspect_mode: document.getElementById('cfg_aspect').value,
-                    crop_left: parseFloat(document.getElementById('cfg_crop_left').value),
-                    crop_up: parseFloat(document.getElementById('cfg_crop_up').value),
-                    sample_rate: TARGET_SAMPLE_RATE,
-                    fps: TARGET_FPS,
-                    metric: document.getElementById('cfg_metric').value
+                    aspect_mode: "crop", crop_left: 0.0, crop_up: 0.0,
+                    sample_rate: TARGET_SAMPLE_RATE, fps: TARGET_FPS, metric: "euclidean"
                 };
 
-                
-                const encoder = new Mv2Encoder(JSON.stringify(config)); // 실제: new Mv2Encoder(...)
+                statusText.innerText = "Initializing WASM Worker...";
+
+                // 1. Worker에 초기화 명령 전달 및 대기
+                await new Promise((resolve, reject) => {
+                    worker.onmessage = (e) => {
+                        if (e.data.type === 'INIT_DONE') resolve();
+                        if (e.data.type === 'ERROR') reject(e.data.payload);
+                    };
+                    worker.postMessage({ type: 'INIT', payload: { config: JSON.stringify(config) } });
+                });
 
                 statusText.innerText = "Extracting Audio & Preparing Video...";
                 
-                // 3. 비디오 파일 로드 (가상의 비디오 태그 활용)
+                // (기존과 동일한 비디오/오디오 준비 로직)
                 const videoURL = URL.createObjectURL(file);
                 const video = document.createElement('video');
                 video.src = videoURL;
                 video.muted = true;
                 await new Promise(resolve => { video.onloadedmetadata = resolve; });
 
-                // 4. 오디오 추출 및 변환 (WAV -> Float32 -> Int16)
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: TARGET_SAMPLE_RATE });
                 const arrayBuffer = await file.arrayBuffer();
                 const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-                const pcmFloat32 = audioBuffer.getChannelData(0); // 첫 번째 채널(Mono) 추출
+                const pcmFloat32 = audioBuffer.getChannelData(0); 
                 
                 const pcmInt16 = new Int16Array(pcmFloat32.length);
                 for (let i = 0; i < pcmFloat32.length; i++) {
@@ -177,96 +178,91 @@
                     pcmInt16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                 }
 
-                const mp3Encoder = new lamejs.Mp3Encoder(1, TARGET_SAMPLE_RATE, 128); // 채널, 샘플레이트, kbps
+                const mp3Encoder = new lamejs.Mp3Encoder(1, TARGET_SAMPLE_RATE, 128); 
                 const samplesPerFrame = Math.floor(TARGET_SAMPLE_RATE / TARGET_FPS);
                 
-                // 5. 프레임 추출을 위한 숨겨진 캔버스 (크기를 256x192로 고정하여 GPU 다운스케일링 유도)
                 const offscreenCanvas = document.createElement('canvas');
-                offscreenCanvas.width = 256;
-                offscreenCanvas.height = 192;
+                offscreenCanvas.width = 256; offscreenCanvas.height = 192;
                 const offCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
 
                 const totalFrames = Math.floor(video.duration * TARGET_FPS);
                 progressBar.max = totalFrames;
 
-                // 6. 메인 인코딩 루프 (Frame by Frame)
+                // 2. 메인 인코딩 루프
                 for (let frameIdx = 0; frameIdx < totalFrames; frameIdx++) {
-                    
-                    // ⚠️ 기존 루프 맨 처음에 있던 아래 코드는 삭제하세요!
-                    // await new Promise(resolve => requestAnimationFrame(resolve));
-                    
                     statusText.innerText = `Encoding Frame ${frameIdx + 1} / ${totalFrames}...`;
                     progressBar.value = frameIdx + 1;
 
-                    // 6-A. 비디오 시간을 특정 프레임으로 이동
                     video.currentTime = frameIdx / TARGET_FPS;
                     await new Promise(resolve => { 
                         video.onseeked = resolve; 
-                        setTimeout(resolve, 100); 
+                        setTimeout(resolve, 50); 
                     });
 
-                    // 6-B. GPU 가속을 이용해 1080p -> 256x192 로 즉시 축소 렌더링
                     offCtx.drawImage(video, 0, 0, 256, 192);
                     const frameData = offCtx.getImageData(0, 0, 256, 192);
                     const rgbaBytes = new Uint8Array(frameData.data.buffer);
 
-                    // 6-C. 오디오 배열 슬라이싱 및 MP3 Chunk 압축
                     const startSample = frameIdx * samplesPerFrame;
                     const endSample = Math.min(startSample + samplesPerFrame, pcmInt16.length);
                     const pcmSlice = pcmInt16.subarray(startSample, endSample);
                     const mp3Chunk = mp3Encoder.encodeBuffer(pcmSlice);
                     const finalMp3Chunk = mp3Chunk.length > 0 ? new Uint8Array(mp3Chunk) : undefined;
 
-                    // 6-D. 🚀 RUST (WASM) 호출
-                    encoder.add_frame(rgbaBytes, 256, 192, 4, finalMp3Chunk, pcmSlice);
-
-                    // 6-E. 🎨 실시간 프리뷰 그리기
-                    const ditheredRGB = encoder.get_last_dithered_frame();
-                    const previewData = ctx.createImageData(256, 192);
-                    for (let i = 0, j = 0; i < ditheredRGB.length; i += 3, j += 4) {
-                        previewData.data[j] = ditheredRGB[i];
-                        previewData.data[j+1] = ditheredRGB[i+1];
-                        previewData.data[j+2] = ditheredRGB[i+2];
-                        previewData.data[j+3] = 255; // Alpha 불투명
-                    }
-                    ctx.putImageData(previewData, 0, 0);
-
-                    // ==========================================================
-                    // 🚀 [추가된 핵심 코드] 캔버스 업데이트 직후 렌더링 강제하기
-                    // requestAnimationFrame과 setTimeout을 중첩하여, 
-                    // 브라우저가 현재 프레임을 화면에 완벽하게 칠할 때까지 대기합니다.
-                    // ==========================================================
-                    await new Promise(resolve => {
-                        requestAnimationFrame(() => {
-                            setTimeout(resolve, 0);
+                    // 🚀 Worker에게 한 프레임 연산을 지시하고 끝날 때까지 대기
+                    await new Promise((resolve, reject) => {
+                        worker.onmessage = (e) => {
+                            if (e.data.type === 'FRAME_DONE') {
+                                // 연산이 끝난 프리뷰 데이터를 받아와서 화면에 그림
+                                const ditheredRGB = e.data.payload.ditheredRGB;
+                                const previewData = ctx.createImageData(256, 192);
+                                for (let i = 0, j = 0; i < ditheredRGB.length; i += 3, j += 4) {
+                                    previewData.data[j] = ditheredRGB[i];
+                                    previewData.data[j+1] = ditheredRGB[i+1];
+                                    previewData.data[j+2] = ditheredRGB[i+2];
+                                    previewData.data[j+3] = 255;
+                                }
+                                ctx.putImageData(previewData, 0, 0);
+                                resolve(); // 다음 프레임으로 진행
+                            }
+                            if (e.data.type === 'ERROR') reject(e.data.payload);
+                        };
+                        
+                        worker.postMessage({ 
+                            type: 'ENCODE_FRAME', 
+                            payload: { rgbaBytes, mp3Chunk: finalMp3Chunk, pcmSlice, frameIdx } 
                         });
                     });
                 }
 
-                // 7. 인코딩 마무리 
+                // 3. 인코딩 마무리
                 statusText.innerText = "Finalizing & Muxing binary files...";
-                const leftoverMp3 = mp3Encoder.flush(); // 잔여 버퍼 비우기 (MV2 구조상 생략해도 무방함)
                 
-                // Rust 마무리 호출 및 바이너리 획득
-                const mv2Bytes = encoder.finish();
-                const rgbBytes = encoder.finish_rgb();
+                await new Promise((resolve, reject) => {
+                    worker.onmessage = (e) => {
+                        if (e.data.type === 'FINISHED') {
+                            const { mv2Bytes, rgbBytes } = e.data.payload;
+                            downloadFile(mv2Bytes, "retro_output.mv2", "application/octet-stream");
+                            downloadFile(rgbBytes, "retro_output.rgb", "application/octet-stream");
+                            resolve();
+                        }
+                        if (e.data.type === 'ERROR') reject(e.data.payload);
+                    };
+                    worker.postMessage({ type: 'FINISH' });
+                });
 
-                // 8. 브라우저 다운로드 트리거
-                downloadFile(mv2Bytes, "retro_output.mv2", "application/octet-stream");
-                downloadFile(rgbBytes, "retro_output.rgb", "application/octet-stream");
-
-                statusText.innerText = "Encoding Complete! 🎉 (Files downloaded)";
+                statusText.innerText = "Encoding Complete! 🎉";
 
             } catch (err) {
                 console.error(err);
-                statusText.innerText = "Error: " + err.message;
+                statusText.innerText = "Error: " + err;
             } finally {
                 btnStart.disabled = false;
             }
         });
 
-        // 파일 다운로드 헬퍼 함수
         function downloadFile(uint8Array, filename, mimeType) {
+            // (기존 다운로드 함수 동일)
             const blob = new Blob([uint8Array], { type: mimeType });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
