@@ -136,7 +136,7 @@
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
         const TARGET_FPS = 15.0;
-        const TARGET_SAMPLE_RATE = 44100;
+        const TARGET_SAMPLE_RATE = 44100; // Original new_encoder.py uses 44.1kHz / 128kbps for the MP3 stream
 
         // Web Worker 생성 (타입을 module로 지정해야 import가 작동함)
         const worker = new Worker('./worker.js', { type: 'module' });
@@ -158,8 +158,11 @@
                     quant_iters_initial: parseInt(document.getElementById('cfg_iter_init').value),
                     quant_iters_subsequent: parseInt(document.getElementById('cfg_iter_sub').value),
                     metadata: JSON.stringify({ filename: file.name }),
-                    aspect_mode: "crop", crop_left: 0.0, crop_up: 0.0,
-                    sample_rate: TARGET_SAMPLE_RATE, fps: TARGET_FPS, metric: "euclidean"
+                    aspect_mode: document.getElementById('cfg_aspect').value, 
+                    crop_left: parseFloat(document.getElementById('cfg_crop_left').value), 
+                    crop_up: parseFloat(document.getElementById('cfg_crop_up').value),
+                    sample_rate: TARGET_SAMPLE_RATE, fps: TARGET_FPS, 
+                    metric: document.getElementById('cfg_metric').value
                 };
 
                 statusText.innerText = "Initializing WASM Worker...";
@@ -194,7 +197,7 @@
                 }
 
                 statusText.innerText = "Encoding MP3 Audio...";
-                const mp3Encoder = new lamejs.Mp3Encoder(1, TARGET_SAMPLE_RATE, 128); 
+                const mp3Encoder = new lamejs.Mp3Encoder(1, TARGET_SAMPLE_RATE, 128); // Reverted to 128kbps
                 const mp3Data = [];
                 
                 // Encode in chunks to prevent UI freeze
