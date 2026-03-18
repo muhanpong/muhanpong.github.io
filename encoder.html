@@ -240,8 +240,6 @@
                     const startSample = frameIdx * samplesPerFrame;
                     const endSample = Math.min(startSample + samplesPerFrame, pcmInt16.length);
                     const pcmSlice = pcmInt16.subarray(startSample, endSample);
-                    const mp3Chunk = mp3Encoder.encodeBuffer(pcmSlice);
-                    const finalMp3Chunk = mp3Chunk.length > 0 ? new Uint8Array(mp3Chunk) : undefined;
 		    const mp3Chunk = mp3Encoder.encodeBuffer(pcmSlice);
    		    let finalMp3Chunk = mp3Chunk.length > 0 ? new Uint8Array(mp3Chunk) : undefined;
    
