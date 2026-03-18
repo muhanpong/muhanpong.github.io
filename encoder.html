@@ -72,28 +72,8 @@
     </div>
 
     <script type="module">
-        // =========================================================================
-        // [중요] 실제 Rust WASM 모듈을 연동할 때 아래 주석을 해제하세요!
-        // import init, { Mv2Encoder } from './pkg/msx_encoder.js';
-        // =========================================================================
-
-        // [테스트용 Mock 객체 - WASM 모듈 연동 후 이 클래스는 통째로 삭제하세요]
-        class MockMv2Encoder {
-            constructor(config) { console.log("Encoder init with config:", JSON.parse(config)); }
-            add_frame(rgba, w, h, ch, mp3, pcm) {
-                // WASM 연산 시뮬레이션을 위한 약간의 딜레이
-                let sum = 0; for(let i=0; i<100000; i++) sum += i; 
-            }
-            get_last_dithered_frame() { 
-                // TV 노이즈 화면 생성 (실시간 재생 확인용)
-                const arr = new Uint8Array(256 * 192 * 3);
-                for(let i=0; i<arr.length; i++) arr[i] = Math.random() * 255;
-                return arr;
-            }
-            finish() { return new Uint8Array([0x4D, 0x4D, 0x43, 0x53, 0x44, 0x5F, 0x4D, 0x56]); } // "MMCSD_MV"
-            finish_rgb() { return new Uint8Array(100); }
-        }
-
+        import init, { Mv2Encoder } from './pkg/msx_encoder.js';
+        
         const videoInput = document.getElementById('videoInput');
         const btnStart = document.getElementById('btnStart');
         const progressBar = document.getElementById('progressBar');
@@ -132,8 +112,8 @@
                     sample_rate: TARGET_SAMPLE_RATE, fps: TARGET_FPS, metric: "euclidean"
                 };
 
-                // Rust 인코더 인스턴스 생성 (Mock 교체 지점)
-                const encoder = new MockMv2Encoder(JSON.stringify(config)); // 실제: new Mv2Encoder(...)
+                
+                const encoder = new Mv2Encoder(JSON.stringify(config)); // 실제: new Mv2Encoder(...)
 
                 statusText.innerText = "Extracting Audio & Preparing Video...";
                 
