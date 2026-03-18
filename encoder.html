@@ -166,8 +166,8 @@
                 // 6. 메인 인코딩 루프 (Frame by Frame)
                 for (let frameIdx = 0; frameIdx < totalFrames; frameIdx++) {
                     
-                    // [중요] 브라우저 UI 스레드에 렌더링할 시간(숨통)을 양보합니다. (화면 멈춤 방지)
-                    await new Promise(resolve => requestAnimationFrame(resolve));
+                    // ⚠️ 기존 루프 맨 처음에 있던 아래 코드는 삭제하세요!
+                    // await new Promise(resolve => requestAnimationFrame(resolve));
                     
                     statusText.innerText = `Encoding Frame ${frameIdx + 1} / ${totalFrames}...`;
                     progressBar.value = frameIdx + 1;
@@ -176,14 +176,11 @@
                     video.currentTime = frameIdx / TARGET_FPS;
                     await new Promise(resolve => { 
                         video.onseeked = resolve; 
-                        // 간혹 seek 이벤트가 씹히는 브라우저 버그를 위한 폴백
                         setTimeout(resolve, 100); 
                     });
 
                     // 6-B. GPU 가속을 이용해 1080p -> 256x192 로 즉시 축소 렌더링
                     offCtx.drawImage(video, 0, 0, 256, 192);
-                    
-                    // 축소된 이미지의 RGBA 바이트 배열 추출 (메모리 복사량 극소화)
                     const frameData = offCtx.getImageData(0, 0, 256, 192);
                     const rgbaBytes = new Uint8Array(frameData.data.buffer);
 
@@ -194,13 +191,12 @@
                     const mp3Chunk = mp3Encoder.encodeBuffer(pcmSlice);
                     const finalMp3Chunk = mp3Chunk.length > 0 ? new Uint8Array(mp3Chunk) : undefined;
 
-                    // 6-D. 🚀 RUST (WASM) 호출 - 모든 무거운 연산(양자화, 디더링, VRAM 패킹)
+                    // 6-D. 🚀 RUST (WASM) 호출
                     encoder.add_frame(rgbaBytes, 256, 192, 4, finalMp3Chunk, pcmSlice);
 
                     // 6-E. 🎨 실시간 프리뷰 그리기
                     const ditheredRGB = encoder.get_last_dithered_frame();
                     const previewData = ctx.createImageData(256, 192);
-                    // RGB 데이터를 RGBA(Canvas 규격)로 변환
                     for (let i = 0, j = 0; i < ditheredRGB.length; i += 3, j += 4) {
                         previewData.data[j] = ditheredRGB[i];
                         previewData.data[j+1] = ditheredRGB[i+1];
@@ -208,6 +204,17 @@
                         previewData.data[j+3] = 255; // Alpha 불투명
                     }
                     ctx.putImageData(previewData, 0, 0);
+
+                    // ==========================================================
+                    // 🚀 [추가된 핵심 코드] 캔버스 업데이트 직후 렌더링 강제하기
+                    // requestAnimationFrame과 setTimeout을 중첩하여, 
+                    // 브라우저가 현재 프레임을 화면에 완벽하게 칠할 때까지 대기합니다.
+                    // ==========================================================
+                    await new Promise(resolve => {
+                        requestAnimationFrame(() => {
+                            setTimeout(resolve, 0);
+                        });
+                    });
                 }
 
                 // 7. 인코딩 마무리 
