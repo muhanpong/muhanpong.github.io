@@ -67,3 +67,45 @@
 - Improved AudioEncoder error handling with detailed console logging and UI feedback.
 - Robustified AudioEncoder configuration: ensured sampleRate is explicitly 48000 for Opus codec to comply with encoder requirements.
 - Applied these fixes to both index.html and newplayer.html.
+## 2026-03-13 17:00 - Encoder UI Enhancements (Phase 1-6)
+- Implemented comprehensive UI overhaul for encoder.html based on enhancement_of_the_ui.md.
+- Added responsive canvas, tooltip system, and drag-and-drop file loading.
+- Created advanced timeline seek slider with draggable start/end markers and anchor scrubbing.
+- Built interactive preview canvas that draws source video, calculates crop/pad/force overlays based on 5:3 or 4:3 target ratios, and allows physical dragging to adjust crop offsets.
+- Implemented Tri-State Split-Screen Monitor mode during encoding (Left: Source, Center: VRAM Packed, Right: Raw Dithered).
+- Added Early Abort feature: 'Stop Encoding' gracefully halts the process and immediately downloads the partial .mv2 and .rgb files.
+## 2026-03-13 17:30 - Encoder UI Enhancements (Bug Fixes & Refinements)
+- Added 'Playhead' marker to the timeline slider to allow preview seeking independent of start/end bounds.
+- Constrained playhead to stay within the start/end bounds.
+- Re-architected crop panning logic: dragging now mimics moving the target window physically, and panning directions are constrained (e.g., vertical only for portraits).
+- Eliminated canvas flickering during crop adjustments by decoupling the drawing function from the video 'seeked' event.
+- Styled the target window overlay with a thinner, solid blue line.
+- Ensured crop offsets reset to 0 upon loading a new file.
+- Placed crop offset inputs side-by-side.
+- Fixed a bug where slider markers wouldn't drag due to missing variable declarations in strict mode.
+- Tooltips now dismiss globally upon clicking anywhere.
+## 2026-03-13 18:00 - Encoder UI Enhancements (Aspect & Slider Logic)
+- Updated 'Pad' mode: Blue target window outline spans the full preview canvas, while video is letterboxed inside.
+- Updated 'Force' mode: Blue target window outline spans the full preview canvas, video fills the entire area regardless of aspect ratio.
+- Updated 'Crop' mode dragging: It feels like dragging a physical window over the source material.
+- Added dynamic CSS aspect-ratio change (5:3 / 4:3) directly to the preview canvas when radio buttons are toggled.
+- Enforced slider marker z-index and CSS translations so Start (left), Playhead (center), and End (right) markers never physically overlap even if they are at the same exact timestamp.
+- Updated slider track click: Now ONLY moves the Playhead to the clicked point without snapping Start/End markers. Start/End must be manually dragged.
+## 2026-03-13 18:30 - Encoder UI Enhancements (Playback OSD)
+- Added YouTube-style OSD play/pause button to the center of the preview canvas.
+- Configured OSD button to appear when paused or hovered, and disappear during playback.
+- Enabled clicking the preview canvas to toggle video play/pause.
+- Added playback loop to smoothly update the slider playhead marker in real-time.
+- Refined click/drag conflict: Clicking to toggle play won't trigger if the user was actively dragging to crop.
+- Added '#selectionInfo' UI element between Start and End time inputs to display the selected duration (in seconds) and estimated frame count.
+- Added estimated MV2 file size calculation (~MB) to the #selectionInfo UI element based on the selected frame count.
+- Fixed ReferenceError during encoding by mapping 'video' to 'sourceVideo' inside the start button click handler.
+- Re-fixed 'Pad' and 'Force' mode overlays to ensure the blue outline spans the entire canvas as requested.
+- Fixed bug where changing Aspect Mode or Ratio while video is paused didn't immediately update the preview overlay. Bypassed requestVideoFrameCallback for UI overlay redraws.
+- Fixed bug where encoded video was black by removing 'requestVideoFrameCallback' reliance during encoding, which fails on hidden video elements. Now explicitly awaits the 'seeked' event.
+- Fixed bug where encoded audio was out of sync or missing when a segment was selected. The PCM audio is now correctly sliced to the user-selected startTime and endTime before generating MP3 chunks.
+- Fixed 'ReferenceError: monitorLeftSplit is not defined' by initializing monitoring split variables in the global state.
+- Ensured 'monitor-mode' class is correctly applied and removed to show/hide split handles during encoding.
+- Reset monitoring split positions to 0% and 100% at the start of each encoding session.
+- Fixed bug where source video audio would play during encoding by explicitly pausing and muting the video element when 'Start Encoding' is clicked.
+- Added logic to unmute the video when the user initiates a manual preview playback via the OSD button or canvas click.
