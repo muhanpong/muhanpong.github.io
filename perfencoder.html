@@ -4,22 +4,7 @@
     <script src="coi-serviceworker.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MSX2 MV2 Video Encoder (WASM)</title>
-    <!--
-    <script>
-        // 브라우저에서 발생하는 모든 에러를 화면에 팝업으로 띄웁니다.
-        window.onerror = function(message, source, lineno, colno, error) {
-            alert("🚨 에러 발생!\n" + message + "\n줄 번호: " + lineno);
-            return true;
-        };
-    
-        // 비동기(Promise) 처리 중 발생하는 에러도 팝업으로 띄웁니다.
-        window.addEventListener('unhandledrejection', function(event) {
-            alert("🚨 비동기 에러 발생!\n" + event.reason);
-        });
-    </script> 
-    -->
-
+    <title>MSX2 MV2 Video Encoder (Performance Optimized)</title>
     <style>
         body { font-family: sans-serif; background: #1e1e1e; color: #eee; max-width: 800px; margin: 0 auto; padding: 20px; }
         .panel { background: #2a2a2a; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
@@ -89,13 +74,12 @@
         progress { width: 100%; height: 20px; margin-top: 5px; }
         #statusText { font-weight: bold; color: #4db8ff; }
     </style>
-    <!-- 브라우저용 가벼운 순수 JS MP3 인코더 라이브러리 -->
     <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <div id="tooltip" class="tooltip-box"></div>
     <div class="title-container">
-        <h2>📼 MSX2 MV2 Web Encoder</h2>
+        <h2>📼 MSX2 MV2 Web Encoder (iPad Optimized)</h2>
         <div class="info-icon" id="btnInfo" title="Toggle Help Tooltips">i</div>
     </div>
 
@@ -220,7 +204,6 @@
         const canvas = document.getElementById('previewCanvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         
-        // New UI Elements
         const sourceVideo = document.getElementById('sourceVideo');
         const previewContainer = document.getElementById('previewContainer');
         const previewLabel = document.getElementById('previewLabel');
@@ -240,12 +223,11 @@
         const iconPlay = document.getElementById('icon-play');
         const iconPause = document.getElementById('icon-pause');
 
-        // State Variables
         const TARGET_FPS = 15.0;
         const TARGET_SAMPLE_RATE = 44100;
         let isEncoding = false;
         let shouldStopEncoding = false;
-        let currentMode = 'preview'; // 'preview' or 'monitor'
+        let currentMode = 'preview'; 
         let videoDuration = 0;
         let startTime = 0;
         let endTime = 0;
@@ -256,10 +238,10 @@
         let isDraggingMarker = null;
         let anchorTime = null;
 
-        // Web Worker
-        const worker = new Worker('./worker.js', { type: 'module' });
+        // Web Worker (캐시 무력화 파라미터 적용)
+        const worker = new Worker('./worker.js?v=' + Date.now(), { type: 'module' });
 
-        // --- Tooltip Logic ---
+        // Tooltip Logic
         let tooltipsEnabled = false;
         const tooltipData = {
             'cfg_quantizer': 'K-Means++: Smooth gradients, slower. Greedy: High contrast, faster.',
@@ -299,7 +281,6 @@
             el.addEventListener('mouseleave', () => tooltipBox.style.display = 'none');
         });
 
-        // Dismiss tooltip on click anywhere
         document.addEventListener('click', (e) => {
             if (tooltipsEnabled && e.target !== btnInfo) {
                 tooltipsEnabled = false;
@@ -309,7 +290,7 @@
             }
         });
 
-        // --- File Loading & Video Setup ---
+        // Time Handlers
         function formatTimeInput(seconds) {
             const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
             const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
@@ -355,18 +336,16 @@
             });
         }
 
-        // --- Playback Controls ---
         let playbackAnimFrame;
         
         function togglePlay() {
             if (!currentFile || isEncoding) return;
             if (sourceVideo.paused) {
-                // If at the end marker, loop back to start marker
                 if (currentTime >= endTime - 0.1) {
                     currentTime = startTime;
                     sourceVideo.currentTime = currentTime;
                 }
-                sourceVideo.muted = false; // Ensure unmuted for preview
+                sourceVideo.muted = false; 
                 sourceVideo.play();
                 previewContainer.classList.remove('paused');
                 previewContainer.classList.add('playing');
@@ -387,11 +366,10 @@
             if (sourceVideo.paused || isEncoding) return;
             currentTime = sourceVideo.currentTime;
             
-            // Stop at end marker
             if (currentTime >= endTime) {
                 currentTime = endTime;
                 togglePlay();
-                updateVideoTime(); // force snap to end frame
+                updateVideoTime(); 
             } else {
                 updateSliderVisuals();
                 renderPreview();
@@ -399,38 +377,28 @@
             }
         }
 
-        previewPlayBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            togglePlay();
-        });
+        previewPlayBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePlay(); });
         
-        // Allow clicking the canvas to toggle play/pause when in preview mode
         previewContainer.addEventListener('click', (e) => {
-            if (currentMode === 'preview' && currentFile && !hasDraggedCanvas && e.target !== previewPlayBtn) {
-                togglePlay();
-            }
+            if (currentMode === 'preview' && currentFile && !hasDraggedCanvas && e.target !== previewPlayBtn) togglePlay();
         });
 
         videoInput.addEventListener('change', (e) => {
             if (e.target.files.length) loadVideoFile(e.target.files[0]);
         });
 
-        previewContainer.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            if (!isEncoding) previewContainer.classList.add('dragover');
-        });
+        previewContainer.addEventListener('dragover', (e) => { e.preventDefault(); if (!isEncoding) previewContainer.classList.add('dragover'); });
         previewContainer.addEventListener('dragleave', () => previewContainer.classList.remove('dragover'));
         previewContainer.addEventListener('drop', (e) => {
             e.preventDefault();
             previewContainer.classList.remove('dragover');
             if (isEncoding) return;
             if (e.dataTransfer.files.length && e.dataTransfer.files[0].type.startsWith('video/')) {
-                videoInput.files = e.dataTransfer.files; // Sync input
+                videoInput.files = e.dataTransfer.files; 
                 loadVideoFile(e.dataTransfer.files[0]);
             }
         });
 
-        // --- Basic Timeline Logic (To be expanded) ---
         function updateSliderVisuals() {
             if (videoDuration === 0) return;
             const sPct = (startTime / videoDuration) * 100;
@@ -450,7 +418,11 @@
 
         function renderPreview() {
             if (currentMode !== 'preview' || !currentFile) return;
-            sourceVideo.requestVideoFrameCallback ? sourceVideo.requestVideoFrameCallback(drawPreviewCanvas) : setTimeout(drawPreviewCanvas, 50);
+            if (sourceVideo.requestVideoFrameCallback) {
+                sourceVideo.requestVideoFrameCallback(drawPreviewCanvas);
+            } else {
+                setTimeout(drawPreviewCanvas, 50);
+            }
         }
 
         function updateVideoTime() {
@@ -464,19 +436,14 @@
 
         let isDraggingCanvas = false;
         let hasDraggedCanvas = false;
-        let dragStartX = 0;
-        let dragStartY = 0;
-        let initialCropLeft = 0;
-        let initialCropUp = 0;
+        let dragStartX = 0, dragStartY = 0, initialCropLeft = 0, initialCropUp = 0;
 
         function handleCanvasDown(e) {
             if (currentMode !== 'preview' || document.getElementById('cfg_aspect').value !== 'crop' || !currentFile) return;
-            isDraggingCanvas = true;
-            hasDraggedCanvas = false;
+            isDraggingCanvas = true; hasDraggedCanvas = false;
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            dragStartX = clientX;
-            dragStartY = clientY;
+            dragStartX = clientX; dragStartY = clientY;
             initialCropLeft = parseFloat(document.getElementById('cfg_crop_left').value) || 0;
             initialCropUp = parseFloat(document.getElementById('cfg_crop_up').value) || 0;
         }
@@ -490,59 +457,36 @@
             hasDraggedCanvas = true;
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            const dx = clientX - dragStartX;
-            const dy = clientY - dragStartY;
-            
-            // Convert pixel drag to percentage drag
-            const pctX = (dx / canvas.clientWidth) * 100;
-            const pctY = (dy / canvas.clientHeight) * 100;
+            const dx = clientX - dragStartX, dy = clientY - dragStartY;
+            const pctX = (dx / canvas.clientWidth) * 100, pctY = (dy / canvas.clientHeight) * 100;
 
-            let newLeft = initialCropLeft;
-            let newUp = initialCropUp;
-            
-            const vw = sourceVideo.videoWidth;
-            const vh = sourceVideo.videoHeight;
+            let newLeft = initialCropLeft, newUp = initialCropUp;
+            const vw = sourceVideo.videoWidth, vh = sourceVideo.videoHeight;
             if (!vw || !vh) return;
             
             const targetRatioStr = document.querySelector('input[name="cfg_target_ratio"]:checked').value;
             const targetRatio = targetRatioStr === '5:3' ? (5/3) : (4/3);
             const videoAspect = vw / vh;
 
-            if (videoAspect > targetRatio) {
-                // Video is wider than target. Panning allowed left/right only.
-                newLeft = Math.max(-100, Math.min(100, initialCropLeft + pctX));
-            } else {
-                // Video is taller than target. Panning allowed up/down only.
-                newUp = Math.max(-100, Math.min(100, initialCropUp + pctY));
-            }
+            if (videoAspect > targetRatio) newLeft = Math.max(-100, Math.min(100, initialCropLeft + pctX));
+            else newUp = Math.max(-100, Math.min(100, initialCropUp + pctY));
 
             document.getElementById('cfg_crop_left').value = newLeft.toFixed(1);
             document.getElementById('cfg_crop_up').value = newUp.toFixed(1);
-            drawPreviewCanvas(); // Draw directly to avoid seeking/flickering
+            drawPreviewCanvas(); 
         }
 
         document.addEventListener('mousemove', handleCanvasMove);
         document.addEventListener('touchmove', handleCanvasMove, { passive: false });
-
         function handleCanvasUp() { isDraggingCanvas = false; }
         document.addEventListener('mouseup', handleCanvasUp);
         document.addEventListener('touchend', handleCanvasUp);
 
-        // --- Visibility / Focus Handling ---
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') {
-                if (currentMode === 'preview' && currentFile) {
-                    renderPreview(); // Refresh preview when coming back
-                }
-            } else {
-                // Backgrounded
-                if (isEncoding) {
-                    console.warn("Encoding running in background. Browser may throttle performance.");
-                }
-            }
+            if (document.visibilityState === 'visible' && currentMode === 'preview' && currentFile) renderPreview(); 
+            else if (isEncoding) console.warn("Encoding running in background. Browser may throttle performance.");
         });
         
-        // --- Monitor Mode Split Handle Logic ---
         let isDraggingSplit = null;
         splitLeft.addEventListener('mousedown', () => { if (currentMode === 'monitor') isDraggingSplit = 'left'; });
         splitRight.addEventListener('mousedown', () => { if (currentMode === 'monitor') isDraggingSplit = 'right'; });
@@ -550,8 +494,7 @@
         document.addEventListener('mousemove', (e) => {
             if (!isDraggingSplit) return;
             const rect = previewContainer.getBoundingClientRect();
-            let pct = ((e.clientX - rect.left) / rect.width) * 100;
-            pct = Math.max(0, Math.min(100, pct));
+            let pct = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
             
             if (isDraggingSplit === 'left') {
                 monitorLeftSplit = Math.min(pct / 100, monitorRightSplit);
@@ -563,105 +506,70 @@
         });
         document.addEventListener('mouseup', () => { isDraggingSplit = null; });
 
-        // Listen to config changes to update preview
         document.getElementById('cfg_aspect').addEventListener('change', drawPreviewCanvas);
         document.getElementById('cfg_crop_left').addEventListener('input', drawPreviewCanvas);
         document.getElementById('cfg_crop_up').addEventListener('input', drawPreviewCanvas);
         document.querySelectorAll('input[name="cfg_target_ratio"]').forEach(r => r.addEventListener('change', (e) => {
-            const is53 = e.target.value === '5:3';
-            canvas.style.aspectRatio = is53 ? '5 / 3' : '4 / 3';
+            canvas.style.aspectRatio = e.target.value === '5:3' ? '5 / 3' : '4 / 3';
             drawPreviewCanvas();
         }));
 
         function drawPreviewCanvas() {
-            if (currentMode === 'monitor') return; // Handled separately during encoding
+            if (currentMode === 'monitor') return; 
             
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
             if (!currentFile) return;
 
-            const vw = sourceVideo.videoWidth;
-            const vh = sourceVideo.videoHeight;
+            const vw = sourceVideo.videoWidth, vh = sourceVideo.videoHeight;
             if (!vw || !vh) return;
 
             const aspectMode = document.getElementById('cfg_aspect').value;
             const targetRatioStr = document.querySelector('input[name="cfg_target_ratio"]:checked').value;
             const targetRatio = targetRatioStr === '5:3' ? (5/3) : (4/3);
 
-            let drawW = canvas.width;
-            let drawH = canvas.height;
-            let drawX = 0;
-            let drawY = 0;
+            let drawW = canvas.width, drawH = canvas.height, drawX = 0, drawY = 0;
 
             if (aspectMode === 'force') {
-                // In force mode, stretch the video to fill the entire canvas (ignoring original aspect)
                 ctx.drawImage(sourceVideo, 0, 0, canvas.width, canvas.height);
-                
-                // Target overlay spans the entire canvas
-                let targetX = 0, targetY = 0, targetW = canvas.width, targetH = canvas.height;
-                
-                // Draw border
-                ctx.strokeStyle = 'rgba(77, 184, 255, 0.8)';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([]);
-                ctx.strokeRect(targetX, targetY, targetW, targetH);
-                return; // Done drawing for force mode
+                ctx.strokeStyle = 'rgba(77, 184, 255, 0.8)'; ctx.lineWidth = 1; ctx.setLineDash([]);
+                ctx.strokeRect(0, 0, canvas.width, canvas.height);
+                return; 
             }
 
-            // For crop and pad, fit video to canvas bounds to show whole source with original aspect ratio
-            const canvasAspect = canvas.width / canvas.height;
-            const videoAspect = vw / vh;
+            const canvasAspect = canvas.width / canvas.height, videoAspect = vw / vh;
 
-            if (videoAspect > canvasAspect) {
-                drawH = canvas.width / videoAspect;
-                drawY = (canvas.height - drawH) / 2;
-            } else {
-                drawW = canvas.height * videoAspect;
-                drawX = (canvas.width - drawW) / 2;
-            }
+            if (videoAspect > canvasAspect) { drawH = canvas.width / videoAspect; drawY = (canvas.height - drawH) / 2; } 
+            else { drawW = canvas.height * videoAspect; drawX = (canvas.width - drawW) / 2; }
 
             ctx.drawImage(sourceVideo, drawX, drawY, drawW, drawH);
-
-            // Draw Target Overlay for crop/pad
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; // Darken outside
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; 
 
             let targetX = drawX, targetY = drawY, targetW = drawW, targetH = drawH;
 
             if (aspectMode === 'pad') {
-                // In pad mode, target is the full canvas, video is letterboxed inside
-                targetX = 0;
-                targetY = 0;
-                targetW = canvas.width;
-                targetH = canvas.height;
+                targetX = 0; targetY = 0; targetW = canvas.width; targetH = canvas.height;
             } else if (aspectMode === 'crop') {
                 if (videoAspect > targetRatio) {
                     targetW = drawH * targetRatio;
                     let cropOffX = parseFloat(document.getElementById('cfg_crop_left').value) || 0;
-                    let maxOffX = drawW - targetW;
-                    targetX = drawX + (maxOffX / 2) + (maxOffX / 2) * (cropOffX / 100);
+                    targetX = drawX + ((drawW - targetW) / 2) + ((drawW - targetW) / 2) * (cropOffX / 100);
                 } else {
                     targetH = drawW / targetRatio;
                     let cropOffY = parseFloat(document.getElementById('cfg_crop_up').value) || 0;
-                    let maxOffY = drawH - targetH;
-                    targetY = drawY + (maxOffY / 2) + (maxOffY / 2) * (cropOffY / 100);
+                    targetY = drawY + ((drawH - targetH) / 2) + ((drawH - targetH) / 2) * (cropOffY / 100);
                 }
             }
 
-            // Draw semi-transparent masks outside the target window
-            ctx.fillRect(0, 0, canvas.width, targetY); // Top
-            ctx.fillRect(0, targetY + targetH, canvas.width, canvas.height - (targetY + targetH)); // Bottom
-            ctx.fillRect(0, targetY, targetX, targetH); // Left
-            ctx.fillRect(targetX + targetW, targetY, canvas.width - (targetX + targetW), targetH); // Right
+            ctx.fillRect(0, 0, canvas.width, targetY); 
+            ctx.fillRect(0, targetY + targetH, canvas.width, canvas.height - (targetY + targetH)); 
+            ctx.fillRect(0, targetY, targetX, targetH); 
+            ctx.fillRect(targetX + targetW, targetY, canvas.width - (targetX + targetW), targetH); 
 
-            // Draw border
-            ctx.strokeStyle = 'rgba(77, 184, 255, 0.8)';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([]);
+            ctx.strokeStyle = 'rgba(77, 184, 255, 0.8)'; ctx.lineWidth = 1; ctx.setLineDash([]);
             ctx.strokeRect(targetX, targetY, targetW, targetH);
         }
 
-        // --- Timeline Slider Interaction ---
         function getSliderX(e) {
             const rect = seekSlider.getBoundingClientRect();
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -671,22 +579,15 @@
         function handleSliderDown(e) {
             if (!currentFile || isEncoding) return;
             const rect = seekSlider.getBoundingClientRect();
-            let x = getSliderX(e);
-            let clickPct = x / rect.width;
-            let clickTime = clickPct * videoDuration;
+            let clickTime = (getSliderX(e) / rect.width) * videoDuration;
 
-            // Determine what we clicked on
-            if (e.target === markerStart) {
-                isDraggingMarker = 'start';
-            } else if (e.target === markerEnd) {
-                isDraggingMarker = 'end';
-            } else if (e.target === markerPlayhead) {
-                isDraggingMarker = 'playhead';
-            } else {
+            if (e.target === markerStart) isDraggingMarker = 'start';
+            else if (e.target === markerEnd) isDraggingMarker = 'end';
+            else if (e.target === markerPlayhead) isDraggingMarker = 'playhead';
+            else {
                 isDraggingMarker = 'playhead';
                 currentTime = Math.max(startTime, Math.min(clickTime, endTime));
-                updateVideoTime();
-                updateSliderVisuals();
+                updateVideoTime(); updateSliderVisuals();
             }
             
             updateSliderFromDrag(e);
@@ -696,8 +597,7 @@
                 updateSliderFromDrag(moveEvent);
             };
             const onUp = () => {
-                isDraggingMarker = null;
-                anchorTime = null;
+                isDraggingMarker = null; anchorTime = null;
                 document.removeEventListener('mousemove', onMove);
                 document.removeEventListener('mouseup', onUp);
                 document.removeEventListener('touchmove', onMove);
@@ -715,10 +615,7 @@
 
         function updateSliderFromDrag(e) {
             if (!isDraggingMarker) return;
-            const rect = seekSlider.getBoundingClientRect();
-            let x = getSliderX(e);
-            let pct = x / rect.width;
-            let time = pct * videoDuration;
+            let time = (getSliderX(e) / seekSlider.getBoundingClientRect().width) * videoDuration;
 
             if (isDraggingMarker === 'start') {
                 startTime = Math.min(time, endTime);
@@ -732,32 +629,22 @@
 
             timeStartInput.value = formatTimeInput(startTime);
             timeEndInput.value = formatTimeInput(endTime);
-            updateSliderVisuals();
-            updateVideoTime();
+            updateSliderVisuals(); updateVideoTime();
         }
 
-        // Input manual updates
         timeStartInput.addEventListener('change', () => {
-            let t = parseTimeInput(timeStartInput.value);
-            t = Math.max(0, Math.min(t, endTime));
-            startTime = t;
+            startTime = Math.max(0, Math.min(parseTimeInput(timeStartInput.value), endTime));
             timeStartInput.value = formatTimeInput(startTime);
-            updateSliderVisuals();
-            updateVideoTime();
+            updateSliderVisuals(); updateVideoTime();
         });
 
         timeEndInput.addEventListener('change', () => {
-            let t = parseTimeInput(timeEndInput.value);
-            t = Math.max(startTime, Math.min(t, videoDuration));
-            endTime = t;
+            endTime = Math.max(startTime, Math.min(parseTimeInput(timeEndInput.value), videoDuration));
             timeEndInput.value = formatTimeInput(endTime);
-            updateSliderVisuals();
-            updateVideoTime();
+            updateSliderVisuals(); updateVideoTime();
         });
 
-        sourceVideo.addEventListener('seeked', () => {
-            if (currentMode === 'preview') renderPreview();
-        });
+        sourceVideo.addEventListener('seeked', () => { if (currentMode === 'preview') renderPreview(); });
 
         btnStart.addEventListener('click', async () => {
             if (!videoInput.files.length) return alert("Please select a video file first!");
@@ -770,66 +657,40 @@
             }
 
             const file = videoInput.files[0];
-            const video = sourceVideo; // Alias to fix ReferenceError
+            const video = sourceVideo; 
             
-            // Stop any ongoing preview playback and mute
-            video.pause();
-            video.muted = true;
+            video.pause(); video.muted = true;
             if (playbackAnimFrame) cancelAnimationFrame(playbackAnimFrame);
-            previewContainer.classList.remove('playing');
-            previewContainer.classList.add('paused');
-            iconPlay.style.display = 'block';
-            iconPause.style.display = 'none';
+            previewContainer.classList.remove('playing'); previewContainer.classList.add('paused');
+            iconPlay.style.display = 'block'; iconPause.style.display = 'none';
 
-            isEncoding = true;
-            shouldStopEncoding = false;
-            currentMode = 'monitor';
+            isEncoding = true; shouldStopEncoding = false; currentMode = 'monitor';
             previewContainer.classList.add('monitor-mode');
-            monitorLeftSplit = 0.0;
-            monitorRightSplit = 1.0;
-            splitLeft.style.left = '0%';
-            splitRight.style.left = '100%';
+            monitorLeftSplit = 0.0; monitorRightSplit = 1.0;
+            splitLeft.style.left = '0%'; splitRight.style.left = '100%';
             
-            btnStart.innerText = "Stop Encoding";
-            btnStart.style.background = "#d9534f";
-            
-            // Lock UI
+            btnStart.innerText = "Stop Encoding"; btnStart.style.background = "#d9534f";
             document.querySelectorAll('input, select').forEach(el => el.disabled = true);
-            seekSlider.style.pointerEvents = 'none';
-            seekSlider.style.opacity = '0.5';
-
+            seekSlider.style.pointerEvents = 'none'; seekSlider.style.opacity = '0.5';
             document.getElementById('progress-container').style.display = 'block';
 
             try {
                 statusText.innerText = "Extracting Audio & Preparing Video...";
-                
                 const totalFrames = Math.floor((endTime - startTime) * TARGET_FPS);
                 const playTimeDuration = endTime - startTime;
                 
-                // Format play_time as MM:SS.ms
-                const m = Math.floor(playTimeDuration / 60);
-                const s = Math.floor(playTimeDuration % 60);
-                const ms = Math.floor((playTimeDuration % 1) * 100);
+                const m = Math.floor(playTimeDuration / 60), s = Math.floor(playTimeDuration % 60), ms = Math.floor((playTimeDuration % 1) * 100);
                 const playTime = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
 
-                // 2. 풍부한 Recipe JSON 메타데이터 생성 (PLAYER_METADATA_SPEC.md 호환)
                 const recipeMeta = {
-                    encoder: "MV2 Web Encoder (WASM)",
-                    source: file.name,
-                    date: new Date().toISOString(),
-                    duration_sec: video.duration,
-                    play_time: playTime,
-                    total_frames: totalFrames,
+                    encoder: "MV2 Web Encoder (WASM)", source: file.name, date: new Date().toISOString(),
+                    duration_sec: video.duration, play_time: playTime, total_frames: totalFrames,
                     settings: {
-                        quantizer: document.getElementById('cfg_quantizer').value,
-                        dither: "Fs",
+                        quantizer: document.getElementById('cfg_quantizer').value, dither: "Fs",
                         dither_strength: parseInt(document.getElementById('cfg_dither').value),
-                        anchors: document.getElementById('cfg_anchors').value.length,
-                        anchor_colors: document.getElementById('cfg_anchors').value,
-                        extra_colors: parseInt(document.getElementById('cfg_colors').value),
-                        aspect: document.getElementById('cfg_aspect').value,
-                        metric: document.getElementById('cfg_metric').value,
-                        nv: false // Web version does not use Nvidia HW
+                        anchors: document.getElementById('cfg_anchors').value.length, anchor_colors: document.getElementById('cfg_anchors').value,
+                        extra_colors: parseInt(document.getElementById('cfg_colors').value), aspect: document.getElementById('cfg_aspect').value,
+                        metric: document.getElementById('cfg_metric').value, nv: false 
                     }
                 };
 
@@ -842,16 +703,17 @@
                     quant_iters_initial: parseInt(document.getElementById('cfg_iter_init').value),
                     quant_iters_subsequent: parseInt(document.getElementById('cfg_iter_sub').value),
                     metadata: JSON.stringify(recipeMeta),
-                    aspect_mode: document.getElementById('cfg_aspect').value, 
-                    crop_left: parseFloat(document.getElementById('cfg_crop_left').value), 
-                    crop_up: parseFloat(document.getElementById('cfg_crop_up').value),
+                    
+                    // 🚀 WASM에는 무조건 Force로 전달하여 이중 계산을 방지합니다.
+                    aspect_mode: "force", 
+                    crop_left: 0, 
+                    crop_up: 0,
+                    
                     sample_rate: TARGET_SAMPLE_RATE, fps: TARGET_FPS, 
                     metric: document.getElementById('cfg_metric').value
                 };
 
                 statusText.innerText = "Initializing WASM Worker...";
-
-                // 3. Worker에 초기화 명령 전달 및 대기
                 await new Promise((resolve, reject) => {
                     worker.onmessage = (e) => {
                         if (e.data.type === 'INIT_DONE') resolve();
@@ -865,7 +727,6 @@
                 const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
                 const pcmFloat32 = audioBuffer.getChannelData(0); 
                 
-                // Extract only the selected segment
                 const startSample = Math.floor(startTime * TARGET_SAMPLE_RATE);
                 const endSample = Math.floor(endTime * TARGET_SAMPLE_RATE);
                 const slicedFloat32 = pcmFloat32.subarray(startSample, endSample);
@@ -877,10 +738,9 @@
                 }
 
                 statusText.innerText = "Encoding MP3 Audio...";
-                const mp3Encoder = new lamejs.Mp3Encoder(1, TARGET_SAMPLE_RATE, 128); // Reverted to 128kbps
+                const mp3Encoder = new lamejs.Mp3Encoder(1, TARGET_SAMPLE_RATE, 128); 
                 const mp3Data = [];
                 
-                // Encode in chunks to prevent UI freeze
                 const mp3ChunkSize = 1152 * 10;
                 for (let i = 0; i < pcmInt16.length; i += mp3ChunkSize) {
                     const chunk = pcmInt16.subarray(i, i + mp3ChunkSize);
@@ -890,32 +750,28 @@
                 const leftover = mp3Encoder.flush();
                 if (leftover.length > 0) mp3Data.push(new Uint8Array(leftover));
                 
-                // Merge all MP3 chunks into one Uint8Array
                 const totalMp3Len = mp3Data.reduce((acc, curr) => acc + curr.length, 0);
                 const fullMp3 = new Uint8Array(totalMp3Len);
                 let offset = 0;
-                for (const chunk of mp3Data) {
-                    fullMp3.set(chunk, offset);
-                    offset += chunk.length;
-                }
+                for (const chunk of mp3Data) { fullMp3.set(chunk, offset); offset += chunk.length; }
 
-                //const totalFrames = Math.floor(video.duration * TARGET_FPS);
-                
-                // 🚀 [핵심 수정] 원본 비디오 해상도 유지! WASM에서 종횡비를 처리하도록 합니다.
-                const origW = video.videoWidth;
-                const origH = video.videoHeight;
+                // 🚀 [256x192 고정 캔버스 아키텍처 반영]
+                // 거대한 메모리 전송을 없애고, 브라우저 GPU를 사용해 196KB 크기로 미리 맞춥니다.
                 const offscreenCanvas = document.createElement('canvas');
-                offscreenCanvas.width = origW; 
-                offscreenCanvas.height = origH;
+                offscreenCanvas.width = 256; 
+                offscreenCanvas.height = 192;
                 const offCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
+                
+                // 🚀 화질 뭉개짐을 최소화하기 위해 최고 품질의 리사이징 필터 적용
+                offCtx.imageSmoothingEnabled = true;
+                offCtx.imageSmoothingQuality = 'high';
 
                 progressBar.max = totalFrames;
-
                 let globalMp3Offset = 0;
                 const bps = 16000; // 128kbps / 8
+                let encodedFramesCount = 0;
 
                 // 2. 메인 인코딩 루프
-                let encodedFramesCount = 0;
                 for (let frameIdx = 0; frameIdx < totalFrames; frameIdx++) {
                     if (shouldStopEncoding) {
                         statusText.innerText = `Encoding Stopped at frame ${frameIdx}. Finalizing...`;
@@ -925,11 +781,10 @@
                     statusText.innerText = `Encoding Frame ${frameIdx + 1} / ${totalFrames}...`;
                     progressBar.value = frameIdx + 1;
 
-                    // 🚀 완벽한 프레임 안착을 보장하는 강력한 Seek 대기 로직
                     await new Promise((resolve) => {
                         const targetTime = startTime + (frameIdx / TARGET_FPS);
                         if (Math.abs(video.currentTime - targetTime) < 0.01) {
-                            resolve(); // Already at the correct time
+                            resolve(); 
                         } else {
                             const onSeeked = () => {
                                 video.removeEventListener('seeked', onSeeked);
@@ -940,112 +795,141 @@
                         }
                     });
 
-                    // 🚀 원본 해상도 그대로 캡처합니다.
-                    offCtx.drawImage(video, 0, 0, origW, origH);
-                    const frameData = offCtx.getImageData(0, 0, origW, origH);
+                    // 🚀 [GPU 가속 256x192 논리 좌표 매핑 로직]
+                    offCtx.fillStyle = '#000';
+                    offCtx.fillRect(0, 0, 256, 192);
+
+                    const vw = video.videoWidth;
+                    const vh = video.videoHeight;
+                    const vr = vw / vh;
+                    
+                    const aspectMode = document.getElementById('cfg_aspect').value;
+                    const targetRatioStr = document.querySelector('input[name="cfg_target_ratio"]:checked').value;
+                    const tr = targetRatioStr === '5:3' ? (5/3) : (4/3); 
+                    
+                    const cropLeft = parseFloat(document.getElementById('cfg_crop_left').value) || 0;
+                    const cropUp = parseFloat(document.getElementById('cfg_crop_up').value) || 0;
+
+                    if (aspectMode === 'force') {
+                        // 단순히 전체 화면을 256x192에 늘려서 그리기
+                        offCtx.drawImage(video, 0, 0, 256, 192);
+                    } else if (aspectMode === 'crop') {
+                        let sx = 0, sy = 0, sw = vw, sh = vh;
+                        if (vr > tr) {
+                            sw = vh * tr;
+                            const maxOffX = vw - sw;
+                            sx = (maxOffX / 2) + (maxOffX / 2) * (cropLeft / 100);
+                        } else {
+                            sh = vw / tr;
+                            const maxOffY = vh - sh;
+                            sy = (maxOffY / 2) + (maxOffY / 2) * (cropUp / 100);
+                        }
+                        // 원본의 잘라낼 영역(sw, sh)을 256x192에 매핑하여 그림
+                        offCtx.drawImage(video, sx, sy, sw, sh, 0, 0, 256, 192);
+                    } else if (aspectMode === 'pad') {
+                        const virtW = tr === 5/3 ? 320 : 256;
+                        const virtH = 192;
+                        let vDrawW = virtW, vDrawH = virtH, vDrawX = 0, vDrawY = 0;
+
+                        if (vr > tr) {
+                            vDrawH = virtW / vr;
+                            vDrawY = (virtH - vDrawH) / 2;
+                        } else {
+                            vDrawW = virtH * vr;
+                            vDrawX = (virtW - vDrawW) / 2;
+                        }
+                        const scaleX = 256 / virtW;
+                        const scaleY = 192 / virtH;
+                        
+                        // 레터박스는 이미 까만 배경으로 채워져 있으므로 영상만 제 위치에 축소하여 그림
+                        offCtx.drawImage(video, 0, 0, vw, vh, vDrawX * scaleX, vDrawY * scaleY, vDrawW * scaleX, vDrawH * scaleY);
+                    }
+
+                    // 👉 256x192 크기의 가벼운 픽셀(196KB) 추출
+                    const frameData = offCtx.getImageData(0, 0, 256, 192);
                     const rgbaBytes = new Uint8Array(frameData.data.buffer);
 
-                    // MP3 bytes for this specific frame (Must be aligned to 32-byte chunks like new_encoder.py)
                     const target_a = Math.floor((frameIdx + 1) * (bps / TARGET_FPS));
                     let sz_blocks = Math.max(1, Math.min(111, Math.ceil((target_a - globalMp3Offset) / 32)));
-                    
                     let chunkByteSize = sz_blocks * 32;
                     let mp3Chunk;
                     if (globalMp3Offset >= fullMp3.length) {
-                        mp3Chunk = new Uint8Array(0); // EOF
+                        mp3Chunk = new Uint8Array(0); 
                     } else {
                         mp3Chunk = fullMp3.slice(globalMp3Offset, globalMp3Offset + chunkByteSize);
                         globalMp3Offset += chunkByteSize;
                     }
                     
-                    // Audio EQ analysis needs raw PCM
                     const samplesPerFrame = Math.floor(TARGET_SAMPLE_RATE / TARGET_FPS);
-                    // pcmInt16 is already sliced to start at startTime, so we just use frameIdx
                     const actualAudioStart = frameIdx * samplesPerFrame;
                     const endSample = Math.min(actualAudioStart + samplesPerFrame, pcmInt16.length);
                     const pcmSlice = pcmInt16.subarray(actualAudioStart, endSample);
 
-                    // 🚀 Worker에게 한 프레임 연산을 지시하고 끝날 때까지 대기
                     await new Promise((resolve, reject) => {
-			worker.onmessage = (e) => {
-			    if (e.data.type === 'FRAME_DONE') {
-				const ditheredRGB = e.data.payload.ditheredRGB; // 256 * 192 * 3 바이트
-                
-                // --- Tri-State Rendering Logic ---
-                const split1 = Math.floor(256 * monitorLeftSplit);
-                const split2 = Math.floor(256 * monitorRightSplit);
-                
-                // 1. Prepare Dithered Image on a temporary canvas
-                if (!window.monitorTempCanvas) {
-                    window.monitorTempCanvas = document.createElement('canvas');
-                    window.monitorTempCanvas.width = 256;
-                    window.monitorTempCanvas.height = 192;
-                }
-                const tCtx = window.monitorTempCanvas.getContext('2d');
-                const tImg = tCtx.createImageData(256, 192);
-                for (let i = 0, j = 0; i < ditheredRGB.length; i += 3, j += 4) {
-                    tImg.data[j] = ditheredRGB[i];
-                    tImg.data[j+1] = ditheredRGB[i+1];
-                    tImg.data[j+2] = ditheredRGB[i+2];
-                    tImg.data[j+3] = 255;
-                }
-                tCtx.putImageData(tImg, 0, 0);
+                        worker.onmessage = (e) => {
+                            if (e.data.type === 'FRAME_DONE') {
+                                const ditheredRGB = e.data.payload.ditheredRGB; 
+                                
+                                const split1 = Math.floor(256 * monitorLeftSplit);
+                                const split2 = Math.floor(256 * monitorRightSplit);
+                                
+                                if (!window.monitorTempCanvas) {
+                                    window.monitorTempCanvas = document.createElement('canvas');
+                                    window.monitorTempCanvas.width = 256; window.monitorTempCanvas.height = 192;
+                                }
+                                const tCtx = window.monitorTempCanvas.getContext('2d');
+                                const tImg = tCtx.createImageData(256, 192);
+                                for (let i = 0, j = 0; i < ditheredRGB.length; i += 3, j += 4) {
+                                    tImg.data[j] = ditheredRGB[i]; tImg.data[j+1] = ditheredRGB[i+1];
+                                    tImg.data[j+2] = ditheredRGB[i+2]; tImg.data[j+3] = 255;
+                                }
+                                tCtx.putImageData(tImg, 0, 0);
 
-                // 2. Compose on the main preview canvas
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                
-                // Region 1: Source (Left)
-                if (split1 > 0) {
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.rect(0, 0, split1, 192);
-                    ctx.clip();
-                    // Draw source video scaled to fit (approximation)
-                    ctx.drawImage(video, 0, 0, 256, 192); 
-                    ctx.restore();
-                }
+                                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                                
+                                // Region 1: Source (Left)
+                                if (split1 > 0) {
+                                    ctx.save();
+                                    ctx.beginPath(); ctx.rect(0, 0, split1, 192); ctx.clip();
+                                    // 🚀 이미 256x192로 전처리가 끝난 offscreenCanvas를 그대로 모니터에 반영합니다.
+                                    ctx.drawImage(offscreenCanvas, 0, 0); 
+                                    ctx.restore();
+                                }
 
-                // Region 2 & 3: Result (Middle & Right)
-                // Both show the same dithered frame for now
-                if (split1 < 256) {
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.rect(split1, 0, 256 - split1, 192);
-                    ctx.clip();
-                    // Draw the same dithered image for both regions
-                    ctx.drawImage(window.monitorTempCanvas, 0, 0);
-                    ctx.restore();
-                }
+                                // Region 2 & 3: Result (Middle & Right)
+                                if (split1 < 256) {
+                                    ctx.save();
+                                    ctx.beginPath(); ctx.rect(split1, 0, 256 - split1, 192); ctx.clip();
+                                    ctx.drawImage(window.monitorTempCanvas, 0, 0);
+                                    ctx.restore();
+                                }
 
-                // Draw vertical divider lines
-                ctx.lineWidth = 1;
-                if (split1 > 0 && split1 < 256) {
-                    ctx.strokeStyle = '#4CAF50'; // Green line for Source split
-                    ctx.beginPath(); ctx.moveTo(split1, 0); ctx.lineTo(split1, 192); ctx.stroke();
-                }
-                if (split2 > split1 && split2 < 256) {
-                    ctx.strokeStyle = '#ff9800'; // Orange line for Result split
-                    ctx.beginPath(); ctx.moveTo(split2, 0); ctx.lineTo(split2, 192); ctx.stroke();
-                }
+                                ctx.lineWidth = 1;
+                                if (split1 > 0 && split1 < 256) {
+                                    ctx.strokeStyle = '#4CAF50'; 
+                                    ctx.beginPath(); ctx.moveTo(split1, 0); ctx.lineTo(split1, 192); ctx.stroke();
+                                }
+                                if (split2 > split1 && split2 < 256) {
+                                    ctx.strokeStyle = '#ff9800'; 
+                                    ctx.beginPath(); ctx.moveTo(split2, 0); ctx.lineTo(split2, 192); ctx.stroke();
+                                }
 
-				resolve();
-			    }
+                                resolve();
+                            }
                             if (e.data.type === 'ERROR') reject(e.data.payload);
                         };
                         
+                        // 🚀 Worker에게 256, 192 치수와 가벼운 페이로드를 전송합니다.
                         worker.postMessage({ 
                             type: 'ENCODE_FRAME', 
-                            // 🚀 origW, origH를 같이 넘겨 WASM이 패딩/크롭을 수행하게 합니다.
-                            payload: { rgbaBytes, origW, origH, mp3Chunk, pcmSlice, frameIdx } 
+                            payload: { rgbaBytes, origW: 256, origH: 192, mp3Chunk, pcmSlice, frameIdx } 
                         });
                     });
                     
                     encodedFramesCount++;
                 }
 
-                // 3. 인코딩 마무리
                 statusText.innerText = "Finalizing & Muxing binary files...";
-                
                 const remainingMp3 = shouldStopEncoding ? new Uint8Array(0) : fullMp3.slice(globalMp3Offset);
 
                 await new Promise((resolve, reject) => {
@@ -1067,18 +951,12 @@
                 console.error(err);
                 statusText.innerText = "Error: " + err;
             } finally {
-                isEncoding = false;
-                shouldStopEncoding = false;
-                currentMode = 'preview';
+                isEncoding = false; shouldStopEncoding = false; currentMode = 'preview';
                 previewContainer.classList.remove('monitor-mode');
-                btnStart.innerText = "Start Encoding";
-                btnStart.style.background = "#007acc";
-                btnStart.disabled = false;
+                btnStart.innerText = "Start Encoding"; btnStart.style.background = "#007acc"; btnStart.disabled = false;
                 
-                // Unlock UI
                 document.querySelectorAll('input, select').forEach(el => el.disabled = false);
-                seekSlider.style.pointerEvents = 'auto';
-                seekSlider.style.opacity = '1';
+                seekSlider.style.pointerEvents = 'auto'; seekSlider.style.opacity = '1';
                 
                 document.getElementById('progress-container').style.display = 'none';
                 renderPreview();
@@ -1086,15 +964,11 @@
         });
 
         function downloadFile(uint8Array, filename, mimeType) {
-            // (기존 다운로드 함수 동일)
             const blob = new Blob([uint8Array], { type: mimeType });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
             URL.revokeObjectURL(url);
         }
     </script>

@@ -109,3 +109,8 @@
 - Reset monitoring split positions to 0% and 100% at the start of each encoding session.
 - Fixed bug where source video audio would play during encoding by explicitly pausing and muting the video element when 'Start Encoding' is clicked.
 - Added logic to unmute the video when the user initiates a manual preview playback via the OSD button or canvas click.
+## 2026-03-13 19:00 - Encoder Mobile Optimization & UI Fixes
+- Added comprehensive touch event support (touchstart, touchmove, touchend) for timeline markers, playhead, and canvas crop dragging.
+- Unified event handling for mouse and touch to ensure consistent behavior across platforms.
+- Fixed 'passive: false' issues on touchmove to allow preventDefault() for smoother dragging without page scrolling.
+- Added Visibility API handling: Automatically refreshes preview when the tab regains focus and logs warnings if encoding is throttled in the background.
