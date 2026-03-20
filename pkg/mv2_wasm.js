@@ -37,20 +37,38 @@ export class Mv2Encoder {
         var ptr0 = isLikeNone(remaining_mp3) ? 0 : passArray8ToWasm0(remaining_mp3, wasm.__wbindgen_malloc);
         var len0 = WASM_VECTOR_LEN;
         const ret = wasm.mv2encoder_finish(this.__wbg_ptr, ptr0, len0);
-        return ret;
+        var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v2;
     }
     /**
      * @returns {Uint8Array}
      */
     finish_rgb() {
         const ret = wasm.mv2encoder_finish_rgb(this.__wbg_ptr);
-        return ret;
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
     }
     /**
      * @returns {Uint8Array}
      */
     get_last_dithered_frame() {
         const ret = wasm.mv2encoder_get_last_dithered_frame(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {Uint8Array}
+     */
+    get_last_palette() {
+        const ret = wasm.mv2encoder_get_last_palette(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {Uint8Array}
+     */
+    get_last_vram() {
+        const ret = wasm.mv2encoder_get_last_vram(this.__wbg_ptr);
         return ret;
     }
     /**
@@ -183,6 +201,10 @@ function __wbg_get_imports() {
             const ret = new Error();
             return ret;
         },
+        __wbg_new_5f486cdf45a04d78: function(arg0) {
+            const ret = new Uint8Array(arg0);
+            return ret;
+        },
         __wbg_new_from_slice_22da9388ac046e50: function(arg0, arg1) {
             const ret = new Uint8Array(getArrayU8FromWasm0(arg0, arg1));
             return ret;
@@ -218,7 +240,12 @@ function __wbg_get_imports() {
             const ret = typeof window === 'undefined' ? null : window;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
-        __wbindgen_cast_0000000000000001: function(arg0, arg1) {
+        __wbindgen_cast_0000000000000001: function(arg0) {
+            // Cast intrinsic for `F64 -> Externref`.
+            const ret = arg0;
+            return ret;
+        },
+        __wbindgen_cast_0000000000000002: function(arg0, arg1) {
             // Cast intrinsic for `Ref(String) -> Externref`.
             const ret = getStringFromWasm0(arg0, arg1);
             return ret;

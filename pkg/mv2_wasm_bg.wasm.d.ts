@@ -3,9 +3,11 @@
 export const memory: WebAssembly.Memory;
 export const __wbg_mv2encoder_free: (a: number, b: number) => void;
 export const mv2encoder_add_frame: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
-export const mv2encoder_finish: (a: number, b: number, c: number) => any;
-export const mv2encoder_finish_rgb: (a: number) => any;
+export const mv2encoder_finish: (a: number, b: number, c: number) => [number, number];
+export const mv2encoder_finish_rgb: (a: number) => [number, number];
 export const mv2encoder_get_last_dithered_frame: (a: number) => any;
+export const mv2encoder_get_last_palette: (a: number) => any;
+export const mv2encoder_get_last_vram: (a: number) => any;
 export const mv2encoder_new: (a: number, b: number) => [number, number, number];
 export const test_anchor_resolution: (a: number, b: number, c: number) => any;
 export const init_panic_hook: () => void;

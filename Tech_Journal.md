@@ -114,3 +114,33 @@
 - Unified event handling for mouse and touch to ensure consistent behavior across platforms.
 - Fixed 'passive: false' issues on touchmove to allow preventDefault() for smoother dragging without page scrolling.
 - Added Visibility API handling: Automatically refreshes preview when the tab regains focus and logs warnings if encoding is throttled in the background.
+## 2026-03-13 19:30 - Architectural Analysis: Canvas Pre-Resizing vs WASM Resizing
+- Conducted a deep architectural review of the new 'Canvas Pre-resizing' pipeline in encoder.html.
+- Concluded that shifting aspect ratio management (Crop/Pad/Force) and image scaling from WASM (CPU) to the browser's Canvas API (GPU-accelerated) provides exponential performance gains.
+- Payload transfer between UI thread and WebWorker is reduced by up to 97% for 1080p source video (from ~8MB per frame to a fixed 196KB).
+- Garbage Collection thrashing is eliminated, ensuring a stable memory footprint.
+
+## 2026-03-21 00:45:00: WASM Build & Service Worker Caching Conflict
+- **The Issue:** After exposing `get_last_vram` in Rust and recompiling the WebAssembly module, the browser encountered a `wasm.mv2encoder_get_last_vram is not a function` error during encoding.
+- **Diagnostic Discovery:** The culprit was `coi-serviceworker.js` (required for SharedArrayBuffer). The Service Worker aggressively cached the *old* `.wasm` binary and JS module, refusing to load the new deployment.
+- **The Fix (Cache Busting):** Implemented a robust cache-busting strategy directly in the code to bypass the Service Worker.
+    - Updated HTML files to instantiate the worker dynamically: `new Worker('./worker.js?v=' + Date.now())`.
+    - Converted the static ES module import in `worker.js` to a dynamic import: `const module = await import('./pkg/mv2_wasm.js?v=' + Date.now());`
+    - Forced the WASM initialization to fetch a unique binary URL: `await init('./pkg/mv2_wasm_bg.wasm?v=' + Date.now());`
+- **Result:** The browser now fetches the latest WASM binary and JS bindings on every load during development.
+- Fixed a bug in encoder.html and hq_encoder.html where the preview canvas CSS aspect-ratio could become desynced from the radio buttons on initial load or mode change. The preview now forcefully synchronizes its aspect ratio on every redraw.
+## 2026-03-13 20:00 - Interactive Resizable Encoding Area (UI Enhancement)
+- Upgraded the preview canvas to feature a fully interactive, free-form resizable blue target box.
+- Added 4 corner handlers (triangles) for resizing. Dragging a corner uses the diagonally opposite corner as a fixed anchor.
+- Added an Aspect Lock toggle (🔒/🔓) in the center of the box to switch between maintaining the 5:3/4:3 ratio and free-aspect resizing.
+- Added '256px' and '192px' dimension labels around the box to clarify what the box represents.
+- Implemented a real-time Picture-in-Picture (PiP) preview that appears in the opposite corner while resizing, showing exactly how the cropped area will look when squashed to 256x192.
+- Refactored the core encoder loop to use the visual bounding box as the single source of truth for the final spatial crop and squash, rendering the legacy 'Pad' and 'Force' aspect modes mostly conceptual.
+- Enhanced the tri-state monitor splitters with visual grip textures and added full mobile touch support (touchstart, touchmove, touchend) to ensure they are draggable on phones/tablets.
+- Ported all interactive UI enhancements (free-form resizable box, PiP, mobile touch for splitters, aspect locking) from encoder.html to hq_encoder.html and wasm_encoder.html.
+- Adapted the ENCODE_FRAME loop in both alternative encoders to consume the 'customBox' coordinates, scaling them appropriately to their respective high-resolution offscreen canvases.
+## 2026-03-13 21:00 - Adaptive Aspect Modes
+- Modified 'Pad' and 'Force' aspect modes to behave as rigid, automated presets (Letterbox and Stretch). When active, resizing handles and PiP preview are hidden.
+- Implemented 'Auto-Switch' logic: If a user clicks or drags the canvas while in 'Pad' or 'Force' mode, the UI instantly switches the dropdown to 'Crop' mode and reveals the free-form resizing handles.
+- Moved the Aspect Lock (🔒/🔓) icon to the top-left of the preview canvas to prevent interaction conflicts with the central OSD Play/Pause button.
+- Updated main encoding loops across encoder.html, hq_encoder.html, and wasm_encoder.html to respect the explicit 'pad' and 'force' spatial logic when not in custom crop mode.

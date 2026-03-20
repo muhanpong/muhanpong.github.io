@@ -26,7 +26,7 @@
             display: block; 
             width: 100%; 
             height: auto;
-            aspect-ratio: 4 / 3;
+            aspect-ratio: 5 / 3;
             border: 2px solid #555;
             image-rendering: pixelated;
             image-rendering: crisp-edges;
@@ -59,6 +59,7 @@
         .marker.playhead-marker::before { display: none; }
 
         .split-handle { display: none; position: absolute; top: 0; bottom: 0; width: 20px; cursor: ew-resize; transform: translateX(-50%); z-index: 20; background: rgba(255,255,255,0.1); border-left: 2px solid; }
+        .split-handle::after { content: ''; position: absolute; top: 50%; left: -6px; transform: translateY(-50%); width: 10px; height: 30px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.5); border-radius: 4px; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2); background-image: radial-gradient(circle at center, white 1px, transparent 1px); background-size: 100% 6px; }
         #splitLeft { border-color: #4CAF50; left: 33%; }
         #splitRight { border-color: #ff9800; left: 66%; }
         .monitor-mode .split-handle { display: block; }
@@ -436,44 +437,208 @@
 
         let isDraggingCanvas = false;
         let hasDraggedCanvas = false;
-        let dragStartX = 0, dragStartY = 0, initialCropLeft = 0, initialCropUp = 0;
+        let dragMode = null; // 'pan', 'resize_tl', 'resize_tr', 'resize_bl', 'resize_br'
+        let dragStartX = 0, dragStartY = 0;
+        let dragStartBox = null; // {x, y, w, h}
+        
+        // Custom box state relative to canvas
+        let customBox = null; // { x, y, w, h } in canvas pixel coordinates
+        let isAspectLocked = true;
+        let isCustomMode = false; // switches to true when user resizes the box
 
         function handleCanvasDown(e) {
-            if (currentMode !== 'preview' || document.getElementById('cfg_aspect').value !== 'crop' || !currentFile) return;
-            isDraggingCanvas = true; hasDraggedCanvas = false;
+            if (currentMode !== 'preview' || !currentFile) return;
+            
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            dragStartX = clientX; dragStartY = clientY;
-            initialCropLeft = parseFloat(document.getElementById('cfg_crop_left').value) || 0;
-            initialCropUp = parseFloat(document.getElementById('cfg_crop_up').value) || 0;
+            
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const mouseX = (clientX - rect.left) * scaleX;
+            const mouseY = (clientY - rect.top) * scaleY;
+
+            // Determine if clicking lock icon (Top-left of canvas, e.g., 20x20 area)
+            if (document.getElementById('cfg_aspect').value === 'crop') {
+                if (mouseX < 40 && mouseY < 40) {
+                    isAspectLocked = !isAspectLocked;
+                    drawPreviewCanvas();
+                    return;
+                }
+            }
+
+            // Hit test corners (15px radius)
+            let box = customBox || getCalculatedBox(); 
+            if (!box) return;
+
+            const r = 15;
+            let hit = true;
+            if (Math.abs(mouseX - box.x) < r && Math.abs(mouseY - box.y) < r) dragMode = 'resize_tl';
+            else if (Math.abs(mouseX - (box.x + box.w)) < r && Math.abs(mouseY - box.y) < r) dragMode = 'resize_tr';
+            else if (Math.abs(mouseX - box.x) < r && Math.abs(mouseY - (box.y + box.h)) < r) dragMode = 'resize_bl';
+            else if (Math.abs(mouseX - (box.x + box.w)) < r && Math.abs(mouseY - (box.y + box.h)) < r) dragMode = 'resize_br';
+            else if (mouseX > box.x && mouseX < box.x + box.w && mouseY > box.y && mouseY < box.y + box.h) dragMode = 'pan';
+            else hit = false; // clicked outside the box
+
+            if (!hit) return;
+
+            // Auto-switch to crop mode if interacting with the canvas
+            const aspectSelect = document.getElementById('cfg_aspect');
+            if (aspectSelect.value !== 'crop') {
+                aspectSelect.value = 'crop';
+            }
+
+            if (e.type === 'touchstart' && dragMode.startsWith('resize')) e.preventDefault();
+
+            isDraggingCanvas = true; 
+            hasDraggedCanvas = false;
+            dragStartX = mouseX; 
+            dragStartY = mouseY;
+            dragStartBox = { ...box };
+            
+            // If they grabbed a handle, we enter custom mode
+            if (dragMode.startsWith('resize')) {
+                isCustomMode = true;
+                customBox = { ...box };
+            }
         }
 
         previewContainer.addEventListener('mousedown', handleCanvasDown);
         previewContainer.addEventListener('touchstart', handleCanvasDown, { passive: false });
 
+        function getCalculatedBox() {
+            if (!currentFile) return null;
+            const vw = sourceVideo.videoWidth, vh = sourceVideo.videoHeight;
+            if (!vw || !vh) return null;
+
+            const aspectMode = document.getElementById('cfg_aspect').value;
+            const targetRatioStr = document.querySelector('input[name="cfg_target_ratio"]:checked').value;
+            const targetRatio = targetRatioStr === '5:3' ? (5/3) : (4/3);
+            const canvasAspect = canvas.width / canvas.height, videoAspect = vw / vh;
+
+            let drawW = canvas.width, drawH = canvas.height, drawX = 0, drawY = 0;
+            if (videoAspect > canvasAspect) { drawH = canvas.width / videoAspect; drawY = (canvas.height - drawH) / 2; } 
+            else { drawW = canvas.height * videoAspect; drawX = (canvas.width - drawW) / 2; }
+
+            let targetX = drawX, targetY = drawY, targetW = drawW, targetH = drawH;
+
+            if (aspectMode === 'pad') {
+                targetX = 0; targetY = 0; targetW = canvas.width; targetH = canvas.height;
+            } else if (aspectMode === 'crop') {
+                if (videoAspect > targetRatio) {
+                    targetW = drawH * targetRatio;
+                    let cropOffX = parseFloat(document.getElementById('cfg_crop_left').value) || 0;
+                    targetX = drawX + ((drawW - targetW) / 2) + ((drawW - targetW) / 2) * (cropOffX / 100);
+                } else {
+                    targetH = drawW / targetRatio;
+                    let cropOffY = parseFloat(document.getElementById('cfg_crop_up').value) || 0;
+                    targetY = drawY + ((drawH - targetH) / 2) + ((drawH - targetH) / 2) * (cropOffY / 100);
+                }
+            } else if (aspectMode === 'force') {
+                targetX = 0; targetY = 0; targetW = canvas.width; targetH = canvas.height;
+            }
+            return { x: targetX, y: targetY, w: targetW, h: targetH, drawX, drawY, drawW, drawH };
+        }
+
         function handleCanvasMove(e) {
             if (!isDraggingCanvas) return;
             if (e.type === 'touchmove') e.preventDefault();
             hasDraggedCanvas = true;
+            
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            const dx = clientX - dragStartX, dy = clientY - dragStartY;
-            const pctX = (dx / canvas.clientWidth) * 100, pctY = (dy / canvas.clientHeight) * 100;
-
-            let newLeft = initialCropLeft, newUp = initialCropUp;
-            const vw = sourceVideo.videoWidth, vh = sourceVideo.videoHeight;
-            if (!vw || !vh) return;
             
-            const targetRatioStr = document.querySelector('input[name="cfg_target_ratio"]:checked').value;
-            const targetRatio = targetRatioStr === '5:3' ? (5/3) : (4/3);
-            const videoAspect = vw / vh;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const mouseX = (clientX - rect.left) * scaleX;
+            const mouseY = (clientY - rect.top) * scaleY;
+            
+            const dx = mouseX - dragStartX;
+            const dy = mouseY - dragStartY;
 
-            if (videoAspect > targetRatio) newLeft = Math.max(-100, Math.min(100, initialCropLeft + pctX));
-            else newUp = Math.max(-100, Math.min(100, initialCropUp + pctY));
+            if (!customBox && dragMode === 'pan') {
+                // Legacy pan mode using UI offsets
+                const rawDx = clientX - (dragStartX / scaleX + rect.left);
+                const rawDy = clientY - (dragStartY / scaleY + rect.top);
+                const pctX = (rawDx / canvas.clientWidth) * 100, pctY = (rawDy / canvas.clientHeight) * 100;
+                
+                let newLeft = parseFloat(document.getElementById('cfg_crop_left').value) || 0;
+                let newUp = parseFloat(document.getElementById('cfg_crop_up').value) || 0;
+                const vw = sourceVideo.videoWidth, vh = sourceVideo.videoHeight;
+                const targetRatio = document.querySelector('input[name="cfg_target_ratio"]:checked').value === '5:3' ? (5/3) : (4/3);
+                const videoAspect = vw / vh;
+                
+                // Approximate initial offsets to avoid huge jumps
+                if (videoAspect > targetRatio) newLeft = Math.max(-100, Math.min(100, newLeft + pctX));
+                else newUp = Math.max(-100, Math.min(100, newUp + pctY));
 
-            document.getElementById('cfg_crop_left').value = newLeft.toFixed(1);
-            document.getElementById('cfg_crop_up').value = newUp.toFixed(1);
-            drawPreviewCanvas(); 
+                document.getElementById('cfg_crop_left').value = newLeft.toFixed(1);
+                document.getElementById('cfg_crop_up').value = newUp.toFixed(1);
+                drawPreviewCanvas();
+                return;
+            }
+
+            // Custom resizing mode
+            if (!customBox) customBox = { ...dragStartBox };
+            isCustomMode = true;
+
+            let newX = dragStartBox.x;
+            let newY = dragStartBox.y;
+            let newW = dragStartBox.w;
+            let newH = dragStartBox.h;
+
+            if (dragMode === 'pan') {
+                newX += dx;
+                newY += dy;
+            } else {
+                const targetRatio = document.querySelector('input[name="cfg_target_ratio"]:checked').value === '5:3' ? (5/3) : (4/3);
+                
+                if (dragMode === 'resize_br') {
+                    newW += dx;
+                    newH = isAspectLocked ? newW / targetRatio : newH + dy;
+                } else if (dragMode === 'resize_bl') {
+                    newW -= dx;
+                    newX += dx;
+                    newH = isAspectLocked ? newW / targetRatio : newH + dy;
+                } else if (dragMode === 'resize_tr') {
+                    newW += dx;
+                    if (isAspectLocked) {
+                        const hDiff = newW / targetRatio - newH;
+                        newH += hDiff;
+                        newY -= hDiff;
+                    } else {
+                        newH -= dy;
+                        newY += dy;
+                    }
+                } else if (dragMode === 'resize_tl') {
+                    newW -= dx;
+                    newX += dx;
+                    if (isAspectLocked) {
+                        const hDiff = newW / targetRatio - newH;
+                        newH += hDiff;
+                        newY -= hDiff;
+                    } else {
+                        newH -= dy;
+                        newY += dy;
+                    }
+                }
+                
+                // Enforce minimum size
+                if (newW < 20) { newW = 20; if (isAspectLocked) newH = 20 / targetRatio; }
+                if (newH < 20) { newH = 20; if (isAspectLocked) newW = 20 * targetRatio; }
+            }
+
+            // Keep within video bounds (optional, but good UX)
+            // if (newX < dragStartBox.drawX) newX = dragStartBox.drawX;
+            // ...
+
+            customBox.x = newX;
+            customBox.y = newY;
+            customBox.w = newW;
+            customBox.h = newH;
+
+            drawPreviewCanvas();
         }
 
         document.addEventListener('mousemove', handleCanvasMove);
@@ -488,13 +653,23 @@
         });
         
         let isDraggingSplit = null;
-        splitLeft.addEventListener('mousedown', () => { if (currentMode === 'monitor') isDraggingSplit = 'left'; });
-        splitRight.addEventListener('mousedown', () => { if (currentMode === 'monitor') isDraggingSplit = 'right'; });
+        function handleSplitDown(side, e) {
+            if (currentMode === 'monitor') {
+                isDraggingSplit = side;
+                if (e.type === 'touchstart') e.preventDefault(); // Prevent scroll while grabbing
+            }
+        }
+        splitLeft.addEventListener('mousedown', (e) => handleSplitDown('left', e));
+        splitLeft.addEventListener('touchstart', (e) => handleSplitDown('left', e), { passive: false });
+        splitRight.addEventListener('mousedown', (e) => handleSplitDown('right', e));
+        splitRight.addEventListener('touchstart', (e) => handleSplitDown('right', e), { passive: false });
         
-        document.addEventListener('mousemove', (e) => {
+        function handleSplitMove(e) {
             if (!isDraggingSplit) return;
+            if (e.type === 'touchmove') e.preventDefault();
             const rect = previewContainer.getBoundingClientRect();
-            let pct = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            let pct = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
             
             if (isDraggingSplit === 'left') {
                 monitorLeftSplit = Math.min(pct / 100, monitorRightSplit);
@@ -503,11 +678,19 @@
                 monitorRightSplit = Math.max(pct / 100, monitorLeftSplit);
                 splitRight.style.left = `${monitorRightSplit * 100}%`;
             }
-        });
-        document.addEventListener('mouseup', () => { isDraggingSplit = null; });
+        }
+        document.addEventListener('mousemove', handleSplitMove);
+        document.addEventListener('touchmove', handleSplitMove, { passive: false });
+        
+        function handleSplitUp() { isDraggingSplit = null; }
+        document.addEventListener('mouseup', handleSplitUp);
+        document.addEventListener('touchend', handleSplitUp);
 
-        document.getElementById('cfg_aspect').addEventListener('change', drawPreviewCanvas);
-        document.getElementById('cfg_crop_left').addEventListener('input', drawPreviewCanvas);
+        document.getElementById('cfg_aspect').addEventListener('change', () => {
+            customBox = null;
+            isCustomMode = false;
+            drawPreviewCanvas();
+        });
         document.getElementById('cfg_crop_up').addEventListener('input', drawPreviewCanvas);
         document.querySelectorAll('input[name="cfg_target_ratio"]').forEach(r => r.addEventListener('change', (e) => {
             canvas.style.aspectRatio = e.target.value === '5:3' ? '5 / 3' : '4 / 3';
@@ -517,6 +700,9 @@
         function drawPreviewCanvas() {
             if (currentMode === 'monitor') return; 
             
+            const targetRatioStr = document.querySelector('input[name="cfg_target_ratio"]:checked').value;
+            canvas.style.aspectRatio = targetRatioStr === '5:3' ? '5 / 3' : '4 / 3';
+
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             if (!currentFile) return;
@@ -525,7 +711,6 @@
             if (!vw || !vh) return;
 
             const aspectMode = document.getElementById('cfg_aspect').value;
-            const targetRatioStr = document.querySelector('input[name="cfg_target_ratio"]:checked').value;
             const targetRatio = targetRatioStr === '5:3' ? (5/3) : (4/3);
 
             let drawW = canvas.width, drawH = canvas.height, drawX = 0, drawY = 0;
@@ -840,16 +1025,6 @@
 
                     if (aspectMode === 'force') {
                         offCtx.drawImage(video, 0, 0, drawW, drawH);
-                    } else if (aspectMode === 'crop') {
-                        let sx = 0, sy = 0;
-                        if (vr > tr) {
-                            const maxOffX = vw - drawW;
-                            sx = (maxOffX / 2) + (maxOffX / 2) * (cropLeft / 100);
-                        } else {
-                            const maxOffY = vh - drawH;
-                            sy = (maxOffY / 2) + (maxOffY / 2) * (cropUp / 100);
-                        }
-                        offCtx.drawImage(video, sx, sy, drawW, drawH, 0, 0, drawW, drawH);
                     } else if (aspectMode === 'pad') {
                         let dx = 0, dy = 0;
                         if (vr > tr) {
@@ -858,6 +1033,17 @@
                         } else {
                             dx = (drawW - vw) / 2;
                             offCtx.drawImage(video, 0, 0, vw, vh, dx, 0, vw, vh);
+                        }
+                    } else {
+                        let box = customBox || getCalculatedBox();
+                        if (box && box.drawW > 0 && box.drawH > 0) {
+                            const scaleVidX = vw / box.drawW;
+                            const scaleVidY = vh / box.drawH;
+                            const vidSx = (box.x - box.drawX) * scaleVidX;
+                            const vidSy = (box.y - box.drawY) * scaleVidY;
+                            const vidSw = box.w * scaleVidX;
+                            const vidSh = box.h * scaleVidY;
+                            offCtx.drawImage(video, vidSx, vidSy, vidSw, vidSh, 0, 0, drawW, drawH);
                         }
                     }
 
@@ -885,11 +1071,12 @@
                     await new Promise((resolve, reject) => {
                         worker.onmessage = (e) => {
                             if (e.data.type === 'FRAME_DONE') {
-                                const ditheredRGB = e.data.payload.ditheredRGB; 
+                                const { ditheredRGB, vramBytes, paletteBytes } = e.data.payload; 
                                 
                                 const split1 = Math.floor(256 * monitorLeftSplit);
                                 const split2 = Math.floor(256 * monitorRightSplit);
                                 
+                                // 1. Dithered Frame
                                 if (!window.monitorTempCanvas) {
                                     window.monitorTempCanvas = document.createElement('canvas');
                                     window.monitorTempCanvas.width = 256; window.monitorTempCanvas.height = 192;
@@ -902,9 +1089,35 @@
                                 }
                                 tCtx.putImageData(tImg, 0, 0);
 
+                                // 2. VRAM Packed Frame
+                                if (!window.vramTempCanvas) {
+                                    window.vramTempCanvas = document.createElement('canvas');
+                                    window.vramTempCanvas.width = 256; window.vramTempCanvas.height = 192;
+                                }
+                                const vCtx = window.vramTempCanvas.getContext('2d');
+                                const vImg = vCtx.createImageData(256, 192);
+                                
+                                // Screen 4 VRAM Decode (PGT + CT)
+                                for (let y = 0; y < 192; y++) {
+                                    for (let x = 0; x < 256; x++) {
+                                        const vram_off = (Math.floor(y / 8) * 32 + Math.floor(x / 8)) * 8 + (y % 8);
+                                        const pgt_byte = vramBytes[vram_off];
+                                        const ct_byte = vramBytes[6144 + vram_off];
+                                        const bit = (pgt_byte >> (7 - (x % 8))) & 1;
+                                        const color_idx = bit ? (ct_byte >> 4) : (ct_byte & 0x0F);
+                                        
+                                        const px_idx = (y * 256 + x) * 4;
+                                        vImg.data[px_idx] = paletteBytes[color_idx * 3];
+                                        vImg.data[px_idx + 1] = paletteBytes[color_idx * 3 + 1];
+                                        vImg.data[px_idx + 2] = paletteBytes[color_idx * 3 + 2];
+                                        vImg.data[px_idx + 3] = 255;
+                                    }
+                                }
+                                vCtx.putImageData(vImg, 0, 0);
+
                                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                                 
-                                // Region 1: Source (Left)
+                                // Region 1: Source (Left of Split 1)
                                 if (split1 > 0) {
                                     ctx.save();
                                     ctx.beginPath(); ctx.rect(0, 0, split1, 192); ctx.clip();
@@ -913,11 +1126,19 @@
                                     ctx.restore();
                                 }
 
-                                // Region 2 & 3: Result (Middle & Right)
-                                if (split1 < 256) {
+                                // Region 2: Dithered (Between Split 1 and Split 2)
+                                if (split2 > split1) {
                                     ctx.save();
-                                    ctx.beginPath(); ctx.rect(split1, 0, 256 - split1, 192); ctx.clip();
+                                    ctx.beginPath(); ctx.rect(split1, 0, split2 - split1, 192); ctx.clip();
                                     ctx.drawImage(window.monitorTempCanvas, 0, 0);
+                                    ctx.restore();
+                                }
+
+                                // Region 3: VRAM Packed (Right of Split 2)
+                                if (split2 < 256) {
+                                    ctx.save();
+                                    ctx.beginPath(); ctx.rect(split2, 0, 256 - split2, 192); ctx.clip();
+                                    ctx.drawImage(window.vramTempCanvas, 0, 0);
                                     ctx.restore();
                                 }
 
