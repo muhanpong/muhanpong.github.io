@@ -954,7 +954,7 @@
                         if (e.data.type === 'FINISHED') {
                             const { mv2Bytes, rgbBytes } = e.data.payload;
                             downloadFile(mv2Bytes, "retro_output.mv2", "application/octet-stream");
-                            downloadFile(rgbBytes, "retro_output.rgb", "application/octet-stream");
+                            // downloadFile(rgbBytes, "retro_output.rgb", "application/octet-stream");
                             resolve();
                         }
                         if (e.data.type === 'ERROR') reject(e.data.payload);
