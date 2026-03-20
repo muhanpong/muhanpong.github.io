@@ -113,11 +113,11 @@
             </div>
             <div>
                 <label>Dither Strength (0-100)</label>
-                <input type="number" id="cfg_dither" value="65" min="0" max="100">
+                <input type="number" id="cfg_dither" value="85" min="0" max="100">
             </div>
             <div>
                 <label>Max Extra Colors</label>
-                <input type="number" id="cfg_colors" value="16" min="1" max="16">
+                <input type="number" id="cfg_colors" value="15" min="1" max="100">
             </div>
             <div>
                 <label>Anchor Colors (Shorthand)</label>
@@ -263,9 +263,9 @@
         let tooltipsEnabled = false;
         const tooltipData = {
             'cfg_quantizer': 'K-Means++: Smooth gradients, slower. Greedy: High contrast, faster.',
-            'cfg_dither': '0 = No dither (banding). 100 = Maximum dither (noisy). Default 65.',
-            'cfg_colors': 'Number of extra colors per 8x1 block. Max 16.',
-            'cfg_anchors': 'K_W means Black & White are forced into every palette.',
+            'cfg_dither': '0 = No dither (banding). 100 = Maximum dither (noisy). Default 85.',
+            'cfg_colors': 'Number of dynamic colors to calculate for better quality (higher is slower). Recommended: 15 for best quality; 4–8 for balanced speed(less colors).',
+            'cfg_anchors': 'Specific colors to lock into the palette (e.g., \'K\' for Black, \'W\' for White); use \'_\' to keep them bright in dark scenes.',
             'cfg_iter_init': 'K-Means iterations for the first frame. Higher = better quality.',
             'cfg_iter_sub': 'Iterations for subsequent frames. Can be lower for speed.',
             'cfg_metric': 'Redmean is best for human skin. Euclidean is standard.',
