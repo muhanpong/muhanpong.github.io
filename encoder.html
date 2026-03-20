@@ -307,12 +307,45 @@
             return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(secParts[0]) + (secParts[1] ? parseInt(secParts[1])/1000 : 0);
         }
 
+        // async function loadVideoFile(file) {
+        //     currentFile = file;
+        //     const url = URL.createObjectURL(file);
+        //     sourceVideo.src = url;
+        //     
+        //     await new Promise(resolve => {
+        //         sourceVideo.onloadedmetadata = () => {
+        //             videoDuration = sourceVideo.duration;
+        //             startTime = 0;
+        //             endTime = videoDuration;
+        //             currentTime = 0;
+        //             
+        //             document.getElementById('cfg_crop_left').value = 0;
+        //             document.getElementById('cfg_crop_up').value = 0;
+        //             
+        //             timeStartInput.value = formatTimeInput(startTime);
+        //             timeEndInput.value = formatTimeInput(endTime);
+        //             timeStartInput.disabled = false;
+        //             timeEndInput.disabled = false;
+        //             
+        //             updateSliderVisuals();
+        //             updateVideoTime();
+        //             
+        //             previewContainer.classList.add('has-media');
+        //             previewContainer.classList.add('paused');
+        //             resolve();
+        //         };
+        //     });
+        // }
+
         async function loadVideoFile(file) {
             currentFile = file;
             const url = URL.createObjectURL(file);
             sourceVideo.src = url;
             
-            await new Promise(resolve => {
+            // 🚀 [핵심 추가] iOS 사파리 버그 해결: 숨겨진 비디오라도 강제로 메타데이터를 읽어오도록 지시합니다.
+            sourceVideo.load();
+            
+            await new Promise((resolve, reject) => {
                 sourceVideo.onloadedmetadata = () => {
                     videoDuration = sourceVideo.duration;
                     startTime = 0;
@@ -334,9 +367,14 @@
                     previewContainer.classList.add('paused');
                     resolve();
                 };
+
+                // 🚀 [핵심 추가] 파일 읽기 실패나 코덱 에러 시 무한 대기(먹통)를 방지하고 경고창을 띄웁니다.
+                sourceVideo.onerror = () => {
+                    alert("⚠️ 비디오를 불러올 수 없습니다. 파일이 완전히 다운로드되지 않았거나 아이패드가 지원하지 않는 코덱일 수 있습니다.");
+                    reject(new Error("Video Load Error"));
+                };
             });
         }
-
         let playbackAnimFrame;
         
         function togglePlay() {
