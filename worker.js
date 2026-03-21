@@ -28,10 +28,11 @@ self.onmessage = async (e) => {
 
             // 🚀 매우 무거운 WASM 연산 (여기서 멈춰도 UI는 멈추지 않음!)
             encoder.add_frame(rgbaBytes, origW, origH, 4, mp3Chunk, pcmSlice);            
-            // 프리뷰 데이터 추출 (WASM 메모리 뷰 참조 문제를 피하기 위해 하드 카피)
-            const ditheredRGB = new Uint8Array(encoder.get_last_dithered_frame());
-            const vramBytes = new Uint8Array(encoder.get_last_vram());
-            const paletteBytes = new Uint8Array(encoder.get_last_palette());
+            
+            // 프리뷰 데이터 추출: WASM 메모리를 통째로 Transfer하는 것을 방지하기 위해 .slice()로 깊은 복사 수행
+            const ditheredRGB = encoder.get_last_dithered_frame().slice();
+            const vramBytes = encoder.get_last_vram().slice();
+            const paletteBytes = encoder.get_last_palette().slice();
             
             // 연산 완료 후 메인 스레드로 결과 전송 (Zero-Copy)
             self.postMessage({ 
@@ -41,8 +42,11 @@ self.onmessage = async (e) => {
         } 
         else if (type === 'FINISH') {
             const { remainingMp3 } = payload || { remainingMp3: new Uint8Array(0) };
-            const mv2Bytes = encoder.finish(remainingMp3);
-            const rgbBytes = encoder.finish_rgb();
+            
+            // 결과물 추출 및 WASM 메모리 분리
+            const mv2Bytes = encoder.finish(remainingMp3).slice();
+            const rgbBytes = encoder.finish_rgb().slice();
+            
             self.postMessage({ 
                 type: 'FINISHED', 
                 payload: { mv2Bytes, rgbBytes } 
