@@ -401,11 +401,73 @@
             font-weight: bold;
             color: #4db8ff;
         }
+
+        /* === Overlay Manual System === */
+        .help-section {
+            position: relative;
+        }
+
+        .help-overlay {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: rgba(10, 10, 30, 0.72);
+            color: #ddd;
+            z-index: 50;
+            padding: 10px 14px;
+            font-size: 0.78em;
+            line-height: 1.55;
+            border-radius: 6px;
+            border: 1px solid rgba(77, 184, 255, 0.25);
+            overflow-y: auto;
+            transition: background 0.25s ease;
+            cursor: default;
+        }
+
+        .help-overlay:hover {
+            background: rgba(10, 10, 30, 0.92);
+            color: #fff;
+            border-color: rgba(77, 184, 255, 0.5);
+        }
+
+        .help-overlay h4 {
+            margin: 0 0 6px 0;
+            color: #4db8ff;
+            font-size: 1.05em;
+        }
+
+        .help-overlay .hl {
+            color: #ffcc00;
+            font-weight: bold;
+        }
+
+        .help-overlay .tip {
+            color: #77dd77;
+        }
+
+        body.help-visible .help-overlay {
+            display: block;
+        }
+
+        body.help-visible .info-icon {
+            background: #4db8ff;
+            color: #000;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js" crossorigin="anonymous"></script>
 </head>
 
 <body>
+    <svg width="0" height="0" style="position:absolute;z-index:-1;">
+        <filter id="gamma-filter">
+            <feComponentTransfer>
+                <!-- SVG Gamma exponent is 1/gamma. We will update this via JS -->
+                <feFuncR type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaR" />
+                <feFuncG type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaG" />
+                <feFuncB type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaB" />
+            </feComponentTransfer>
+        </filter>
+    </svg>
     <div id="tooltip" class="tooltip-box"></div>
     <div class="title-container">
         <h2>📼 MSX2 MV2 Web Encoder</h2>
@@ -419,24 +481,48 @@
             muted></video>
 
         <div class="grid" style="margin-top: 15px;">
-            <div>
+            <div class="help-section">
                 <label>Quantizer Algorithm</label>
                 <select id="cfg_quantizer">
                     <option value="kmeans">K-Means++ (Smooth Gradients)</option>
                     <option value="greedy">Greedy (High Contrast/Pixel Art)</option>
                 </select>
+                <div class="help-overlay">
+                    <h4>Quantizer Algorithm <span class="tip">(색상 추출 방식)</span></h4>
+                    <span class="hl">K-Means++</span>: 원본의 색상 분포를 부드럽게 분석합니다. 자연스러운 실사 영상이나 그라데이션이 많은 화면에 유리합니다.<br><br>
+                    <span class="hl">Greedy</span>: 대비가 강하고 제한된 색상을 빠르게 찾아냅니다. 픽셀아트, 2D 게임 플레이 영상, 일본식 애니메이션에 매우 적합합니다.
+                </div>
             </div>
-            <div>
+            <div class="help-section">
                 <label>Dither Strength (0-100)</label>
                 <input type="number" id="cfg_dither" value="85" min="0" max="100">
+                <div class="help-overlay">
+                    <h4>Dither Strength <span class="tip">(디더링 강도)</span></h4>
+                    MSX2의 부족한 색상(15색)을 보완하기 위해 픽셀을 패턴으로 섞어 인접색을 표현하는 강도입니다.<br><br>
+                    <span class="hl">0</span>: 디더링 끄기 (선명하지만 밴딩/등고선 현상 발생 지점 생김)<br>
+                    <span class="hl">85~100</span>: 부드러운 음영 전환. (100에 가까울수록 모래알 같은 노이즈 질감이 강해짐)
+                </div>
             </div>
-            <div>
+            <div class="help-section">
                 <label>Max Extra Colors</label>
                 <input type="number" id="cfg_colors" value="15" min="1" max="100">
+                <div class="help-overlay">
+                    <h4>Max Extra Colors <span class="tip">(추출 색상 수)</span></h4>
+                    인코더가 영상에서 자동으로 뽑아낼 파렛트 색상의 개수입니다.<br><br>
+                    MSX2 파일 포맷(.mv2)의 하드웨어 한계상 배경 투명색(검정) 1개를 제외하고 <b>최대 15개</b>까지만 실제로 사용됩니다.<br>
+                    <span class="hl">팁</span>: 일부러 더 적은 색상(예: 4~8)으로 파렛트를 제한하여 거친 레트로 분위기를 연출할 수도 있습니다.
+                </div>
             </div>
-            <div>
+            <div class="help-section">
                 <label>Anchor Colors (Shorthand)</label>
                 <input type="text" id="cfg_anchors" value="K_W">
+                <div class="help-overlay">
+                    <h4>Anchor Colors <span class="tip">(고정 색상)</span></h4>
+                    자동 추출 대신, 영상에 반드시 포함시켜야 할 핵심 색상들을 강제로 고정(Anchor)합니다. 여러 색상은 언더바(_)로 구분합니다.<br><br>
+                    <span class="hl">지원 색상 코드</span>: <b>K</b>(검정), <b>W</b>(흰색), <b>R</b>(빨강), <b>G</b>(초록),
+                    <b>B</b>(파랑), <b>Y</b>(노랑), <b>M</b>(마젠타), <b>C</b>(시안).<br>
+                    예: <span class="hl">K_W_R</span> (검정, 흰, 빨강 세 가지를 파렛트에 무조건 추가)
+                </div>
             </div>
             <div>
                 <label>Initial Iterations (Quality)</label>
@@ -479,9 +565,98 @@
                     <input type="number" id="cfg_crop_up" value="0" min="-100" max="100">
                 </div>
             </div>
+            <div
+                style="grid-column: span 2; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #444; margin-top: 5px; padding-top: 5px;">
+                <span style="font-weight: bold; font-size: 13px;">A/V Adjustments</span>
+                <button onclick="resetAllAV()"
+                    style="background:transparent; border:1px solid #666; color:#ddd; padding:2px 6px; border-radius:4px; cursor:pointer; font-size:11px;">↺
+                    Reset Global Defaults</button>
+            </div>
+            <div style="grid-column: span 2; display: flex; gap: 10px;">
+                <div style="flex: 1;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <label style="margin:0;">Brightness: <span id="val_brightness">0</span></label>
+                        <div style="display:flex; gap:6px; font-size:12px;">
+                            <span style="cursor:pointer;" onclick="resetAV('brightness', 0)" title="Default">↺</span>
+                            <span style="cursor:pointer;" onclick="toggleLockAV('brightness')" id="lock_brightness"
+                                title="Lock">🔓</span>
+                        </div>
+                    </div>
+                    <input type="range" id="cfg_brightness" value="0" min="-100" max="100" step="1"
+                        oninput="document.getElementById('val_brightness').innerText = this.value">
+                </div>
+                <div style="flex: 1;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <label style="margin:0;">Contrast: <span id="val_contrast">0</span></label>
+                        <div style="display:flex; gap:6px; font-size:12px;">
+                            <span style="cursor:pointer;" onclick="resetAV('contrast', 0)" title="Default">↺</span>
+                            <span style="cursor:pointer;" onclick="toggleLockAV('contrast')" id="lock_contrast"
+                                title="Lock">🔓</span>
+                        </div>
+                    </div>
+                    <input type="range" id="cfg_contrast" value="0" min="-100" max="100" step="1"
+                        oninput="document.getElementById('val_contrast').innerText = this.value">
+                </div>
+                <div style="flex: 1;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <label style="margin:0;">Saturation: <span id="val_saturation">0</span></label>
+                        <div style="display:flex; gap:6px; font-size:12px;">
+                            <span style="cursor:pointer;" onclick="resetAV('saturation', 0)" title="Default">↺</span>
+                            <span style="cursor:pointer;" onclick="toggleLockAV('saturation')" id="lock_saturation"
+                                title="Lock">🔓</span>
+                        </div>
+                    </div>
+                    <input type="range" id="cfg_saturation" value="0" min="-100" max="200" step="1"
+                        oninput="document.getElementById('val_saturation').innerText = this.value">
+                </div>
+            </div>
+            <div style="grid-column: span 2; display: flex; gap: 10px;">
+                <div style="flex: 1;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <label style="margin:0;">Hue: <span id="val_hue">0</span>°</label>
+                        <div style="display:flex; gap:6px; font-size:12px;">
+                            <span style="cursor:pointer;" onclick="resetAV('hue', 0)" title="Default">↺</span>
+                            <span style="cursor:pointer;" onclick="toggleLockAV('hue')" id="lock_hue"
+                                title="Lock">🔓</span>
+                        </div>
+                    </div>
+                    <input type="range" id="cfg_hue" value="0" min="-180" max="180" step="1"
+                        oninput="document.getElementById('val_hue').innerText = this.value">
+                </div>
+                <div style="flex: 1;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <label style="margin:0;">Gamma: <span id="val_gamma">1.0</span></label>
+                        <div style="display:flex; gap:6px; font-size:12px;">
+                            <span style="cursor:pointer;" onclick="resetAV('gamma', '1.0')" title="Default">↺</span>
+                            <span style="cursor:pointer;" onclick="toggleLockAV('gamma')" id="lock_gamma"
+                                title="Lock">🔓</span>
+                        </div>
+                    </div>
+                    <input type="range" id="cfg_gamma" value="1.0" step="0.1" min="0.1" max="3.0"
+                        oninput="document.getElementById('val_gamma').innerText = parseFloat(this.value).toFixed(1)">
+                </div>
+                <div style="flex: 1;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <label style="margin:0;">Audio Gain: <span id="val_audio_gain">0</span>dB</label>
+                        <div style="display:flex; gap:6px; font-size:12px;">
+                            <span style="cursor:pointer;" onclick="resetAV('audio_gain', 0)" title="Default">↺</span>
+                            <span style="cursor:pointer;" onclick="toggleLockAV('audio_gain')" id="lock_audio_gain"
+                                title="Lock">🔓</span>
+                        </div>
+                    </div>
+                    <input type="range" id="cfg_audio_gain" value="0" min="-20" max="20" step="1"
+                        oninput="document.getElementById('val_audio_gain').innerText = this.value">
+                </div>
+            </div>
         </div>
 
-        <button id="btnStart">Start Encoding</button>
+        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 5px;">
+            <button id="btnStart" style="flex: 1;">Start Encoding</button>
+            <label style="display: flex; align-items: center; gap: 5px; font-size: 13px; color: #ccc;"
+                title="Automatically download the encoded file">
+                <input type="checkbox" id="cfg_auto_download" checked> Auto-Download
+            </label>
+        </div>
 
         <div id="progress-container">
             <label id="statusText">Extracting Audio...</label>
@@ -592,7 +767,14 @@
             'cfg_aspect': 'Crop: cuts edges. Pad: adds black bars. Force: stretches image.',
             'cfg_crop_left': 'Shift crop window horizontally (-100 to 100).',
             'cfg_crop_up': 'Shift crop window vertically (-100 to 100).',
-            'cfg_target_ratio': 'Select 5:3 (MSX Standard) or 4:3 target screen ratio.'
+            'cfg_target_ratio': 'Select 5:3 (MSX Standard) or 4:3 target screen ratio.',
+            'cfg_auto_download': 'Automatically download the encoded .mv2 file when finished. Uncheck if you only want to send it to the player.',
+            'cfg_brightness': 'Adjust image brightness from -100 to +100.',
+            'cfg_contrast': 'Adjust image contrast from -100 to +100.',
+            'cfg_saturation': 'Adjust color saturation from -100 (grayscale) to +100.',
+            'cfg_hue': 'Rotate color hue by degrees (-180 to 180).',
+            'cfg_gamma': 'Adjust image gamma (0.1 to 3.0). Values < 1 make the image darker, > 1 brighter. Default is 1.0.',
+            'cfg_audio_gain': 'Amplify or reduce audio volume (-20dB to +20dB).'
         };
 
         btnInfo.addEventListener('click', () => {
@@ -969,39 +1151,48 @@
             } else {
                 const targetRatio = document.querySelector('input[name="cfg_target_ratio"]:checked').value === '5:3' ? (5 / 3) : (4 / 3);
 
+                let targetW = dragStartBox.w;
+                let targetH = dragStartBox.h;
+
                 if (dragMode === 'resize_br') {
-                    newW += dx;
-                    newH = isAspectLocked ? newW / targetRatio : newH + dy;
+                    targetW += dx; targetH += dy;
                 } else if (dragMode === 'resize_bl') {
-                    newW -= dx;
-                    newX += dx;
-                    newH = isAspectLocked ? newW / targetRatio : newH + dy;
+                    targetW -= dx; targetH += dy;
                 } else if (dragMode === 'resize_tr') {
-                    newW += dx;
-                    if (isAspectLocked) {
-                        const hDiff = newW / targetRatio - newH;
-                        newH += hDiff;
-                        newY -= hDiff;
-                    } else {
-                        newH -= dy;
-                        newY += dy;
-                    }
+                    targetW += dx; targetH -= dy;
                 } else if (dragMode === 'resize_tl') {
-                    newW -= dx;
-                    newX += dx;
-                    if (isAspectLocked) {
-                        const hDiff = newW / targetRatio - newH;
-                        newH += hDiff;
-                        newY -= hDiff;
+                    targetW -= dx; targetH -= dy;
+                }
+
+                if (isAspectLocked) {
+                    let dominantAxis = (Math.abs(dx) > Math.abs(dy)) ? 'x' : 'y';
+                    if (dominantAxis === 'x') {
+                        targetH = targetW / targetRatio;
                     } else {
-                        newH -= dy;
-                        newY += dy;
+                        targetW = targetH * targetRatio;
                     }
                 }
 
                 // Enforce minimum size
-                if (newW < 20) { newW = 20; if (isAspectLocked) newH = 20 / targetRatio; }
-                if (newH < 20) { newH = 20; if (isAspectLocked) newW = 20 * targetRatio; }
+                if (targetW < 20) { targetW = 20; if (isAspectLocked) targetH = 20 / targetRatio; }
+                if (targetH < 20) { targetH = 20; if (isAspectLocked) targetW = 20 * targetRatio; }
+
+                newW = targetW;
+                newH = targetH;
+
+                if (dragMode === 'resize_br') {
+                    newX = dragStartBox.x;
+                    newY = dragStartBox.y;
+                } else if (dragMode === 'resize_bl') {
+                    newX = dragStartBox.x + dragStartBox.w - newW;
+                    newY = dragStartBox.y;
+                } else if (dragMode === 'resize_tr') {
+                    newX = dragStartBox.x;
+                    newY = dragStartBox.y + dragStartBox.h - newH;
+                } else if (dragMode === 'resize_tl') {
+                    newX = dragStartBox.x + dragStartBox.w - newW;
+                    newY = dragStartBox.y + dragStartBox.h - newH;
+                }
             }
 
             // Snap edges to source video boundaries (hold Alt/Cmd to disable)
@@ -1084,6 +1275,53 @@
             canvas.style.aspectRatio = e.target.value === '5:3' ? '5 / 3' : '4 / 3';
             drawPreviewCanvas();
         }));
+        ['cfg_brightness', 'cfg_contrast', 'cfg_saturation', 'cfg_hue', 'cfg_gamma'].forEach(id => {
+            document.getElementById(id).addEventListener('input', drawPreviewCanvas);
+        });
+
+        window.resetAV = function (id, defaultVal) {
+            const input = document.getElementById('cfg_' + id);
+            if (input.disabled) return;
+            input.value = defaultVal;
+            document.getElementById('val_' + id).innerText = (id === 'gamma') ? parseFloat(defaultVal).toFixed(1) : defaultVal;
+            drawPreviewCanvas();
+        }
+
+        window.toggleLockAV = function (id) {
+            const input = document.getElementById('cfg_' + id);
+            const lockIcon = document.getElementById('lock_' + id);
+            input.disabled = !input.disabled;
+            lockIcon.innerText = input.disabled ? '🔒' : '🔓';
+        }
+
+        window.resetAllAV = function () {
+            window.resetAV('brightness', 0);
+            window.resetAV('contrast', 0);
+            window.resetAV('saturation', 0);
+            window.resetAV('hue', 0);
+            window.resetAV('gamma', '1.0');
+            window.resetAV('audio_gain', 0);
+        }
+
+        function applyVideoFilters(context) {
+            const b = parseFloat(document.getElementById('cfg_brightness').value) + 100;
+            const c = parseFloat(document.getElementById('cfg_contrast').value) + 100;
+            const s = parseFloat(document.getElementById('cfg_saturation').value) + 100;
+            const h = parseFloat(document.getElementById('cfg_hue').value);
+            const gamma = parseFloat(document.getElementById('cfg_gamma').value) || 1.0;
+
+            document.getElementById('gammaR').setAttribute('exponent', 1 / gamma);
+            document.getElementById('gammaG').setAttribute('exponent', 1 / gamma);
+            document.getElementById('gammaB').setAttribute('exponent', 1 / gamma);
+
+            context.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) hue-rotate(${h}deg)`;
+
+            // Fix for Chrome: Inline SVG filters in ctx.filter cause drawImage to fail silently or be completely ignored.
+            // We apply the SVG gamma filter directly to the canvas DOM element instead for the live preview.
+            if (context === ctx || context === window.ctxDisplay) {
+                canvas.style.filter = `url(#gamma-filter)`;
+            }
+        }
 
         function drawPreviewCanvas() {
             if (currentMode === 'monitor') return;
@@ -1091,6 +1329,7 @@
             const targetRatioStr = document.querySelector('input[name="cfg_target_ratio"]:checked').value;
             canvas.style.aspectRatio = targetRatioStr === '5:3' ? '5 / 3' : '4 / 3';
 
+            ctx.filter = 'none';
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             if (!currentFile) return;
@@ -1098,7 +1337,9 @@
             let box = customBox || getCalculatedBox();
             if (!box) return;
 
+            applyVideoFilters(ctx);
             ctx.drawImage(sourceVideo, box.drawX, box.drawY, box.drawW, box.drawH);
+            ctx.filter = 'none';
 
             // Darken outside the box
             ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
@@ -1122,7 +1363,7 @@
             // TR
             ctx.beginPath(); ctx.moveTo(box.x + box.w, box.y); ctx.lineTo(box.x + box.w - size, box.y); ctx.lineTo(box.x + box.w, box.y + size); ctx.fill();
             // BL
-            ctx.beginPath(); ctx.moveTo(box.x, box.y + box.h); ctx.lineTo(box.x + size, box.y + box.h); ctx.lineTo(box.x, box.y + box.h - size); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(box.x + box.w, box.y + box.h); ctx.lineTo(box.x + size, box.y + box.h); ctx.lineTo(box.x, box.y + box.h - size); ctx.fill();
             // BR
             ctx.beginPath(); ctx.moveTo(box.x + box.w, box.y + box.h); ctx.lineTo(box.x + box.w - size, box.y + box.h); ctx.lineTo(box.x + box.w, box.y + box.h - size); ctx.fill();
 
@@ -1182,7 +1423,9 @@
                 const vidSh = box.h * scaleVidY;
 
                 if (vidSw > 0 && vidSh > 0) {
+                    applyVideoFilters(ctx);
                     ctx.drawImage(sourceVideo, vidSx, vidSy, vidSw, vidSh, pipX, pipY, pipW, pipH);
+                    ctx.filter = 'none';
                 }
             }
         }
@@ -1352,8 +1595,12 @@
                 const slicedFloat32 = pcmFloat32.subarray(startSample, endSample);
 
                 const pcmInt16 = new Int16Array(slicedFloat32.length);
+                const audioGainDb = parseFloat(document.getElementById('cfg_audio_gain').value) || 0;
+                const linearGain = Math.pow(10, audioGainDb / 20);
+
                 for (let i = 0; i < slicedFloat32.length; i++) {
-                    let s = Math.max(-1, Math.min(1, slicedFloat32[i]));
+                    let s = slicedFloat32[i] * linearGain;
+                    s = Math.max(-1, Math.min(1, s));
                     pcmInt16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                 }
 
@@ -1434,12 +1681,32 @@
                         const vidSw = box.w * scaleVidX;
                         const vidSh = box.h * scaleVidY;
 
+                        applyVideoFilters(offCtx);
                         // Draw exactly that cropped portion into the 256x192 encoder frame
                         offCtx.drawImage(video, vidSx, vidSy, vidSw, vidSh, 0, 0, 256, 192);
+                        offCtx.filter = 'none';
                     }
 
                     // 👉 256x192 크기의 가벼운 픽셀(196KB) 추출
                     const frameData = offCtx.getImageData(0, 0, 256, 192);
+
+                    // 수동 Gamma LUT 적용 (인코딩 성능을 위해 빠른 테이블 조회 사용)
+                    const gammaVal = parseFloat(document.getElementById('cfg_gamma').value) || 1.0;
+                    if (Math.abs(gammaVal - 1.0) > 0.01) {
+                        const lut = new Uint8Array(256);
+                        for (let i = 0; i < 256; i++) {
+                            lut[i] = Math.min(255, Math.pow(i / 255, 1 / gammaVal) * 255);
+                        }
+                        const data = frameData.data;
+                        const len = data.length;
+                        for (let i = 0; i < len; i += 4) {
+                            data[i] = lut[data[i]];
+                            data[i + 1] = lut[data[i + 1]];
+                            data[i + 2] = lut[data[i + 2]];
+                            // 알파 채널은 무시
+                        }
+                    }
+
                     const rgbaBytes = new Uint8Array(frameData.data.buffer);
 
                     const target_a = Math.floor((frameIdx + 1) * (bps / TARGET_FPS));
@@ -1563,7 +1830,9 @@
                     worker.onmessage = (e) => {
                         if (e.data.type === 'FINISHED') {
                             const { mv2Bytes, rgbBytes } = e.data.payload;
-                            downloadFile(mv2Bytes, "retro_output.mv2", "application/octet-stream");
+                            if (document.getElementById('cfg_auto_download').checked) {
+                                downloadFile(mv2Bytes, "retro_output.mv2", "application/octet-stream");
+                            }
                             // downloadFile(rgbBytes, "retro_output.rgb", "application/octet-stream");
                             lastEncodedMv2 = mv2Bytes;
                             resolve();
@@ -1574,8 +1843,12 @@
                 });
 
                 statusText.innerHTML = (shouldStopEncoding ? `Encoding Stopped. Exported ${encodedFramesCount} frames.` : "Encoding Complete! 🎉") +
-                    ' <button id="btnSendToPlayer" style="margin-left:10px;padding:4px 12px;background:#4CAF50;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;" title="Send to MV Player tab">▶ Send to Player</button>';
+                    ' <button id="btnSendToPlayer" style="margin-left:10px;padding:4px 12px;background:#4CAF50;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;" title="Send to MV Player tab">▶ Send to Player</button>' +
+                    ' <button id="btnSaveMv2" style="margin-left:5px;padding:4px 12px;background:#007acc;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;" title="Download Encoded File">⬇️ Save MV2</button>';
                 document.getElementById('btnSendToPlayer').onclick = sendToPlayer;
+                document.getElementById('btnSaveMv2').onclick = () => {
+                    if (lastEncodedMv2) downloadFile(lastEncodedMv2, "retro_output.mv2", "application/octet-stream");
+                };
 
             } catch (err) {
                 console.error(err);

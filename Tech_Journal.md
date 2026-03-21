@@ -168,5 +168,21 @@
   - **Encoder side** (encoder.html, hq_encoder.html): After encoding completes, a green "▶ Send to Player" button appears. Clicking sends the .mv2 ArrayBuffer via BroadcastChannel, then shows "✓ Sent!" confirmation.
     - *Fix (14:55)*: Fixed an issue where `progress-container` `display: none` was incorrectly hiding the button after encoding finished. Now only the `progressBar` is hidden.
   - **Player side** (index.html): Receives the encoded file, wraps it as a File object, prepends it to the playlist, and auto-plays it with `window.focus()`.
+- Added an **"Auto-Download" checkbox** next to the Start Encoding button. Unchecking and using "Send to Player" prevents the browser from downloading testing files locally.
+  - Added a manual **"⬇️ Save MV2" button** that appears alongside "Send to Player" after encoding, allowing users to still download the file even if auto-download was disabled.
 - Tri-state monitor splitters: Changed initial position from 0%/100% to 25%/75% (25%|50%|25% split) across all three encoder files.
 - Added missing variable declarations (`customBox`, `isCustomMode`, `isAspectLocked`, `dragMode`, `dragStartBox`) to wasm_encoder.html to fix ReferenceError in strict mode.
+
+## 2026-03-21 20:30 - Audio & Video Adjustment Controls
+- Added slider controls for **Brightness**, **Contrast**, **Saturation**, **Hue**, **Gamma**, and **Audio Gain (dB)** to the encoder UI (`encoder.html`, `hq_encoder.html`).
+- **Real-time Preview:** Adjusting the sliders updates the video preview instantly using HTML5 Canvas `ctx.filter` with CSS `brightness`, `contrast`, `saturate`, and `hue-rotate`.
+- **Hardware-accelerated Gamma:** Implemented an inline SVG `<filter>` with `<feComponentTransfer>` to provide real-time gamma correction via the `url(#gamma-filter)` CSS filter.
+- **Video Extraction:** The combined color filters are automatically applied to the offscreen canvas (`offCtx`) before drawing frames for encoding.
+- **Audio Gain:** Implemented direct linear scaling of the decoded PCM Float32 audio chunks before converting to Int16 for the MP3 encoder, accurately applying the user's dB gain setting.
+## 2026-03-21 21:50 - Crop Editor Resizing Fix
+- **Aspect-Locked Resizing Algorithm Overhaul:** Replaced the previous corner resizing algorithm which exclusively drove scale changes off the horizontal mouse movement (`dx`). Implemented a dominant-axis driven approach that calculates scaling based on whichever movement (`dx` or `dy`) is larger.
+- **Corner Anchoring:** Accurately anchored the opposite corner for all four resize handles (`tl`, `tr`, `bl`, `br`) while resizing under aspect-lock, preventing the box from moving in counter-intuitive directions (such as moving the bottom edge down when dragging the bottom-left corner up). This provides a much smoother and predictable UX in both `encoder.html` and `hq_encoder.html`.
+
+## 2026-03-21 22:15 - Canvas Filter Architecture Fix (Chrome)
+- **CSS Filter + Gamma LUT Separation:** Resolved a Chrome-specific bug where applying an inline SVG filter (`url(#gamma-filter)`) to `CanvasRenderingContext2D.filter` causes the renderer to silently fail and ignore all filters. 
+- **Implementation:** Standard CSS filters (Brightness, Contrast, Saturation, Hue) are now safely applied via `ctx.filter`, while Gamma correction is explicitly processed via a high-speed Lookup Table (LUT) loop during the `getImageData` extraction phase. The preview monitor applies the SVG gamma filter directly to the DOM element (`canvas.style.filter`) to maintain real-time visual accuracy without breaking the HTML5 Canvas pipeline.

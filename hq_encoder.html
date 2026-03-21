@@ -406,6 +406,16 @@
 </head>
 
 <body>
+    <svg width="0" height="0" style="position:absolute;z-index:-1;">
+        <filter id="gamma-filter">
+            <feComponentTransfer>
+                <!-- SVG Gamma exponent is 1/gamma. We will update this via JS -->
+                <feFuncR type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaR" />
+                <feFuncG type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaG" />
+                <feFuncB type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaB" />
+            </feComponentTransfer>
+        </filter>
+    </svg>
     <div id="tooltip" class="tooltip-box"></div>
     <div class="title-container">
         <h2>📼 MSX2 MV2 Web Encoder (HQ?)</h2>
@@ -478,9 +488,98 @@
                     <input type="number" id="cfg_crop_up" value="0" min="-100" max="100">
                 </div>
             </div>
+            <div
+                style="grid-column: span 2; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #444; margin-top: 5px; padding-top: 5px;">
+                <span style="font-weight: bold; font-size: 13px;">A/V Adjustments</span>
+                <button onclick="resetAllAV()"
+                    style="background:transparent; border:1px solid #666; color:#ddd; padding:2px 6px; border-radius:4px; cursor:pointer; font-size:11px;">↺
+                    Reset Global Defaults</button>
+            </div>
+            <div style="grid-column: span 2; display: flex; gap: 10px;">
+                <div style="flex: 1;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <label style="margin:0;">Brightness: <span id="val_brightness">0</span></label>
+                        <div style="display:flex; gap:6px; font-size:12px;">
+                            <span style="cursor:pointer;" onclick="resetAV('brightness', 0)" title="Default">↺</span>
+                            <span style="cursor:pointer;" onclick="toggleLockAV('brightness')" id="lock_brightness"
+                                title="Lock">🔓</span>
+                        </div>
+                    </div>
+                    <input type="range" id="cfg_brightness" value="0" min="-100" max="100" step="1"
+                        oninput="document.getElementById('val_brightness').innerText = this.value">
+                </div>
+                <div style="flex: 1;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <label style="margin:0;">Contrast: <span id="val_contrast">0</span></label>
+                        <div style="display:flex; gap:6px; font-size:12px;">
+                            <span style="cursor:pointer;" onclick="resetAV('contrast', 0)" title="Default">↺</span>
+                            <span style="cursor:pointer;" onclick="toggleLockAV('contrast')" id="lock_contrast"
+                                title="Lock">🔓</span>
+                        </div>
+                    </div>
+                    <input type="range" id="cfg_contrast" value="0" min="-100" max="100" step="1"
+                        oninput="document.getElementById('val_contrast').innerText = this.value">
+                </div>
+                <div style="flex: 1;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <label style="margin:0;">Saturation: <span id="val_saturation">0</span></label>
+                        <div style="display:flex; gap:6px; font-size:12px;">
+                            <span style="cursor:pointer;" onclick="resetAV('saturation', 0)" title="Default">↺</span>
+                            <span style="cursor:pointer;" onclick="toggleLockAV('saturation')" id="lock_saturation"
+                                title="Lock">🔓</span>
+                        </div>
+                    </div>
+                    <input type="range" id="cfg_saturation" value="0" min="-100" max="200" step="1"
+                        oninput="document.getElementById('val_saturation').innerText = this.value">
+                </div>
+            </div>
+            <div style="grid-column: span 2; display: flex; gap: 10px;">
+                <div style="flex: 1;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <label style="margin:0;">Hue: <span id="val_hue">0</span>°</label>
+                        <div style="display:flex; gap:6px; font-size:12px;">
+                            <span style="cursor:pointer;" onclick="resetAV('hue', 0)" title="Default">↺</span>
+                            <span style="cursor:pointer;" onclick="toggleLockAV('hue')" id="lock_hue"
+                                title="Lock">🔓</span>
+                        </div>
+                    </div>
+                    <input type="range" id="cfg_hue" value="0" min="-180" max="180" step="1"
+                        oninput="document.getElementById('val_hue').innerText = this.value">
+                </div>
+                <div style="flex: 1;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <label style="margin:0;">Gamma: <span id="val_gamma">1.0</span></label>
+                        <div style="display:flex; gap:6px; font-size:12px;">
+                            <span style="cursor:pointer;" onclick="resetAV('gamma', '1.0')" title="Default">↺</span>
+                            <span style="cursor:pointer;" onclick="toggleLockAV('gamma')" id="lock_gamma"
+                                title="Lock">🔓</span>
+                        </div>
+                    </div>
+                    <input type="range" id="cfg_gamma" value="1.0" step="0.1" min="0.1" max="3.0"
+                        oninput="document.getElementById('val_gamma').innerText = parseFloat(this.value).toFixed(1)">
+                </div>
+                <div style="flex: 1;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <label style="margin:0;">Audio Gain: <span id="val_audio_gain">0</span>dB</label>
+                        <div style="display:flex; gap:6px; font-size:12px;">
+                            <span style="cursor:pointer;" onclick="resetAV('audio_gain', 0)" title="Default">↺</span>
+                            <span style="cursor:pointer;" onclick="toggleLockAV('audio_gain')" id="lock_audio_gain"
+                                title="Lock">🔓</span>
+                        </div>
+                    </div>
+                    <input type="range" id="cfg_audio_gain" value="0" min="-20" max="20" step="1"
+                        oninput="document.getElementById('val_audio_gain').innerText = this.value">
+                </div>
+            </div>
         </div>
 
-        <button id="btnStart">Start Encoding</button>
+        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 5px;">
+            <button id="btnStart" style="flex: 1;">Start Encoding</button>
+            <label style="display: flex; align-items: center; gap: 5px; font-size: 13px; color: #ccc;"
+                title="Automatically download the encoded file">
+                <input type="checkbox" id="cfg_auto_download" checked> Auto-Download
+            </label>
+        </div>
 
         <div id="progress-container">
             <label id="statusText">Extracting Audio...</label>
@@ -591,7 +690,14 @@
             'cfg_aspect': 'Crop: cuts edges. Pad: adds black bars. Force: stretches image.',
             'cfg_crop_left': 'Shift crop window horizontally (-100 to 100).',
             'cfg_crop_up': 'Shift crop window vertically (-100 to 100).',
-            'cfg_target_ratio': 'Select 5:3 (MSX Standard) or 4:3 target screen ratio.'
+            'cfg_target_ratio': 'Select 5:3 (MSX Standard) or 4:3 target screen ratio.',
+            'cfg_auto_download': 'Automatically download the encoded .mv2 file when finished. Uncheck if you only want to send it to the player.',
+            'cfg_brightness': 'Adjust image brightness from -100 to +100.',
+            'cfg_contrast': 'Adjust image contrast from -100 to +100.',
+            'cfg_saturation': 'Adjust color saturation from -100 (grayscale) to +100.',
+            'cfg_hue': 'Rotate color hue by degrees (-180 to 180).',
+            'cfg_gamma': 'Adjust image gamma (0.1 to 3.0). Values < 1 make the image darker, > 1 brighter. Default is 1.0.',
+            'cfg_audio_gain': 'Amplify or reduce audio volume (-20dB to +20dB).'
         };
 
         btnInfo.addEventListener('click', () => {
@@ -948,39 +1054,48 @@
             } else {
                 const targetRatio = document.querySelector('input[name="cfg_target_ratio"]:checked').value === '5:3' ? (5 / 3) : (4 / 3);
 
+                let targetW = dragStartBox.w;
+                let targetH = dragStartBox.h;
+
                 if (dragMode === 'resize_br') {
-                    newW += dx;
-                    newH = isAspectLocked ? newW / targetRatio : newH + dy;
+                    targetW += dx; targetH += dy;
                 } else if (dragMode === 'resize_bl') {
-                    newW -= dx;
-                    newX += dx;
-                    newH = isAspectLocked ? newW / targetRatio : newH + dy;
+                    targetW -= dx; targetH += dy;
                 } else if (dragMode === 'resize_tr') {
-                    newW += dx;
-                    if (isAspectLocked) {
-                        const hDiff = newW / targetRatio - newH;
-                        newH += hDiff;
-                        newY -= hDiff;
-                    } else {
-                        newH -= dy;
-                        newY += dy;
-                    }
+                    targetW += dx; targetH -= dy;
                 } else if (dragMode === 'resize_tl') {
-                    newW -= dx;
-                    newX += dx;
-                    if (isAspectLocked) {
-                        const hDiff = newW / targetRatio - newH;
-                        newH += hDiff;
-                        newY -= hDiff;
+                    targetW -= dx; targetH -= dy;
+                }
+
+                if (isAspectLocked) {
+                    let dominantAxis = (Math.abs(dx) > Math.abs(dy)) ? 'x' : 'y';
+                    if (dominantAxis === 'x') {
+                        targetH = targetW / targetRatio;
                     } else {
-                        newH -= dy;
-                        newY += dy;
+                        targetW = targetH * targetRatio;
                     }
                 }
 
                 // Enforce minimum size
-                if (newW < 20) { newW = 20; if (isAspectLocked) newH = 20 / targetRatio; }
-                if (newH < 20) { newH = 20; if (isAspectLocked) newW = 20 * targetRatio; }
+                if (targetW < 20) { targetW = 20; if (isAspectLocked) targetH = 20 / targetRatio; }
+                if (targetH < 20) { targetH = 20; if (isAspectLocked) targetW = 20 * targetRatio; }
+
+                newW = targetW;
+                newH = targetH;
+
+                if (dragMode === 'resize_br') {
+                    newX = dragStartBox.x;
+                    newY = dragStartBox.y;
+                } else if (dragMode === 'resize_bl') {
+                    newX = dragStartBox.x + dragStartBox.w - newW;
+                    newY = dragStartBox.y;
+                } else if (dragMode === 'resize_tr') {
+                    newX = dragStartBox.x;
+                    newY = dragStartBox.y + dragStartBox.h - newH;
+                } else if (dragMode === 'resize_tl') {
+                    newX = dragStartBox.x + dragStartBox.w - newW;
+                    newY = dragStartBox.y + dragStartBox.h - newH;
+                }
             }
 
             // Snap edges to source video boundaries (hold Alt/Cmd to disable)
@@ -1062,6 +1177,53 @@
             canvas.style.aspectRatio = e.target.value === '5:3' ? '5 / 3' : '4 / 3';
             drawPreviewCanvas();
         }));
+        ['cfg_brightness', 'cfg_contrast', 'cfg_saturation', 'cfg_hue', 'cfg_gamma'].forEach(id => {
+            document.getElementById(id).addEventListener('input', drawPreviewCanvas);
+        });
+
+        window.resetAV = function (id, defaultVal) {
+            const input = document.getElementById('cfg_' + id);
+            if (input.disabled) return;
+            input.value = defaultVal;
+            document.getElementById('val_' + id).innerText = (id === 'gamma') ? parseFloat(defaultVal).toFixed(1) : defaultVal;
+            drawPreviewCanvas();
+        }
+
+        window.toggleLockAV = function (id) {
+            const input = document.getElementById('cfg_' + id);
+            const lockIcon = document.getElementById('lock_' + id);
+            input.disabled = !input.disabled;
+            lockIcon.innerText = input.disabled ? '🔒' : '🔓';
+        }
+
+        window.resetAllAV = function () {
+            window.resetAV('brightness', 0);
+            window.resetAV('contrast', 0);
+            window.resetAV('saturation', 0);
+            window.resetAV('hue', 0);
+            window.resetAV('gamma', '1.0');
+            window.resetAV('audio_gain', 0);
+        }
+
+        function applyVideoFilters(context) {
+            const b = parseFloat(document.getElementById('cfg_brightness').value) + 100;
+            const c = parseFloat(document.getElementById('cfg_contrast').value) + 100;
+            const s = parseFloat(document.getElementById('cfg_saturation').value) + 100;
+            const h = parseFloat(document.getElementById('cfg_hue').value);
+            const gamma = parseFloat(document.getElementById('cfg_gamma').value) || 1.0;
+
+            document.getElementById('gammaR').setAttribute('exponent', 1 / gamma);
+            document.getElementById('gammaG').setAttribute('exponent', 1 / gamma);
+            document.getElementById('gammaB').setAttribute('exponent', 1 / gamma);
+
+            context.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) hue-rotate(${h}deg)`;
+
+            // Fix for Chrome: Inline SVG filters in ctx.filter cause drawImage to fail silently or be completely ignored.
+            // We apply the SVG gamma filter directly to the canvas DOM element instead for the live preview.
+            if (context === ctx || context === window.ctxDisplay) {
+                canvas.style.filter = `url(#gamma-filter)`;
+            }
+        }
 
         function drawPreviewCanvas() {
             if (currentMode === 'monitor') return;
@@ -1069,6 +1231,7 @@
             const targetRatioStr = document.querySelector('input[name="cfg_target_ratio"]:checked').value;
             canvas.style.aspectRatio = targetRatioStr === '5:3' ? '5 / 3' : '4 / 3';
 
+            ctx.filter = 'none';
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             if (!currentFile) return;
@@ -1076,7 +1239,9 @@
             let box = customBox || getCalculatedBox();
             if (!box) return;
 
+            applyVideoFilters(ctx);
             ctx.drawImage(sourceVideo, box.drawX, box.drawY, box.drawW, box.drawH);
+            ctx.filter = 'none';
 
             // Darken outside the box
             ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
@@ -1158,7 +1323,9 @@
                 const vidSh = box.h * scaleVidY;
 
                 if (vidSw > 0 && vidSh > 0) {
+                    applyVideoFilters(ctx);
                     ctx.drawImage(sourceVideo, vidSx, vidSy, vidSw, vidSh, pipX, pipY, pipW, pipH);
+                    ctx.filter = 'none';
                 }
             }
         }
@@ -1328,8 +1495,12 @@
                 const slicedFloat32 = pcmFloat32.subarray(startSample, endSample);
 
                 const pcmInt16 = new Int16Array(slicedFloat32.length);
+                const audioGainDb = parseFloat(document.getElementById('cfg_audio_gain').value) || 0;
+                const linearGain = Math.pow(10, audioGainDb / 20);
+
                 for (let i = 0; i < slicedFloat32.length; i++) {
-                    let s = Math.max(-1, Math.min(1, slicedFloat32[i]));
+                    let s = slicedFloat32[i] * linearGain;
+                    s = Math.max(-1, Math.min(1, s));
                     pcmInt16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                 }
 
@@ -1434,6 +1605,7 @@
                     const cropLeft = parseFloat(document.getElementById('cfg_crop_left').value) || 0;
                     const cropUp = parseFloat(document.getElementById('cfg_crop_up').value) || 0;
 
+                    applyVideoFilters(offCtx);
                     if (aspectMode === 'force') {
                         offCtx.drawImage(video, 0, 0, drawW, drawH);
                     } else if (aspectMode === 'pad') {
@@ -1457,9 +1629,28 @@
                             offCtx.drawImage(video, vidSx, vidSy, vidSw, vidSh, 0, 0, drawW, drawH);
                         }
                     }
+                    offCtx.filter = 'none';
 
                     // 👉 최종적으로 완벽하게 재단된 '고화질 타겟 비율' 픽셀 추출
                     const frameData = offCtx.getImageData(0, 0, drawW, drawH);
+
+                    // 수동 Gamma LUT 적용 (인코딩 성능을 위해 빠른 테이블 조회 사용)
+                    const gammaVal = parseFloat(document.getElementById('cfg_gamma').value) || 1.0;
+                    if (Math.abs(gammaVal - 1.0) > 0.01) {
+                        const lut = new Uint8Array(256);
+                        for (let i = 0; i < 256; i++) {
+                            lut[i] = Math.min(255, Math.pow(i / 255, 1 / gammaVal) * 255);
+                        }
+                        const data = frameData.data;
+                        const len = data.length;
+                        for (let i = 0; i < len; i += 4) {
+                            data[i] = lut[data[i]];
+                            data[i + 1] = lut[data[i + 1]];
+                            data[i + 2] = lut[data[i + 2]];
+                            // 알파 채널은 무시
+                        }
+                    }
+
                     const rgbaBytes = new Uint8Array(frameData.data.buffer);
 
 
@@ -1585,7 +1776,9 @@
                     worker.onmessage = (e) => {
                         if (e.data.type === 'FINISHED') {
                             const { mv2Bytes, rgbBytes } = e.data.payload;
-                            downloadFile(mv2Bytes, "retro_output.mv2", "application/octet-stream");
+                            if (document.getElementById('cfg_auto_download').checked) {
+                                downloadFile(mv2Bytes, "retro_output.mv2", "application/octet-stream");
+                            }
                             // downloadFile(rgbBytes, "retro_output.rgb", "application/octet-stream");
                             lastEncodedMv2 = mv2Bytes;
                             resolve();
@@ -1596,8 +1789,12 @@
                 });
 
                 statusText.innerHTML = (shouldStopEncoding ? `Encoding Stopped. Exported ${encodedFramesCount} frames.` : "Encoding Complete! 🎉") +
-                    ' <button id="btnSendToPlayer" style="margin-left:10px;padding:4px 12px;background:#4CAF50;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;" title="Send to MV Player tab">▶ Send to Player</button>';
+                    ' <button id="btnSendToPlayer" style="margin-left:10px;padding:4px 12px;background:#4CAF50;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;" title="Send to MV Player tab">▶ Send to Player</button>' +
+                    ' <button id="btnSaveMv2" style="margin-left:5px;padding:4px 12px;background:#007acc;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;" title="Download Encoded File">⬇️ Save MV2</button>';
                 document.getElementById('btnSendToPlayer').onclick = sendToPlayer;
+                document.getElementById('btnSaveMv2').onclick = () => {
+                    if (lastEncodedMv2) downloadFile(lastEncodedMv2, "retro_output.mv2", "application/octet-stream");
+                };
 
             } catch (err) {
                 console.error(err);
