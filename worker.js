@@ -17,6 +17,9 @@ self.onmessage = async (e) => {
             // WASM 초기화 (바이너리 파일 캐시 우회)
             await init('./pkg/mv2_wasm_bg.wasm?v=' + Date.now()); 
             
+            // 🚀 사용자의 기기(CPU)가 지원하는 최대 스레드 수만큼 Rayon 워커 풀 생성
+            await module.initThreadPool(navigator.hardwareConcurrency);
+
             encoder = new Mv2Encoder(payload.config);
             self.postMessage({ type: 'INIT_DONE' });
         } 

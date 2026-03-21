@@ -128,6 +128,11 @@
     - Converted the static ES module import in `worker.js` to a dynamic import: `const module = await import('./pkg/mv2_wasm.js?v=' + Date.now());`
     - Forced the WASM initialization to fetch a unique binary URL: `await init('./pkg/mv2_wasm_bg.wasm?v=' + Date.now());`
 - **Result:** The browser now fetches the latest WASM binary and JS bindings on every load during development.
+
+## 2026-03-21 01:30:00: WebAssembly Multi-Threading Activated (Rayon)
+- **The Issue:** Despite compiling `mv2_wasm` with `rayon` and `wasm-bindgen-rayon` for parallel processing, the WebWorker was only utilizing a single CPU thread, severely bottlenecking encoding performance.
+- **The Fix:** In `worker.js`, added an explicit call to `module.initThreadPool(navigator.hardwareConcurrency)` immediately after the WASM binary is initialized.
+- **Result:** The WASM environment now accurately detects the host machine's logic cores (e.g., 16 threads) and spawns the corresponding number of Web Workers. The Rust `par_iter()` loops can now fully saturate the CPU, dramatically reducing the encoding time per frame.
 - Fixed a bug in encoder.html and hq_encoder.html where the preview canvas CSS aspect-ratio could become desynced from the radio buttons on initial load or mode change. The preview now forcefully synchronizes its aspect ratio on every redraw.
 ## 2026-03-13 20:00 - Interactive Resizable Encoding Area (UI Enhancement)
 - Upgraded the preview canvas to feature a fully interactive, free-form resizable blue target box.
