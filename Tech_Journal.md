@@ -191,3 +191,8 @@
 - **Logic:** Integrated a toggle system using the ⓘ info icon (`#btnInfo`) that controls the `help-visible` class on the `body`. 
 - **Auto-Hide:** Implemented logic to automatically hide all help overlays when the "Start Encoding" button is clicked, preventing UI obstruction during active processing.
 - **Content:** Wrote detailed Korean explanations for all technical parameters, including Quantizer algorithms, Dither strength, Anchor colors, Distance metrics, and Aspect Ratio/Mode.
+
+## 2026-03-22 00:30 - Crop Box Handle & UX Refinement
+- **Handle Standardization:** Replaced the previous triangular crop handles with **highly-visible square handles** (`rgba(77, 184, 255, 0.9)`) in `encoder.html` and `hq_encoder.html`. 
+- **Bug Fix:** Resolved a rendering bug in `encoder.html` where the bottom-left (BL) handle coordinates were incorrectly calculated, causing visual distortion.
+- **Improved Visibility:** Increased handle opacity and standardized size (10px) to ensure they are easy to grab on both high-DPI and standard displays.

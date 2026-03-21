@@ -1425,18 +1425,13 @@
             ctx.setLineDash(isCustomMode && !isAspectLocked ? [4, 4] : []);
             ctx.strokeRect(box.x, box.y, box.w, box.h);
 
-            // Draw Corner Handlers (Triangles)
-            ctx.fillStyle = 'rgba(77, 184, 255, 0.8)';
-            const size = 12;
-
-            // TL
-            ctx.beginPath(); ctx.moveTo(box.x, box.y); ctx.lineTo(box.x + size, box.y); ctx.lineTo(box.x, box.y + size); ctx.fill();
-            // TR
-            ctx.beginPath(); ctx.moveTo(box.x + box.w, box.y); ctx.lineTo(box.x + box.w - size, box.y); ctx.lineTo(box.x + box.w, box.y + size); ctx.fill();
-            // BL
-            ctx.beginPath(); ctx.moveTo(box.x + box.w, box.y + box.h); ctx.lineTo(box.x + size, box.y + box.h); ctx.lineTo(box.x, box.y + box.h - size); ctx.fill();
-            // BR
-            ctx.beginPath(); ctx.moveTo(box.x + box.w, box.y + box.h); ctx.lineTo(box.x + box.w - size, box.y + box.h); ctx.lineTo(box.x + box.w, box.y + box.h - size); ctx.fill();
+            // Draw Corner Handlers (Squares)
+            ctx.fillStyle = 'rgba(77, 184, 255, 0.9)';
+            const s = 10;
+            ctx.fillRect(box.x, box.y, s, s); // TL
+            ctx.fillRect(box.x + box.w - s, box.y, s, s); // TR
+            ctx.fillRect(box.x, box.y + box.h - s, s, s); // BL
+            ctx.fillRect(box.x + box.w - s, box.y + box.h - s, s, s); // BR
 
             // Draw Lock/Unlock Icon at top-center of box
             const cx = box.x + box.w / 2;
