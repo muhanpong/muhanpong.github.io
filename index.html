@@ -623,7 +623,8 @@
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
-        .p-hist-row, .l-hist-row {
+        .p-hist-row,
+        .l-hist-row {
             transition: transform 0.1s ease;
             transform-origin: bottom center;
         }
@@ -637,7 +638,9 @@
         }
 
         @media (hover: hover) and (pointer: fine) {
-            .p-hist-row:hover, .l-hist-row:hover {
+
+            .p-hist-row:hover,
+            .l-hist-row:hover {
                 transform: scale(1.1);
                 z-index: 20;
                 position: relative;
@@ -1243,6 +1246,12 @@
             MSX2 MV Player (2026.3 Geppetto)
         </div>
         <div style="display: flex; gap: 8px;">
+            <button id="btn-open-encoder" title="Open Encoder"
+                style="background:transparent;border:none;cursor:pointer;fill:#888;padding:4px;display:flex;align-items:center;"
+                onclick="window.open('encoder.html','_blank')"><svg viewBox="0 0 24 24" width="18" height="18">
+                    <path
+                        d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z" />
+                </svg></button>
             <button id="btn-info-toggle" title="Show Creator Info"><svg viewBox="0 0 24 24" width="18" height="18">
                     <path
                         d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z" />
@@ -1503,14 +1512,14 @@
                 const showTooltip = (e, i) => {
                     // Only show tooltip when paused
                     if (this.isPlaying && !this.isScrubbing) return;
-                    
+
                     // Only for PC browser (hover capable)
                     if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
-                    
+
                     const count = Math.floor(this.actualCounts[i] || 0);
                     const pct = ((count / (256 * 192)) * 100).toFixed(1);
                     this.histTooltip.innerHTML = `${count}, ${pct}%`;
-                    
+
                     this.histTooltip.style.opacity = '1';
                     this.histTooltip.style.left = e.pageX + 'px';
                     this.histTooltip.style.top = e.pageY + 'px';
@@ -1538,10 +1547,10 @@
 
                         const pClr = document.getElementById(`p-hist-clr-${i}`);
                         if (pClr) attachEvents(pClr.closest('.p-hist-row'));
-                        
+
                         const lBarL = document.getElementById(`l-hist-bar-l-${i}`);
                         if (lBarL) attachEvents(lBarL.parentElement);
-                        
+
                         const lBarR = document.getElementById(`l-hist-bar-r-${i}`);
                         if (lBarR) attachEvents(lBarR.parentElement);
                     }
@@ -1831,7 +1840,7 @@
                 document.getElementById('osd-time-cur').innerText = "00:00"; document.getElementById('osd-time-total').innerText = "00:00";
                 this.ctx.fillStyle = "black"; this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
                 if (this.playlist && this.playlist.length === 0) { document.getElementById('canvas-msg-overlay').style.display = 'flex'; document.getElementById('osd-controls').style.display = 'none'; }
-                
+
                 // Info block state recovery
                 const info = document.getElementById('info-block');
                 if (info && info._showingMeta) {
@@ -1923,7 +1932,7 @@
                             if (data[i] === 0) { end = i; break; }
                         }
                         if (end === -1) end = searchEnd;
-                        
+
                         if (end > 0x100) {
                             const metaStr = new TextDecoder('utf-8').decode(data.subarray(0x100, end)).trim();
                             if (metaStr.startsWith('{')) {
@@ -1950,7 +1959,7 @@
                 const info = document.getElementById('info-block');
                 const btnMeta = document.getElementById('btn-metadata-info');
                 if (btnMeta) btnMeta.style.color = this.metadata ? '#fff' : '#222';
-                
+
                 if (info && info._showingMeta && info.style.display === 'block') {
                     if (this.metadata) {
                         let html = '<h3>ⓘ Track Metadata</h3>';
@@ -2557,6 +2566,17 @@
         };
         document.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
         document.addEventListener('click', unlockAudio, { once: true });
+
+        // ── BroadcastChannel: Receive encoded files from Encoder ──
+        const encoderChannel = new BroadcastChannel('msx-encoder-player');
+        encoderChannel.onmessage = (e) => {
+            if (e.data.type === 'encoded-file' && e.data.data) {
+                const file = new File([e.data.data], e.data.fileName || 'encoded.mv2');
+                player.addToPlaylist(file, true);
+                player.playPlaylistItem(0);
+                window.focus();
+            }
+        };
 
     </script>
 </body>

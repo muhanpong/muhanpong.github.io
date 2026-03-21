@@ -154,3 +154,19 @@
   - Unified rendering via `customBox || getCalculatedBox()` as single source of truth.
 - Added iOS-safe `loadVideoFile`: `sourceVideo.load()` + `onerror` handler to prevent infinite hangs.
 - Confirmed that after this port, wasm_encoder.html and hq_encoder.html are functionally identical (only title/heading differ); wasm_encoder.html was intentionally left unmodified.
+## 2026-03-21 14:20 - UI Bug Fixes & PAR Correction
+- Moved 🔒/🔓 lock icon from box center to top-center (y+14px) to avoid OSD play/pause button conflict.
+- Fixed `force` mode: `getCalculatedBox()` now overrides `drawX/drawY/drawW/drawH` so video is stretched to fill canvas.
+- Fixed `cfg_aspect` change handler in encoder.html: now clears `customBox` and `isCustomMode` so switching aspect modes properly resets the box.
+- Added 3px edge snapping: box edges snap to source video boundaries during resize/pan. Hold Alt (Win/Linux) or Cmd (Mac) to disable snapping.
+- Fixed play/pause toggling when interacting with resize handles: set `hasDraggedCanvas = true` immediately on box interaction start.
+- Updated anchor colors tooltip with full per-color reference (K/W/R/G/B/C/M/Y/A and dark variants r/g/b/c/m/y/w plus _ hold modifier).
+- **PAR (Pixel Aspect Ratio) Correction**: Fixed pad mode appearing as force (stretched) when 4:3 source video used with 5:3 target ratio. `getCalculatedBox()` now computes `correctedVideoAspect = videoAspect / PAR` to compensate for non-square pixels caused by CSS aspect-ratio stretch. Crop box also uses `canvasAspect` for correct pixel-proportional selection.
+## 2026-03-21 14:40 - Encoder ↔ Player Integration (BroadcastChannel)
+- Added 🎬 encoder launch button to index.html app-bar (opens encoder.html in new tab).
+- Implemented `BroadcastChannel('msx-encoder-player')` for cross-tab communication:
+  - **Encoder side** (encoder.html, hq_encoder.html): After encoding completes, a green "▶ Send to Player" button appears. Clicking sends the .mv2 ArrayBuffer via BroadcastChannel, then shows "✓ Sent!" confirmation.
+    - *Fix (14:55)*: Fixed an issue where `progress-container` `display: none` was incorrectly hiding the button after encoding finished. Now only the `progressBar` is hidden.
+  - **Player side** (index.html): Receives the encoded file, wraps it as a File object, prepends it to the playlist, and auto-plays it with `window.focus()`.
+- Tri-state monitor splitters: Changed initial position from 0%/100% to 25%/75% (25%|50%|25% split) across all three encoder files.
+- Added missing variable declarations (`customBox`, `isCustomMode`, `isAspectLocked`, `dragMode`, `dragStartBox`) to wasm_encoder.html to fix ReferenceError in strict mode.

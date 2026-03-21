@@ -585,7 +585,7 @@
             'cfg_quantizer': 'K-Means++: Smooth gradients, slower. Greedy: High contrast, faster.',
             'cfg_dither': '0 = No dither (banding). 100 = Maximum dither (noisy). Default 85.',
             'cfg_colors': 'Number of dynamic colors to calculate for better quality (higher is slower). Recommended: 15 for best quality; 4–8 for balanced speed(less colors).',
-            'cfg_anchors': 'Specific colors to lock into the palette (e.g., \'K\' for Black, \'W\' for White); use \'_\' to keep them bright in dark scenes.',
+            'cfg_anchors': 'Lock specific colors into the palette. UPPERCASE (Bright): K=Black, W=White, R, G, B, C, M, Y, A=Ash(Gray). lowercase (Dark): r, g, b, c, m, y, w=LtGray. _ to hold bright/dark. Example: K_W = Black + always-bright White.',
             'cfg_iter_init': 'K-Means iterations for the first frame. Higher = better quality.',
             'cfg_iter_sub': 'Iterations for subsequent frames. Can be lower for speed.',
             'cfg_metric': 'Redmean is best for human skin. Euclidean is standard.',
@@ -859,7 +859,7 @@
             if (e.type === 'touchstart' && dragMode.startsWith('resize')) e.preventDefault();
 
             isDraggingCanvas = true;
-            hasDraggedCanvas = false;
+            hasDraggedCanvas = true; // Prevent click → play/pause toggle
             dragStartX = mouseX;
             dragStartY = mouseY;
             dragStartBox = { ...box };
@@ -880,30 +880,37 @@
             if (!vw || !vh) return null;
 
             const aspectMode = document.getElementById('cfg_aspect').value;
-            const targetRatioStr = document.querySelector('input[name="cfg_target_ratio"]:checked').value;
+            const targetRatioStr = document.querySelector('input[name=\"cfg_target_ratio\"]:checked').value;
             const targetRatio = targetRatioStr === '5:3' ? (5 / 3) : (4 / 3);
             const canvasAspect = canvas.width / canvas.height, videoAspect = vw / vh;
 
+            // 🚀 PAR 보정: CSS aspect-ratio(5:3)가 캔버스 픽셀(256x192=4:3)과 다르면
+            // 픽셀이 정사각형이 아니므로 비디오를 좁게/넓게 그려서 CSS 스트레치를 상쇄합니다.
+            const par = targetRatio / canvasAspect; // 5:3 on 4:3 canvas → PAR=1.25
+            const correctedVideoAspect = videoAspect / par;
+
             let drawW = canvas.width, drawH = canvas.height, drawX = 0, drawY = 0;
-            if (videoAspect > canvasAspect) { drawH = canvas.width / videoAspect; drawY = (canvas.height - drawH) / 2; }
-            else { drawW = canvas.height * videoAspect; drawX = (canvas.width - drawW) / 2; }
+            if (correctedVideoAspect > canvasAspect) { drawH = canvas.width / correctedVideoAspect; drawY = (canvas.height - drawH) / 2; }
+            else { drawW = canvas.height * correctedVideoAspect; drawX = (canvas.width - drawW) / 2; }
 
             let targetX = drawX, targetY = drawY, targetW = drawW, targetH = drawH;
 
             if (aspectMode === 'pad') {
                 targetX = 0; targetY = 0; targetW = canvas.width; targetH = canvas.height;
             } else if (aspectMode === 'crop') {
-                if (videoAspect > targetRatio) {
-                    targetW = drawH * targetRatio;
+                // 크롭 박스는 캔버스 픽셀 비율(4:3)이어야 256x192 출력에 정확히 매핑됩니다.
+                if (correctedVideoAspect > canvasAspect) {
+                    targetW = drawH * canvasAspect;
                     let cropOffX = parseFloat(document.getElementById('cfg_crop_left').value) || 0;
                     targetX = drawX + ((drawW - targetW) / 2) + ((drawW - targetW) / 2) * (cropOffX / 100);
                 } else {
-                    targetH = drawW / targetRatio;
+                    targetH = drawW / canvasAspect;
                     let cropOffY = parseFloat(document.getElementById('cfg_crop_up').value) || 0;
                     targetY = drawY + ((drawH - targetH) / 2) + ((drawH - targetH) / 2) * (cropOffY / 100);
                 }
             } else if (aspectMode === 'force') {
                 targetX = 0; targetY = 0; targetW = canvas.width; targetH = canvas.height;
+                drawX = 0; drawY = 0; drawW = canvas.width; drawH = canvas.height;
             }
             return { x: targetX, y: targetY, w: targetW, h: targetH, drawX, drawY, drawW, drawH };
         }
@@ -997,9 +1004,21 @@
                 if (newH < 20) { newH = 20; if (isAspectLocked) newW = 20 * targetRatio; }
             }
 
-            // Keep within video bounds (optional, but good UX)
-            // if (newX < dragStartBox.drawX) newX = dragStartBox.drawX;
-            // ...
+            // Snap edges to source video boundaries (hold Alt/Cmd to disable)
+            const snapDisabled = e.altKey || e.metaKey;
+            if (!snapDisabled) {
+                const snap = 3;
+                const calcBox = getCalculatedBox();
+                if (calcBox) {
+                    const vLeft = calcBox.drawX, vTop = calcBox.drawY;
+                    const vRight = calcBox.drawX + calcBox.drawW, vBottom = calcBox.drawY + calcBox.drawH;
+
+                    if (Math.abs(newX - vLeft) < snap) { if (dragMode === 'pan') { newX = vLeft; } else { newW += newX - vLeft; newX = vLeft; } }
+                    if (Math.abs(newY - vTop) < snap) { if (dragMode === 'pan') { newY = vTop; } else { newH += newY - vTop; newY = vTop; } }
+                    if (Math.abs((newX + newW) - vRight) < snap) { if (dragMode === 'pan') { newX = vRight - newW; } else { newW = vRight - newX; } }
+                    if (Math.abs((newY + newH) - vBottom) < snap) { if (dragMode === 'pan') { newY = vBottom - newH; } else { newH = vBottom - newY; } }
+                }
+            }
 
             customBox.x = newX;
             customBox.y = newY;
@@ -1054,7 +1073,11 @@
         document.addEventListener('mouseup', handleSplitUp);
         document.addEventListener('touchend', handleSplitUp);
 
-        document.getElementById('cfg_aspect').addEventListener('change', drawPreviewCanvas);
+        document.getElementById('cfg_aspect').addEventListener('change', () => {
+            customBox = null;
+            isCustomMode = false;
+            drawPreviewCanvas();
+        });
         document.getElementById('cfg_crop_left').addEventListener('input', drawPreviewCanvas);
         document.getElementById('cfg_crop_up').addEventListener('input', drawPreviewCanvas);
         document.querySelectorAll('input[name="cfg_target_ratio"]').forEach(r => r.addEventListener('change', (e) => {
@@ -1260,13 +1283,16 @@
 
             isEncoding = true; shouldStopEncoding = false; currentMode = 'monitor';
             previewContainer.classList.add('monitor-mode');
-            monitorLeftSplit = 0.0; monitorRightSplit = 1.0;
-            splitLeft.style.left = '0%'; splitRight.style.left = '100%';
+            monitorLeftSplit = 0.25; monitorRightSplit = 0.75;
+            splitLeft.style.left = '25%'; splitRight.style.left = '75%';
 
             btnStart.innerText = "Stop Encoding"; btnStart.style.background = "#d9534f";
             document.querySelectorAll('input, select').forEach(el => el.disabled = true);
             seekSlider.style.pointerEvents = 'none'; seekSlider.style.opacity = '0.5';
+            statusText.innerHTML = "Opening Media...";
             document.getElementById('progress-container').style.display = 'block';
+            document.getElementById('progressBar').style.display = 'inline-block';
+            document.getElementById('progressBar').value = 0;
 
             try {
                 statusText.innerText = "Extracting Audio & Preparing Video...";
@@ -1539,6 +1565,7 @@
                             const { mv2Bytes, rgbBytes } = e.data.payload;
                             downloadFile(mv2Bytes, "retro_output.mv2", "application/octet-stream");
                             // downloadFile(rgbBytes, "retro_output.rgb", "application/octet-stream");
+                            lastEncodedMv2 = mv2Bytes;
                             resolve();
                         }
                         if (e.data.type === 'ERROR') reject(e.data.payload);
@@ -1546,7 +1573,9 @@
                     worker.postMessage({ type: 'FINISH', payload: { remainingMp3, earlyAbort: shouldStopEncoding } });
                 });
 
-                statusText.innerText = shouldStopEncoding ? `Encoding Stopped. Exported ${encodedFramesCount} frames.` : "Encoding Complete! 🎉";
+                statusText.innerHTML = (shouldStopEncoding ? `Encoding Stopped. Exported ${encodedFramesCount} frames.` : "Encoding Complete! 🎉") +
+                    ' <button id="btnSendToPlayer" style="margin-left:10px;padding:4px 12px;background:#4CAF50;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;" title="Send to MV Player tab">▶ Send to Player</button>';
+                document.getElementById('btnSendToPlayer').onclick = sendToPlayer;
 
             } catch (err) {
                 console.error(err);
@@ -1559,10 +1588,22 @@
                 document.querySelectorAll('input, select').forEach(el => el.disabled = false);
                 seekSlider.style.pointerEvents = 'auto'; seekSlider.style.opacity = '1';
 
-                document.getElementById('progress-container').style.display = 'none';
+                document.getElementById('progressBar').value = 0;
+                document.getElementById('progressBar').style.display = 'none';
                 renderPreview();
             }
         });
+
+        let lastEncodedMv2 = null;
+
+        function sendToPlayer() {
+            if (!lastEncodedMv2) return;
+            const channel = new BroadcastChannel('msx-encoder-player');
+            channel.postMessage({ type: 'encoded-file', fileName: 'retro_output.mv2', data: lastEncodedMv2.buffer });
+            channel.close();
+            const btn = document.getElementById('btnSendToPlayer');
+            if (btn) { btn.innerText = '✓ Sent!'; btn.style.background = '#666'; btn.disabled = true; }
+        }
 
         function downloadFile(uint8Array, filename, mimeType) {
             const blob = new Blob([uint8Array], { type: mimeType });
