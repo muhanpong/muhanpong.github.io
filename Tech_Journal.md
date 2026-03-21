@@ -214,3 +214,7 @@
 - **Handle Standardization:** Replaced the previous triangular crop handles with **highly-visible square handles** (`rgba(77, 184, 255, 0.9)`) in `encoder.html` and `hq_encoder.html`. 
 - **Bug Fix:** Resolved a rendering bug in `encoder.html` where the bottom-left (BL) handle coordinates were incorrectly calculated, causing visual distortion.
 - **Improved Visibility:** Increased handle opacity and standardized size (10px) to ensure they are easy to grab on both high-DPI and standard displays.
+## 2026-03-21 04:00:00: Sub-worker Resolution & Modern WASM Init Fixed
+- **The Issue:** Sub-workers failed to load with a 'TypeError' pointing to the `/pkg/` directory. The generic directory import in `workerHelpers.js` was not being resolved correctly by the Service Worker.
+- **The Fix:** Patched `workerHelpers.js` to explicitly import `mv2_wasm.js` and aligned `worker.js` with the modern `wasm-bindgen` initialization API.
+- **Result:** 16-thread multi-processing is now operational.

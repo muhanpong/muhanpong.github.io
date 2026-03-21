@@ -9,16 +9,46 @@ self.onmessage = async (e) => {
 
     try {
         if (type === 'INIT') {
-            // 캐시 우회를 위해 동적 import 및 쿼리 파라미터 사용
-            const module = await import('./pkg/mv2_wasm.js?v=' + Date.now());
+            console.log("[Worker] Initializing WASM with manual shared memory injection...");
+            
+            // ServiceWorker와 쿼리 스트링 간의 충돌을 피하기 위해 경로 단순화
+            const jsUrl = './pkg/mv2_wasm.js';
+            const wasmUrl = './pkg/mv2_wasm_bg.wasm';
+
+            console.log("[Worker] Loading module:", jsUrl);
+            const module = await import(jsUrl);
             init = module.default;
             Mv2Encoder = module.Mv2Encoder;
+
+            let memory = null;
+            if (self.crossOriginIsolated && typeof SharedArrayBuffer !== 'undefined') {
+                try {
+                    // 🚀 수동으로 SharedArrayBuffer 메모리 생성 
+                    // WASM 바이너리 헤더와 일치하도록 initial: 18 설정 (중요!)
+                    memory = new WebAssembly.Memory({ initial: 18, maximum: 16384, shared: true });
+                    console.log("[Worker] SharedArrayBuffer created manually (18 pages).");
+                } catch (e) {
+                    console.warn("[Worker] Failed to create SharedArrayBuffer manually:", e);
+                }
+            }
+
+            // WASM 초기화 (수동 메모리 주입)
+            // modern wasm-bindgen style: { module_or_path, memory }
+            await init({ module_or_path: wasmUrl, memory }); 
             
-            // WASM 초기화 (바이너리 파일 캐시 우회)
-            await init('./pkg/mv2_wasm_bg.wasm?v=' + Date.now()); 
-            
-            // 🚀 사용자의 기기(CPU)가 지원하는 최대 스레드 수만큼 Rayon 워커 풀 생성
-            await module.initThreadPool(navigator.hardwareConcurrency);
+            // 🚀 멀티스레딩 초기화
+            if (memory && module.initThreadPool) {
+                try {
+                    console.log("[Worker] Attempting to initialize thread pool with", navigator.hardwareConcurrency, "threads...");
+                    await module.initThreadPool(navigator.hardwareConcurrency);
+                    console.log("[Worker] Thread pool initialized successfully.");
+                } catch (e) {
+                    console.error("[Worker] Failed to initialize thread pool (DataCloneError):", e);
+                    console.warn("[Worker] Falling back to single-threaded mode.");
+                }
+            } else {
+                console.warn("[Worker] Multi-threading not supported or initialization failed. Using single thread.");
+            }
 
             encoder = new Mv2Encoder(payload.config);
             self.postMessage({ type: 'INIT_DONE' });
