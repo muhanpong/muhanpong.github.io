@@ -133,6 +133,13 @@
 - **The Issue:** Despite compiling `mv2_wasm` with `rayon` and `wasm-bindgen-rayon` for parallel processing, the WebWorker was only utilizing a single CPU thread, severely bottlenecking encoding performance.
 - **The Fix:** In `worker.js`, added an explicit call to `module.initThreadPool(navigator.hardwareConcurrency)` immediately after the WASM binary is initialized.
 - **Result:** The WASM environment now accurately detects the host machine's logic cores (e.g., 16 threads) and spawns the corresponding number of Web Workers. The Rust `par_iter()` loops can now fully saturate the CPU, dramatically reducing the encoding time per frame.
+
+## 2026-03-21 02:00:00: IPC Memory Optimization (Zero-Copy Transferable Objects)
+- **The Issue:** The main thread and `worker.js` were using standard `postMessage` to pass raw pixel data (e.g., `rgbaBytes`, `ditheredRGB`) back and forth. This triggered "Structured Cloning", meaning the browser was physically copying up to 8MB of memory per frame for 1080p video, causing massive Garbage Collection (GC) spikes and UI stuttering.
+- **The Fix:** Implemented `Transferable Objects` across the entire pipeline (`encoder.html`, `hq_encoder.html`, `wasm_encoder.html`, and `worker.js`). 
+    - By passing the `.buffer` property of the `Uint8Array`s as the second argument to `postMessage(..., [buffer])`, we transfer "ownership" of the memory instead of copying it.
+    - Added a defensive deep-copy for `pcmSlice` (`new Int16Array(pcmSlice)`) before transfer to prevent detaching the master audio buffer.
+- **Result:** Inter-Process Communication (IPC) overhead between the UI and the WebWorker is now nearly zero, entirely eliminating GC stuttering and freeing up resources for the Rust encoder.
 - Fixed a bug in encoder.html and hq_encoder.html where the preview canvas CSS aspect-ratio could become desynced from the radio buttons on initial load or mode change. The preview now forcefully synchronizes its aspect ratio on every redraw.
 ## 2026-03-13 20:00 - Interactive Resizable Encoding Area (UI Enhancement)
 - Upgraded the preview canvas to feature a fully interactive, free-form resizable blue target box.

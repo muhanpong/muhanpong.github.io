@@ -1716,11 +1716,14 @@
                             if (e.data.type === 'ERROR') reject(e.data.payload);
                         };
 
+                        // pcmSlice는 뷰이므로 안전하게 전송하기 위해 복사본 생성
+                        const pcmSliceCopy = new Int16Array(pcmSlice);
+                        
                         worker.postMessage({
                             type: 'ENCODE_FRAME',
                             // 🚀 origW, origH를 같이 넘겨 WASM이 패딩/크롭을 수행하게 합니다.
-                            payload: { rgbaBytes, origW, origH, mp3Chunk, pcmSlice, frameIdx }
-                        });
+                            payload: { rgbaBytes, origW, origH, mp3Chunk, pcmSlice: pcmSliceCopy, frameIdx }
+                        }, [rgbaBytes.buffer, mp3Chunk.buffer, pcmSliceCopy.buffer]);
                     });
 
                     encodedFramesCount++;

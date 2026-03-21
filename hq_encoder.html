@@ -1903,10 +1903,13 @@
                         };
 
                         // 🚀 Worker에게 고해상도 치수(drawW, drawH)와 픽셀을 전송합니다.
+                        // pcmSlice는 뷰이므로 안전하게 전송하기 위해 복사본 생성
+                        const pcmSliceCopy = new Int16Array(pcmSlice);
+                        
                         worker.postMessage({
                             type: 'ENCODE_FRAME',
-                            payload: { rgbaBytes, origW: drawW, origH: drawH, mp3Chunk, pcmSlice, frameIdx }
-                        });
+                            payload: { rgbaBytes, origW: drawW, origH: drawH, mp3Chunk, pcmSlice: pcmSliceCopy, frameIdx }
+                        }, [rgbaBytes.buffer, mp3Chunk.buffer, pcmSliceCopy.buffer]);
                     });
 
                     encodedFramesCount++;

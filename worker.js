@@ -33,11 +33,11 @@ self.onmessage = async (e) => {
             const vramBytes = new Uint8Array(encoder.get_last_vram());
             const paletteBytes = new Uint8Array(encoder.get_last_palette());
             
-            // 연산 완료 후 메인 스레드로 결과 전송
+            // 연산 완료 후 메인 스레드로 결과 전송 (Zero-Copy)
             self.postMessage({ 
                 type: 'FRAME_DONE', 
                 payload: { frameIdx, ditheredRGB, vramBytes, paletteBytes } 
-            });
+            }, [ditheredRGB.buffer, vramBytes.buffer, paletteBytes.buffer]);
         } 
         else if (type === 'FINISH') {
             const { remainingMp3 } = payload || { remainingMp3: new Uint8Array(0) };
@@ -46,7 +46,7 @@ self.onmessage = async (e) => {
             self.postMessage({ 
                 type: 'FINISHED', 
                 payload: { mv2Bytes, rgbBytes } 
-            });
+            }, [mv2Bytes.buffer, rgbBytes.buffer]);
         }
     } catch (err) {
         self.postMessage({ type: 'ERROR', payload: err.message });
