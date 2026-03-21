@@ -1901,11 +1901,13 @@
                         // 🚀 Worker에게 256, 192 치수와 가벼운 페이로드를 전송합니다.
                         // pcmSlice는 뷰이므로 안전하게 전송하기 위해 복사본 생성
                         const pcmSliceCopy = new Int16Array(pcmSlice);
+                        // mp3Chunk 역시 FFmpeg WASM 메모리의 뷰일 수 있으므로 깊은 복사 수행
+                        const mp3ChunkCopy = new Uint8Array(mp3Chunk);
                         
                         worker.postMessage({
                             type: 'ENCODE_FRAME',
-                            payload: { rgbaBytes, origW: 256, origH: 192, mp3Chunk, pcmSlice: pcmSliceCopy, frameIdx }
-                        }, [rgbaBytes.buffer, mp3Chunk.buffer, pcmSliceCopy.buffer]);
+                            payload: { rgbaBytes, origW: 256, origH: 192, mp3Chunk: mp3ChunkCopy, pcmSlice: pcmSliceCopy, frameIdx }
+                        }, [rgbaBytes.buffer, mp3ChunkCopy.buffer, pcmSliceCopy.buffer]);
                     });
 
                     encodedFramesCount++;
