@@ -183,6 +183,11 @@
 - **Aspect-Locked Resizing Algorithm Overhaul:** Replaced the previous corner resizing algorithm which exclusively drove scale changes off the horizontal mouse movement (`dx`). Implemented a dominant-axis driven approach that calculates scaling based on whichever movement (`dx` or `dy`) is larger.
 - **Corner Anchoring:** Accurately anchored the opposite corner for all four resize handles (`tl`, `tr`, `bl`, `br`) while resizing under aspect-lock, preventing the box from moving in counter-intuitive directions (such as moving the bottom edge down when dragging the bottom-left corner up). This provides a much smoother and predictable UX in both `encoder.html` and `hq_encoder.html`.
 
-## 2026-03-21 22:15 - Canvas Filter Architecture Fix (Chrome)
-- **CSS Filter + Gamma LUT Separation:** Resolved a Chrome-specific bug where applying an inline SVG filter (`url(#gamma-filter)`) to `CanvasRenderingContext2D.filter` causes the renderer to silently fail and ignore all filters. 
 - **Implementation:** Standard CSS filters (Brightness, Contrast, Saturation, Hue) are now safely applied via `ctx.filter`, while Gamma correction is explicitly processed via a high-speed Lookup Table (LUT) loop during the `getImageData` extraction phase. The preview monitor applies the SVG gamma filter directly to the DOM element (`canvas.style.filter`) to maintain real-time visual accuracy without breaking the HTML5 Canvas pipeline.
+
+## 2026-03-22 00:15 - Overlay Manual System (Korean)
+- **Interactive Help System:** Implemented a context-sensitive overlay manual across all encoder variants (`encoder.html`, `hq_encoder.html`, `wasm_encoder.html`).
+- **Visuals:** Added semi-transparent `.help-overlay` boxes (`rgba(10, 10, 30, 0.72)`) over each UI setting group. Boxes feature a hover effect for increased opacity (`0.95`) and **automatic height expansion** (`height: auto; bottom: auto;`) to prevent scrollbars and ensure the entire Korean description is visible at once.
+- **Logic:** Integrated a toggle system using the ⓘ info icon (`#btnInfo`) that controls the `help-visible` class on the `body`. 
+- **Auto-Hide:** Implemented logic to automatically hide all help overlays when the "Start Encoding" button is clicked, preventing UI obstruction during active processing.
+- **Content:** Wrote detailed Korean explanations for all technical parameters, including Quantizer algorithms, Dither strength, Anchor colors, Distance metrics, and Aspect Ratio/Mode.

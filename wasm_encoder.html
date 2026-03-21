@@ -416,6 +416,63 @@
             font-weight: bold;
             color: #4db8ff;
         }
+
+        /* === Overlay Manual System === */
+        .help-section {
+            position: relative;
+        }
+
+        .help-overlay {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: rgba(10, 10, 30, 0.72);
+            color: #ddd;
+            z-index: 50;
+            padding: 10px 14px;
+            font-size: 0.78em;
+            line-height: 1.55;
+            border-radius: 6px;
+            border: 1px solid rgba(77, 184, 255, 0.25);
+            overflow-y: auto;
+            transition: background 0.25s ease;
+            cursor: default;
+        }
+
+        .help-overlay:hover {
+            background: rgba(10, 10, 30, 0.95);
+            color: #fff;
+            border-color: rgba(77, 184, 255, 0.6);
+            height: auto;
+            min-height: 100%;
+            bottom: auto;
+            z-index: 1000;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .help-overlay h4 {
+            margin: 0 0 6px 0;
+            color: #4db8ff;
+            font-size: 1.05em;
+        }
+
+        .help-overlay .hl {
+            color: #ffcc00;
+            font-weight: bold;
+        }
+
+        .help-overlay .tip {
+            color: #77dd77;
+        }
+
+        body.help-visible .help-overlay {
+            display: block;
+        }
+
+        body.help-visible .info-icon {
+            background: #4db8ff;
+            color: #000;
+        }
     </style>
     <!-- 브라우저용 가벼운 순수 JS MP3 인코더 라이브러리 -->
     <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js" crossorigin="anonymous"></script>
@@ -434,57 +491,111 @@
             muted></video>
 
         <div class="grid" style="margin-top: 15px;">
-            <div>
+            <div class="help-section">
                 <label>Quantizer Algorithm</label>
                 <select id="cfg_quantizer">
                     <option value="kmeans">K-Means++ (Smooth Gradients)</option>
                     <option value="greedy">Greedy (High Contrast/Pixel Art)</option>
                 </select>
+                <div class="help-overlay">
+                    <h4>Quantizer Algorithm <span class="tip">(색상 추출 방식)</span></h4>
+                    <span class="hl">K-Means++</span>: 원본의 색상 분포를 부드럽게 분석합니다. 자연스러운 실사 영상이나 그라데이션이 많은 화면에 유리합니다.<br><br>
+                    <span class="hl">Greedy</span>: 대비가 강하고 제한된 색상을 빠르게 찾아냅니다. 픽셀아트, 2D 게임 플레이 영상, 일본식 애니메이션에 매우 적합합니다.
+                </div>
             </div>
-            <div>
+            <div class="help-section">
                 <label>Dither Strength (0-100)</label>
                 <input type="number" id="cfg_dither" value="85" min="0" max="100">
+                <div class="help-overlay">
+                    <h4>Dither Strength <span class="tip">(디더링 강도)</span></h4>
+                    MSX2의 부족한 색상(15색)을 보완하기 위해 픽셀을 패턴으로 섞어 인접색을 표현하는 강도입니다.<br><br>
+                    <span class="hl">0</span>: 디더링 끄기 (선명하지만 밴딩/등고선 현상 발생 지점 생김)<br>
+                    <span class="hl">85~100</span>: 부드러운 음영 전환. (100에 가까울수록 모래알 같은 노이즈 질감이 강해짐)
+                </div>
             </div>
-            <div>
+            <div class="help-section">
                 <label>Max Extra Colors</label>
                 <input type="number" id="cfg_colors" value="15" min="1" max="100">
+                <div class="help-overlay">
+                    <h4>Max Extra Colors <span class="tip">(추출 색상 수)</span></h4>
+                    인코더가 영상에서 자동으로 뽑아낼 파렛트 색상의 개수입니다.<br><br>
+                    MSX2 파일 포맷(.mv2)의 하드웨어 한계상 배경 투명색(검정) 1개를 제외하고 <b>최대 15개</b>까지만 실제로 사용됩니다.<br>
+                    <span class="hl">팁</span>: 일부러 더 적은 색상(예: 4~8)으로 파렛트를 제한하여 거친 레트로 분위기를 연출할 수도 있습니다.
+                </div>
             </div>
-            <div>
+            <div class="help-section">
                 <label>Anchor Colors (Shorthand)</label>
                 <input type="text" id="cfg_anchors" value="K_W">
+                <div class="help-overlay">
+                    <h4>Anchor Colors <span class="tip">(고정 색상)</span></h4>
+                    자동 추출 대신, 영상에 반드시 포함시켜야 할 핵심 색상들을 강제로 고정(Anchor)합니다. 여러 색상은 언더바(_)로 구분합니다.<br><br>
+                    <span class="hl">지원 색상 코드</span>: <b>K</b>(검정), <b>W</b>(흰색), <b>R</b>(빨강), <b>G</b>(초록),
+                    <b>B</b>(파랑), <b>Y</b>(노랑), <b>M</b>(마젠타), <b>C</b>(시안).<br>
+                    예: <span class="hl">K_W_R</span> (검정, 흰, 빨강 세 가지를 파렛트에 무조건 추가)
+                </div>
             </div>
-            <div>
+            <div class="help-section">
                 <label>Initial Iterations (Quality)</label>
                 <input type="number" id="cfg_iter_init" value="30" min="1">
+                <div class="help-overlay">
+                    <h4>Initial Iterations <span class="tip">(초기 탐색)</span></h4>
+                    영상의 첫 프레임을 분석할 때 색상 공간을 반복 탐색하는 횟수입니다.<br><br>
+                    수치가 높을수록 더욱 원본에 가까운 정밀한 파렛트를 생성하지만 인코딩 시작이 느려집니다. (기본값 30 권장)
+                </div>
             </div>
-            <div>
+            <div class="help-section">
                 <label>Subsequent Iterations (Speed)</label>
                 <input type="number" id="cfg_iter_sub" value="3" min="1">
+                <div class="help-overlay">
+                    <h4>Subsequent Iterations <span class="tip">(후속 탐색)</span></h4>
+                    두 번째 프레임부터 색상 변화가 있을 때 파렛트를 미세 조정하는 반복 횟수입니다.<br><br>
+                    영상의 색 전환이 부드럽다면 낮은 수치(3~5)로도 충분하며 인코딩 속도가 크게 향상됩니다. 화면 전환이 극심한 뮤직비디오 등에서는 수치를 올려 품질을 방어할 수 있습니다.
+                </div>
             </div>
-            <div>
+            <div class="help-section">
                 <label>Distance Metric</label>
                 <select id="cfg_metric">
                     <option value="redmean">Redmean (Skin/Natural Video)</option>
                     <option value="euclidean">Euclidean (Test Patterns/Anime)</option>
                 </select>
+                <div class="help-overlay">
+                    <h4>Distance Metric <span class="tip">(색상 거리 계산 공식)</span></h4>
+                    유사한 색상을 판별할 때 사용하는 수학적 접근법입니다.<br><br>
+                    <span class="hl">Redmean</span>: 인간의 눈동자가 붉은색에 민감한 점을 반영합니다. 인물 사진, 피부톤, 일반적인 자연 실사 영상에서 훨씬 보기 좋은
+                    결과를 냅니다.<br>
+                    <span class="hl">Euclidean</span>: 순수한 수학적 입체 거리입니다. 명확한 원색 중심의 픽셀아트나 애니메이션에 유리합니다.
+                </div>
             </div>
-            <div>
+            <div class="help-section">
                 <label>Aspect Ratio (Preview)</label>
                 <div style="display:flex; align-items:center; margin-top:10px;">
                     <label style="margin-right: 15px;"><input type="radio" name="cfg_target_ratio" value="5:3" checked>
                         5:3</label>
                     <label><input type="radio" name="cfg_target_ratio" value="4:3"> 4:3</label>
                 </div>
+                <div class="help-overlay">
+                    <h4>Aspect Ratio <span class="tip">(프리뷰 비율)</span></h4>
+                    MSX2(256x192)의 실제 출력 픽셀 비율은 물리적으로 약 <span class="hl">5:3</span>에 가깝습니다. 하지만 과거 브라운관 TV의 비율로 늘려서 보던
+                    방식은 <span class="hl">4:3</span>입니다.<br><br>
+                    이 옵션은 결과물의 해상도를 바꾸는 것이 아니며, 작업 시 보여지는 모니터 박스의 비율 가이드라인만 변경합니다.
+                </div>
             </div>
-            <div>
+            <div class="help-section">
                 <label>Aspect Mode</label>
                 <select id="cfg_aspect">
                     <option value="crop">Crop (Pan & Scan)</option>
                     <option value="pad">Pad (Letterbox)</option>
                     <option value="force">Force (Stretch)</option>
                 </select>
+                <div class="help-overlay">
+                    <h4>Aspect Mode <span class="tip">(화면비 맞춤 방식)</span></h4>
+                    원본 영상과 MSX2(256x192)의 비율이 다를 때 처리하는 방식입니다.<br><br>
+                    <span class="hl">Crop</span>: 파란색 박스 도구로 원하는 부분만 잘라냅니다. 화면에 가장 꽉 차게 나옵니다.<br>
+                    <span class="hl">Pad</span>: 비율을 유지하며 남는 공간에 검은색 레터박스 여백을 둡니다.<br>
+                    <span class="hl">Force</span>: 원본을 256x192 크기에 맞춰 강제로 찌그러뜨립니다.
+                </div>
             </div>
-            <div style="grid-column: span 2; display: flex; gap: 10px;">
+            <div style="grid-column: span 2; display: flex; gap: 10px;" class="help-section">
                 <div style="flex: 1;">
                     <label>Crop Left Offset (%)</label>
                     <input type="number" id="cfg_crop_left" value="0" min="-100" max="100">
@@ -492,6 +603,12 @@
                 <div style="flex: 1;">
                     <label>Crop Up Offset (%)</label>
                     <input type="number" id="cfg_crop_up" value="0" min="-100" max="100">
+                </div>
+                <div class="help-overlay">
+                    <h4>Crop Offset <span class="tip">(화면 미세 이동)</span></h4>
+                    비율 방식이 <span class="hl">Crop</span>(잘라내기)일 때, 어느 위치를 중심으로 자를지 이동시킵니다.<br><br>
+                    <span class="hl">Left Offset</span>: -100(가장 왼쪽) ~ 100(가장 오른쪽)<br>
+                    <span class="hl">Up Offset</span>: -100(가장 위쪽) ~ 100(가장 아래쪽)
                 </div>
             </div>
         </div>
@@ -521,9 +638,18 @@
             </div>
             <div class="split-handle" id="splitLeft"></div>
             <div class="split-handle" id="splitRight"></div>
+            <div class="help-overlay">
+                <h4>Preview Canvas <span class="tip">(작업 영역)</span></h4>
+                비디오를 자르거나 화면 분할 범위를 지정하는 캔버스입니다.<br><br>
+                <span class="hl">파란 박스 (Crop 모드)</span>: 내측을 드래그해 오프셋을 이동시키거나, 네 모서리를 잡아 크기를 조절할 수 있습니다.<br>
+                (Alt/Cmd 키를 누른 채 조작하면 자석 스냅 효과를 무시합니다.)<br>
+                상단의 🔒 자물쇠 아이콘을 클릭하면 선택 영역의 비율을 MSX2 타겟 비율에 맞게 고정합니다.<br><br>
+                <span class="hl">분할선 (모니터 모드)</span>: 상단의 모니터 모드가 활성화되었을 때 표시됩니다. 초록색/주황색 선을 좌우로 드래그하여 원본 영상 / 디더링 / MSX
+                출력, 세 파트의 화면 비율을 비교하며 조절할 수 있습니다.
+            </div>
         </div>
 
-        <div class="timeline-container" id="timelineContainer">
+        <div class="timeline-container help-section" id="timelineContainer">
             <div class="time-inputs">
                 <div class="time-input-group">
                     <label>Start Time</label>
@@ -545,6 +671,15 @@
                 <div class="marker playhead-marker" id="markerPlayhead" style="left: 0%;" title="Current Position">
                 </div>
                 <div class="marker end-marker" id="markerEnd" style="left: 100%;" title="End Point"></div>
+            </div>
+            <div class="help-overlay">
+                <h4>Timeline <span class="tip">(클립 구간 설정)</span></h4>
+                인코딩할 비디오의 <span class="tip">시작점</span>과 <span class="hl" style="color:#ff8888">끝점</span>을 마우스 드래그로 손쉽게
+                지정합니다.<br><br>
+                <span class="hl">연두색 마커</span>: 인코딩 시작 위치<br>
+                <span class="hl">빨간색 마커</span>: 인코딩 종료 위치<br>
+                <span class="hl">흰색 플레이헤드</span>: 현재 캔버스에 보여지는 화면 위치<br><br>
+                지정된 구간의 길이는 <b>Selection Box</b>에 소요 시간(s)과 총 프레임 수(F)로 자동 계산되어 표시됩니다.
             </div>
         </div>
     </div>
@@ -613,9 +748,8 @@
         };
 
         btnInfo.addEventListener('click', () => {
-            tooltipsEnabled = !tooltipsEnabled;
-            btnInfo.style.background = tooltipsEnabled ? '#007acc' : 'transparent';
-            btnInfo.style.color = tooltipsEnabled ? '#fff' : '#4db8ff';
+            if (isEncoding) return; // Don't show help during encoding
+            document.body.classList.toggle('help-visible');
         });
 
         document.querySelectorAll('label, select, input').forEach(el => {
@@ -1285,6 +1419,7 @@
             isEncoding = true;
             shouldStopEncoding = false;
             currentMode = 'monitor';
+            document.body.classList.remove('help-visible'); // Hide help
             previewContainer.classList.add('monitor-mode');
             monitorLeftSplit = 0.25;
             monitorRightSplit = 0.75;
