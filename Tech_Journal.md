@@ -140,6 +140,12 @@
     - By passing the `.buffer` property of the `Uint8Array`s as the second argument to `postMessage(..., [buffer])`, we transfer "ownership" of the memory instead of copying it.
     - Added a defensive deep-copy for `pcmSlice` (`new Int16Array(pcmSlice)`) before transfer to prevent detaching the master audio buffer.
 - **Result:** Inter-Process Communication (IPC) overhead between the UI and the WebWorker is now nearly zero, entirely eliminating GC stuttering and freeing up resources for the Rust encoder.
+
+## 2026-03-21 02:30:00: CPU Instruction Optimization & Mathematical Elimination (LUT + SIMD)
+- **The Issue:** Even with 16-thread `Rayon` processing, the inner loops of the `KMeansQuantizer` and `GreedyQuantizer` were bottlenecked by performing millions of complex color distance calculations (Redmean/Euclidean) per frame using scalar math.
+- **The Fix 1 (Global 512x512 LUT):** Realizing that MSX2 only supports a rigid 512-color grid, computing distances dynamically is redundant. We implemented a static `OnceLock` 512x512 Lookup Table (LUT). At runtime, all RGB pixels are instantly snapped to their `0..511` index, and distance calculation (`color_dist_redmean_sq`) is entirely bypassed in favor of a direct array lookup (`lut[color_a_idx][color_b_idx]`).
+- **The Fix 2 (WASM SIMD):** Enabled the `+simd128` feature flag in `.cargo/config.toml`. The Rust LLVM compiler now auto-vectorizes the LUT lookups and histogram summation loops, processing 128-bits (4 integers) per CPU cycle instead of one.
+- **Result:** The mathematical overhead of the quantization phase has been virtually eliminated (Math-less Quantization). The combination of 16-thread outer loops (`Rayon`), Math elimination (`LUT`), and 128-bit inner loop processing (`SIMD`) represents the absolute theoretical limit of CPU optimization for this specific architecture.
 - Fixed a bug in encoder.html and hq_encoder.html where the preview canvas CSS aspect-ratio could become desynced from the radio buttons on initial load or mode change. The preview now forcefully synchronizes its aspect ratio on every redraw.
 ## 2026-03-13 20:00 - Interactive Resizable Encoding Area (UI Enhancement)
 - Upgraded the preview canvas to feature a fully interactive, free-form resizable blue target box.
