@@ -10,49 +10,51 @@ self.onmessage = async (e) => {
     try {
         if (type === 'INIT') {
             console.log("[Worker] Initializing WASM with manual shared memory injection...");
-            
-            // ServiceWorker와 쿼리 스트링 간의 충돌을 피하기 위해 경로 단순화
-            const jsUrl = './pkg/mv2_wasm.js';
-            const wasmUrl = './pkg/mv2_wasm_bg.wasm';
 
-            console.log("[Worker] Loading module:", jsUrl);
-            const module = await import(jsUrl);
+            const module = await import('./pkg/mv2_wasm.js');
             init = module.default;
             Mv2Encoder = module.Mv2Encoder;
 
             let memory = null;
             if (self.crossOriginIsolated && typeof SharedArrayBuffer !== 'undefined') {
                 try {
-                    // 🚀 수동으로 SharedArrayBuffer 메모리 생성 
-                    // WASM 바이너리 헤더와 일치하도록 initial: 18 설정 (중요!)
-                    memory = new WebAssembly.Memory({ initial: 18, maximum: 16384, shared: true });
-                    console.log("[Worker] SharedArrayBuffer created manually (18 pages).");
+                    // 🚀 수동으로 SharedArrayBuffer 생성 (256페이지 = 16MB)
+                    memory = new WebAssembly.Memory({ initial: 256, maximum: 16384, shared: true });
+                    console.log("[Worker] SharedArrayBuffer created manually (256 pages).");
                 } catch (e) {
                     console.warn("[Worker] Failed to create SharedArrayBuffer manually:", e);
                 }
             }
 
-            // WASM 초기화 (수동 메모리 주입)
-            // modern wasm-bindgen style: { module_or_path, memory }
-            await init({ module_or_path: wasmUrl, memory }); 
+            // WASM 초기화 (수동 메모리 주입 + 2MB 스택 설정)
+            await init({ 
+                module_or_path: './pkg/mv2_wasm_bg.wasm', 
+                memory,
+                thread_stack_size: 2 * 1024 * 1024 
+            }); 
             
+            // 패닉 후크 초기화 (에러 메시지 상세 확인용)
+            if (module.init_panic_hook) module.init_panic_hook();
+
             // 🚀 멀티스레딩 초기화
             if (memory && module.initThreadPool) {
                 try {
-                    console.log("[Worker] Attempting to initialize thread pool with", navigator.hardwareConcurrency, "threads...");
-                    await module.initThreadPool(navigator.hardwareConcurrency);
+                    const threads = Math.min(navigator.hardwareConcurrency || 4, 12);
+                    console.log("[Worker] Attempting to initialize thread pool with", threads, "threads...");
+                    await module.initThreadPool(threads);
                     console.log("[Worker] Thread pool initialized successfully.");
                 } catch (e) {
-                    console.error("[Worker] Failed to initialize thread pool (DataCloneError):", e);
+                    console.error("[Worker] Failed to initialize thread pool:", e);
                     console.warn("[Worker] Falling back to single-threaded mode.");
                 }
             } else {
-                console.warn("[Worker] Multi-threading not supported or initialization failed. Using single thread.");
+                console.warn("[Worker] Environment does not support multi-threading. Using single thread.");
             }
 
             encoder = new Mv2Encoder(payload.config);
             self.postMessage({ type: 'INIT_DONE' });
         } 
+
         else if (type === 'ENCODE_FRAME') {
             const { rgbaBytes, origW, origH, mp3Chunk, pcmSlice, frameIdx } = payload;
 

@@ -218,3 +218,8 @@
 - **The Issue:** Sub-workers failed to load with a 'TypeError' pointing to the `/pkg/` directory. The generic directory import in `workerHelpers.js` was not being resolved correctly by the Service Worker.
 - **The Fix:** Patched `workerHelpers.js` to explicitly import `mv2_wasm.js` and aligned `worker.js` with the modern `wasm-bindgen` initialization API.
 - **Result:** 16-thread multi-processing is now operational.
+## 2026-03-21 05:30:00: Critical Patch for Memory Injection Logic
+- **The Issue:** 'unreachable executed' occurred during initialization. This was traced back to `__wbg_get_imports` being called without the manually injected memory object, leaving essential internal WASM views (like `Uint8Array` into memory) uninitialized.
+- **The Fix:** Updated the `mv2_wasm.js` surgical patch to pass the `maybe_memory` argument to `__wbg_get_imports(maybe_memory)`.
+- **Stability Refinement:** Lowered initial memory to **256 pages** (16MB) and capped threads to **12** to reduce browser resource contention, while maintaining the **2MB per-thread stack size**.
+- **Result:** Clean initialization and stable thread pool spawning.
