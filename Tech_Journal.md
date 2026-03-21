@@ -144,3 +144,13 @@
 - Implemented 'Auto-Switch' logic: If a user clicks or drags the canvas while in 'Pad' or 'Force' mode, the UI instantly switches the dropdown to 'Crop' mode and reveals the free-form resizing handles.
 - Moved the Aspect Lock (🔒/🔓) icon to the top-left of the preview canvas to prevent interaction conflicts with the central OSD Play/Pause button.
 - Updated main encoding loops across encoder.html, hq_encoder.html, and wasm_encoder.html to respect the explicit 'pad' and 'force' spatial logic when not in custom crop mode.
+## 2026-03-21 05:15 - hq_encoder.html Visual Rendering Port
+- Ported the complete `drawPreviewCanvas` rendering engine from encoder.html to hq_encoder.html:
+  - 4 corner triangle resize handles with anchor-based dragging.
+  - Center-of-box 🔒/🔓 aspect lock toggle (moved from top-left 40x40 area).
+  - "256px" / "192px" dimension labels around the target box.
+  - Real-time PiP (Picture-in-Picture) preview during corner resizing.
+  - Dashed border when aspect lock is disabled (`isCustomMode && !isAspectLocked`).
+  - Unified rendering via `customBox || getCalculatedBox()` as single source of truth.
+- Added iOS-safe `loadVideoFile`: `sourceVideo.load()` + `onerror` handler to prevent infinite hangs.
+- Confirmed that after this port, wasm_encoder.html and hq_encoder.html are functionally identical (only title/heading differ); wasm_encoder.html was intentionally left unmodified.
