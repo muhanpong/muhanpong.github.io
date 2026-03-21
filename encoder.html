@@ -499,6 +499,22 @@
                 </div>
             </div>
             <div class="help-section">
+                <label>Dither Mode</label>
+                <select id="cfg_dither_mode">
+                    <option value="fs" selected>Floyd-Steinberg (FS)</option>
+                    <option value="dizzy">Dizzy (Blue Noise Error Diffusion)</option>
+                    <option value="bluenoise">Void & Cluster (True Blue Noise)</option>
+                    <option value="none">None (Posterized)</option>
+                </select>
+                <div class="help-overlay">
+                    <h4>Dither Mode <span class="tip">(디더링 모드)</span></h4>
+                    <span class="hl">FS</span>: 표준적인 플로이드-스타인버그 오차 확산입니다. 선명합니다.<br>
+                    <span class="hl">Dizzy</span>: 픽셀을 무작위로 방문하여 오차를 확산해 규칙적인 패턴을 없앱니다.<br>
+                    <span class="hl">Void & Cluster</span>: 사전 계산된 마스크를 사용하여 타일링이 전혀 없는 고급 블루 노이즈를 렌더링합니다.<br>
+                    <span class="hl">None</span>: 디더링을 완전히 끕니다. (등고선 현상 발생)
+                </div>
+            </div>
+            <div class="help-section">
                 <label>Dither Strength (0-100)</label>
                 <input type="number" id="cfg_dither" value="85" min="0" max="100">
                 <div class="help-overlay">
@@ -1616,7 +1632,8 @@
                     encoder: "MV2 Web Encoder (WASM)", source: file.name, date: new Date().toISOString(),
                     duration_sec: video.duration, play_time: playTime, total_frames: totalFrames,
                     settings: {
-                        quantizer: document.getElementById('cfg_quantizer').value, dither: "Fs",
+                        quantizer: document.getElementById('cfg_quantizer').value, 
+                        dither: document.getElementById('cfg_dither_mode').value,
                         dither_strength: parseInt(document.getElementById('cfg_dither').value),
                         anchors: document.getElementById('cfg_anchors').value.length, anchor_colors: document.getElementById('cfg_anchors').value,
                         extra_colors: parseInt(document.getElementById('cfg_colors').value), aspect: document.getElementById('cfg_aspect').value,
@@ -1627,6 +1644,7 @@
                 const config = {
                     width: 256, height: 192,
                     quantizer: document.getElementById('cfg_quantizer').value,
+                    dither: document.getElementById('cfg_dither_mode').value,
                     dither_strength: parseInt(document.getElementById('cfg_dither').value),
                     anchor_colors: document.getElementById('cfg_anchors').value,
                     max_extra_colors: parseInt(document.getElementById('cfg_colors').value),
