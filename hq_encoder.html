@@ -1582,6 +1582,13 @@
             }
 
             const file = videoInput.files[0];
+
+            // 🚀 Create and unlock AudioContext synchronously within the click event
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: TARGET_SAMPLE_RATE });
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
             const video = sourceVideo;
 
             video.pause(); video.muted = true;
@@ -1653,7 +1660,6 @@
                     worker.postMessage({ type: 'INIT', payload: { config: JSON.stringify(config) } });
                 });
 
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: TARGET_SAMPLE_RATE });
                 const arrayBuffer = await file.arrayBuffer();
                 const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
                 const pcmFloat32 = audioBuffer.getChannelData(0);

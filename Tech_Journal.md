@@ -227,3 +227,7 @@
 - Adjusted 'sourceVideo' styling from 'fixed -10000px' to a 1x1px 'absolute' element with low opacity. This prevents iPad Safari from throttling or disconnecting the hidden video stream.
 - Enhanced 'loadVideoFile' with explicit 'revokeObjectURL' calls to prevent memory leaks during multiple file loads.
 - Added detailed error reporting in the video loading handler to distinguish between network, decoding (codec), and format errors, facilitating easier debugging on iOS/iPadOS.
+
+## 2026-03-22 11:40:00 - iOS Safari AudioContext User Gesture Fix (hq_encoder.html)
+- **The Issue:** "Start Encoding" button failed on iPads when accessed via `github.io` (HTTPS/ServiceWorker). The browser's strict "user gesture" expiration rule for Web Audio API was blocking `decodeAudioData` because `AudioContext` was instantiated *after* asynchronously waiting for the WASM worker to initialize.
+- **The Fix:** Relocated `new AudioContext()` instantiation and `audioCtx.resume()` to the very top of the `btnStart` click handler in `hq_encoder.html`—before any `await` operations—ensuring it executes synchronously while the user gesture token is still universally valid.
