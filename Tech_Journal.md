@@ -231,3 +231,8 @@
 ## 2026-03-22 11:40:00 - iOS Safari AudioContext User Gesture Fix (hq_encoder.html)
 - **The Issue:** "Start Encoding" button failed on iPads when accessed via `github.io` (HTTPS/ServiceWorker). The browser's strict "user gesture" expiration rule for Web Audio API was blocking `decodeAudioData` because `AudioContext` was instantiated *after* asynchronously waiting for the WASM worker to initialize.
 - **The Fix:** Relocated `new AudioContext()` instantiation and `audioCtx.resume()` to the very top of the `btnStart` click handler in `hq_encoder.html`—before any `await` operations—ensuring it executes synchronously while the user gesture token is still universally valid.
+
+## 2026-03-22 12:00:00 - iOS Web Worker Exhaustion & Hang Fix (`worker.js`)
+- **The Issue:** After mitigating the AudioContext bug, the encoder still appeared to freeze indefinitely on iPads when clicking "Start Encoding". 
+- **The Cause:** `worker.js` attempts to initialize a Rayon thread pool (`module.initThreadPool`) matching `navigator.hardwareConcurrency` (often 6-8 on iPads). iOS Safari heavily restricts the number of active Web Workers per page and occasionally hangs entirely on `Promise.all` when spawning ES module workers under `crossOriginIsolated` conditions, causing `initThreadPool` to never resolve. 
+- **The Fix:** Added an OS detection check (`isIOS`) in `worker.js`. If an iOS/iPadOS device is detected, the maximum thread count is strictly capped to 2. Furthermore, wrapped `module.initThreadPool(threads)` in a `Promise.race` with a 3-second timeout, ensuring that if WebKit blocks worker allocation, the application gracefully catches the timeout and falls back to a stable single-threaded encoding mode without freezing the UI.
