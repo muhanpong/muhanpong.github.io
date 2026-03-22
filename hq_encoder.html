@@ -845,9 +845,15 @@
         let isDraggingMarker = null;
         let anchorTime = null;
 
-        // Web Worker (캐시 무력화 파라미터 적용 권장)
-        const worker = new Worker('./worker.js?v=' + Date.now(), { type: 'module' });
-
+        let worker;
+        try {
+            // Service worker cache busting and iOS WebKit Module Worker Bug Bypass
+            // 🚀 Do NOT use { type: 'module' } here. iOS Safari Service Workers silently drop module workers.
+            const uniqueV = Date.now();
+            worker = new Worker('./worker.js?v=' + uniqueV);
+        } catch (e) {
+            console.error(e);
+        }
         // Tooltip Logic
         let tooltipsEnabled = false;
         const tooltipData = {
