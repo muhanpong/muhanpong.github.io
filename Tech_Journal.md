@@ -279,3 +279,11 @@
     - When dragging from below +5dB, the slider will "stick" exactly at +5dB and refuse to go higher during that specific drag.
     - To move past +5dB (up to +20dB), the user must release the slider and grab it again while it's at +5dB.
 - **FILES UPDATED:** `hq_encoder.html`, `encoder.html`, `wasm_encoder.html`.
+
+## 2026-03-22 22:00:00 - 8x8 Grid Toggle (Tile Helper)
+- **FEATURE:** Added an 8x8 grid overlay to the player (`index.html`) to assist with tile alignment visualization (essential for MSX/VDP character-based screens).
+- **UI:** New OSD button `#btn-grid-toggle` with a 3x3 grid icon. Highlighted with `--accent` when active.
+- **LOGIC:** 
+    - Draws a basic grid at `rgba(255, 255, 255, 0.25)` every 8 pixels.
+    - Draws central axis lines at `rgba(255, 255, 255, 0.45)` to mark the screen quadrants.
+    - Immediate re-render of the current frame upon toggle.
