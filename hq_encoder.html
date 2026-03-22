@@ -2034,6 +2034,10 @@
                 btnStart.innerText = "Start Encoding"; btnStart.style.background = "#007acc"; btnStart.disabled = false;
 
                 document.querySelectorAll('input, select').forEach(el => el.disabled = false);
+                seekSlider.style.pointerEvents = 'auto'; seekSlider.style.opacity = '1';
+
+                document.getElementById('progressBar').value = 0;
+                document.getElementById('progressBar').style.display = 'none';
                 renderPreview();
             }
         }); // Closing for btnStart.addEventListener
@@ -2042,11 +2046,6 @@
         document.getElementById('cfg_audio_gain').addEventListener('pointerdown', function () {
             audioGainStickyBypass = (parseFloat(this.value) >= 5);
         });
-        seekSlider.style.pointerEvents = 'auto'; seekSlider.style.opacity = '1';
-
-        document.getElementById('progressBar').value = 0;
-        document.getElementById('progressBar').style.display = 'none';
-        renderPreview();
 
 
         let lastEncodedMv2 = null;

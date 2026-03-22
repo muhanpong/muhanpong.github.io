@@ -121,6 +121,22 @@
             overflow: visible;
         }
 
+        /* 🚀 [신규] 고해상도 초미세 그리드 */
+        #grid-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            display: none;
+            mix-blend-mode: difference;
+            z-index: 5;
+            /* 8x8 MSX 픽셀 단위를 CSS 비율로 계산 (100% / 32칸, 100% / 24칸) */
+            background-image: 
+                linear-gradient(to right, rgba(255,255,255,0.5) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255,255,255,0.5) 1px, transparent 1px);
+            background-size: calc(100% / 32) calc(100% / 24);
+        }
+        #grid-overlay.active { display: block; }
+
         @media (min-width: 768px) {
             #video-container {
                 max-width: min(960px, calc((100vh - 150px) * 5 / 3));
@@ -1267,6 +1283,7 @@
         <div id="video-container">
             <div id="canvas-area" class="empty">
                 <canvas id="msx-screen" width="256" height="192"></canvas>
+                <div id="grid-overlay"></div>
                 <div id="canvas-msg-overlay">📂 Drop .MV or .ZIP here</div>
 
                 <div id="eq-overlay">
@@ -2061,17 +2078,6 @@
 
                 this.ctx.putImageData(this.renderImg, 0, 0);
 
-                if (this.showGrid) {
-                    this.ctx.save();
-                    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
-                    for (let x = 0; x < 256; x += 8) this.ctx.fillRect(x, 0, 1, 192);
-                    for (let y = 0; y < 192; y += 8) this.ctx.fillRect(0, y, 256, 1);
-                    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-                    this.ctx.fillRect(128, 0, 1, 192);
-                    this.ctx.fillRect(0, 96, 256, 1);
-                    this.ctx.restore();
-                }
-
 
                 // 물리 엔진용 타겟 및 실제 수량 업데이트
                 for (let i = 0; i < 16; i++) {
@@ -2586,12 +2592,8 @@
             // 버튼 색상 변경 (활성화 시 accent 색상 적용)
             document.getElementById('btn-grid-toggle').style.fill = player.showGrid ? 'var(--accent)' : '#888';
 
-            // 현재 프레임 즉시 재렌더링
-            if (player.frames.length) {
-                player.renderFrame(player.currentRenderedFrameIdx !== null
-                    ? player.currentRenderedFrameIdx
-                    : Math.floor(player.pauseTime * player.fps));
-            }
+            // CSS 그리드 오버레이 토글
+            document.getElementById('grid-overlay').classList.toggle('active', player.showGrid);
         };
 
         const unlockAudio = () => {

@@ -287,3 +287,13 @@
     - Draws a basic grid at `rgba(255, 255, 255, 0.25)` every 8 pixels.
     - Draws central axis lines at `rgba(255, 255, 255, 0.45)` to mark the screen quadrants.
     - Immediate re-render of the current frame upon toggle.
+## 2026-03-13 21:00 - Player UI Enhancements (Grid Blending)
+- Applied 'difference' composite operation to the 8x8 grid drawing logic in index.html.
+- This creates a visual XOR effect, ensuring the grid remains visible regardless of the underlying image colors (dark or light).
+## 2026-03-13 21:15 - Player UI Refinement (High-Res XOR Grid)
+- Replaced the chunky canvas-based 8x8 grid in index.html with a high-resolution CSS overlay.
+- The new grid uses 'mix-blend-mode: difference' to achieve a perfect XOR effect against any background.
+- By using CSS gradients at the monitor's physical pixel scale, the grid lines are now significantly thinner and cleaner than the player's internal 256x192 pixels.
+## 2026-03-13 21:30 - Encoder UI Fix (Seek Slider Unlocking)
+- Fixed a bug in hq_encoder.html where the seek slider remained locked after encoding due to the unlocking logic being placed outside the event listener.
+- Robustified wasm_encoder.html by moving UI unlocking logic into the finally block of the encoding handler.
