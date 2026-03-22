@@ -515,7 +515,8 @@
                     <h4>Dither Mode <span class="tip">(디더링 모드)</span></h4>
                     <span class="hl">FS</span>: 표준적인 플로이드-스타인버그 오차 확산입니다. 선명합니다.<br>
                     <span class="hl">Dizzy</span>: 픽셀을 무작위로 방문하여 오차를 확산해 규칙적인 패턴을 없앱니다.<br>
-                    <span class="hl">Blue Noise Void & Cluster</span>: 사전 계산된 마스크를 사용하여 타일링이 전혀 없는 고급 블루 노이즈를 렌더링합니다.<br>
+                    <span class="hl">Blue Noise Void & Cluster</span>: 사전 계산된 마스크를 사용하여 타일링이 전혀 없는 고급 블루 노이즈를
+                    렌더링합니다.<br>
                     <span class="hl">None</span>: 디더링을 완전히 끕니다. (등고선 현상 발생)
                 </div>
             </div>
@@ -561,7 +562,7 @@
             </div>
             <div class="help-section">
                 <label>Subsequent Iterations (Speed)</label>
-                <input type="number" id="cfg_iter_sub" value="3" min="1">
+                <input type="number" id="cfg_iter_sub" value="6" min="1">
                 <div class="help-overlay">
                     <h4>Subsequent Iterations <span class="tip">(후속 탐색)</span></h4>
                     두 번째 프레임부터 색상 변화가 있을 때 파렛트를 미세 조정하는 반복 횟수입니다.<br><br>
@@ -1614,7 +1615,7 @@
                     encoder: "MV2 Web Encoder (WASM)", source: file.name, date: new Date().toISOString(),
                     duration_sec: video.duration, play_time: playTime, total_frames: totalFrames,
                     settings: {
-                        quantizer: document.getElementById('cfg_quantizer').value, 
+                        quantizer: document.getElementById('cfg_quantizer').value,
                         dither: document.getElementById('cfg_dither_mode').value,
                         dither_strength: parseInt(document.getElementById('cfg_dither').value),
                         anchors: document.getElementById('cfg_anchors').value.length, anchor_colors: document.getElementById('cfg_anchors').value,
@@ -1931,7 +1932,7 @@
                         const pcmSliceCopy = new Int16Array(pcmSlice);
                         // mp3Chunk 역시 FFmpeg WASM 메모리의 뷰일 수 있으므로 깊은 복사 수행
                         const mp3ChunkCopy = new Uint8Array(mp3Chunk);
-                        
+
                         worker.postMessage({
                             type: 'ENCODE_FRAME',
                             payload: { rgbaBytes, origW: drawW, origH: drawH, mp3Chunk: mp3ChunkCopy, pcmSlice: pcmSliceCopy, frameIdx }
