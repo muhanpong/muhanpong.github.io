@@ -14,17 +14,18 @@ self.onmessage = async (e) => {
             const module = await import('./pkg/mv2_wasm.js');
             init = module.default;
             Mv2Encoder = module.Mv2Encoder;
+let memory = null;
+if (self.crossOriginIsolated && typeof SharedArrayBuffer !== 'undefined') {
+    try {
+        // 🚀 수동으로 SharedArrayBuffer 생성 및 주입
+        // 바이너리 헤더와 일치하도록 initial: 513 (32MB + 1) 설정
+        memory = new WebAssembly.Memory({ initial: 513, maximum: 16384, shared: true });
+        console.log("[Worker] SharedArrayBuffer created manually (513 pages).");
+    } catch (e) {
+        console.warn("[Worker] Failed to create SharedArrayBuffer manually:", e);
+    }
+}
 
-            let memory = null;
-            if (self.crossOriginIsolated && typeof SharedArrayBuffer !== 'undefined') {
-                try {
-                    // 🚀 수동으로 SharedArrayBuffer 생성 (256페이지 = 16MB)
-                    memory = new WebAssembly.Memory({ initial: 256, maximum: 16384, shared: true });
-                    console.log("[Worker] SharedArrayBuffer created manually (256 pages).");
-                } catch (e) {
-                    console.warn("[Worker] Failed to create SharedArrayBuffer manually:", e);
-                }
-            }
 
             // WASM 초기화 (수동 메모리 주입 + 2MB 스택 설정)
             await init({ 

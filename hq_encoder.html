@@ -460,6 +460,12 @@
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js" crossorigin="anonymous"></script>
+    <script>
+        console.log("[Main] crossOriginIsolated:", window.crossOriginIsolated);
+        if (!window.crossOriginIsolated) {
+            console.warn("[Main] Cross-Origin Isolation is NOT active. Multi-threading will be disabled. Check your coi-serviceworker status.");
+        }
+    </script>
 </head>
 
 <body>
@@ -501,7 +507,7 @@
                 <label>Dither Mode</label>
                 <select id="cfg_dither_mode">
                     <option value="fs" selected>Floyd-Steinberg (FS)</option>
-                    <option value="dizzy">Dizzy (Blue Noise Error Diffusion)</option>
+                    <option value="dizzy">Dizzy (Error Diffusion)</option>
                     <option value="bluenoise">Void & Cluster (True Blue Noise)</option>
                     <option value="none">None (Posterized)</option>
                 </select>
@@ -509,18 +515,18 @@
                     <h4>Dither Mode <span class="tip">(디더링 모드)</span></h4>
                     <span class="hl">FS</span>: 표준적인 플로이드-스타인버그 오차 확산입니다. 선명합니다.<br>
                     <span class="hl">Dizzy</span>: 픽셀을 무작위로 방문하여 오차를 확산해 규칙적인 패턴을 없앱니다.<br>
-                    <span class="hl">Void & Cluster</span>: 사전 계산된 마스크를 사용하여 타일링이 전혀 없는 고급 블루 노이즈를 렌더링합니다.<br>
+                    <span class="hl">Blue Noise Void & Cluster</span>: 사전 계산된 마스크를 사용하여 타일링이 전혀 없는 고급 블루 노이즈를 렌더링합니다.<br>
                     <span class="hl">None</span>: 디더링을 완전히 끕니다. (등고선 현상 발생)
                 </div>
             </div>
             <div class="help-section">
                 <label>Dither Strength (0-100)</label>
-                <input type="number" id="cfg_dither" value="85" min="0" max="100">
+                <input type="number" id="cfg_dither" value="75" min="0" max="100">
                 <div class="help-overlay">
                     <h4>Dither Strength <span class="tip">(디더링 강도)</span></h4>
                     MSX2의 부족한 색상(15색)을 보완하기 위해 픽셀을 패턴으로 섞어 인접색을 표현하는 강도입니다.<br><br>
                     <span class="hl">0</span>: 디더링 끄기 (선명하지만 밴딩/등고선 현상 발생 지점 생김)<br>
-                    <span class="hl">85~100</span>: 부드러운 음영 전환. (100에 가까울수록 모래알 같은 노이즈 질감이 강해짐)
+                    <span class="hl">75~100</span>: 부드러운 음영 전환. (100에 가까울수록 모래알 같은 노이즈 질감이 강해짐)
                 </div>
             </div>
             <div class="help-section">
@@ -538,10 +544,10 @@
                 <input type="text" id="cfg_anchors" value="K_W">
                 <div class="help-overlay">
                     <h4>Anchor Colors <span class="tip">(고정 색상)</span></h4>
-                    자동 추출 대신, 영상에 반드시 포함시켜야 할 핵심 색상들을 강제로 고정(Anchor)합니다. 여러 색상은 언더바(_)로 구분합니다.<br><br>
+                    자동 추출 대신, 영상에 반드시 포함시켜야 할 핵심 색상들을 강제로 고정(Anchor)합니다. 색상 밝기 고정은 _를 앞에 붙입니다.<br><br>
                     <span class="hl">지원 색상 코드</span>: <b>K</b>(검정), <b>W</b>(흰색), <b>R</b>(빨강), <b>G</b>(초록),
-                    <b>B</b>(파랑), <b>Y</b>(노랑), <b>M</b>(마젠타), <b>C</b>(시안).<br>
-                    예: <span class="hl">K_W_R</span> (검정, 흰, 빨강 세 가지를 파렛트에 무조건 추가)
+                    <b>B</b>(파랑), <b>Y</b>(노랑), <b>M</b>(마젠타), <b>C</b>(시안). 소문자는 어두운 색<br>
+                    예: <span class="hl">K_W_a_R</span> (검정, 흰, 어두운 회색, 빨강 세 가지를 파렛트에 무조건 추가. 검정은 내부적 불변)
                 </div>
             </div>
             <div class="help-section">

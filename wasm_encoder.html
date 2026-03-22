@@ -476,6 +476,12 @@
     </style>
     <!-- 브라우저용 가벼운 순수 JS MP3 인코더 라이브러리 -->
     <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js" crossorigin="anonymous"></script>
+    <script>
+        console.log("[Main] crossOriginIsolated:", window.crossOriginIsolated);
+        if (!window.crossOriginIsolated) {
+            console.warn("[Main] Cross-Origin Isolation is NOT active. Multi-threading will be disabled. Check your coi-serviceworker status.");
+        }
+    </script>
 </head>
 
 <body>

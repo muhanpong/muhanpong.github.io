@@ -51,7 +51,6 @@ waitForMsgType(self, 'wasm_bindgen_worker_init').then(async ({ init, receiver })
   // OTOH, even though it can't be inlined, it should be still reasonably
   // cheap since the requested file is already in cache (it was loaded by
   // the main thread).
-  // 🚀 [Surgical Patch] 디렉토리(/pkg/) 대신 명시적인 JS 파일(/pkg/mv2_wasm.js)을 임포트하도록 수정
   const pkg = await import('../../../mv2_wasm.js');
   await pkg.default(init);
   postMessage({ type: 'wasm_bindgen_worker_ready' });

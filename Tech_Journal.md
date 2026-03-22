@@ -223,3 +223,7 @@
 - **The Fix:** Updated the `mv2_wasm.js` surgical patch to pass the `maybe_memory` argument to `__wbg_get_imports(maybe_memory)`.
 - **Stability Refinement:** Lowered initial memory to **256 pages** (16MB) and capped threads to **12** to reduce browser resource contention, while maintaining the **2MB per-thread stack size**.
 - **Result:** Clean initialization and stable thread pool spawning.
+## 2026-03-13 20:30 - iPad Compatibility Fixes (Encoder)
+- Adjusted 'sourceVideo' styling from 'fixed -10000px' to a 1x1px 'absolute' element with low opacity. This prevents iPad Safari from throttling or disconnecting the hidden video stream.
+- Enhanced 'loadVideoFile' with explicit 'revokeObjectURL' calls to prevent memory leaks during multiple file loads.
+- Added detailed error reporting in the video loading handler to distinguish between network, decoding (codec), and format errors, facilitating easier debugging on iOS/iPadOS.
