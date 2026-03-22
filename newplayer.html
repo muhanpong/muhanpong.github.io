@@ -18,220 +18,1189 @@
             --border: #2a2a2a;
         }
 
-        *, *::before, *::after { box-sizing: border-box; }
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
 
-        html { height: 100%; overflow: hidden; }
+        html {
+            height: 100%;
+            overflow: hidden;
+        }
 
         body {
-            margin: 0; background-color: var(--bg); color: #eee;
+            margin: 0;
+            background-color: var(--bg);
+            color: #eee;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            overflow: hidden; display: flex; flex-direction: column;
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
         }
 
         /* ── App Bar ── */
         #app-bar {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 6px 12px; background: var(--surface); border-bottom: 1px solid var(--border);
-            height: 40px; flex-shrink: 0; z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 12px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            height: 40px;
+            flex-shrink: 0;
+            z-index: 10;
         }
-        .app-bar-title { font-size: 14px; font-weight: 600; color: #ddd; display: flex; align-items: center; gap: 8px; }
-        .app-bar-title svg { fill: var(--accent); }
-        #btn-info-toggle { background: transparent; border: none; cursor: pointer; fill: #888; padding: 4px; display: flex; align-items: center; transition: fill 0.2s; }
-        #btn-info-toggle:hover { fill: var(--accent); }
+
+        .app-bar-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #ddd;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .app-bar-title svg {
+            fill: var(--accent);
+        }
+
+        #btn-info-toggle {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            fill: #888;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            transition: fill 0.2s;
+        }
+
+        #btn-info-toggle:hover {
+            fill: var(--accent);
+        }
 
         /* ── Screen Wrapper & Video ── */
         #screen-wrapper {
-            position: relative; background-color: #000; width: 100%; flex-grow: 1;
-            display: flex; flex-direction: column; overflow: hidden; min-height: 0;
+            position: relative;
+            background-color: #000;
+            width: 100%;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
         }
+
         #video-container {
-            position: relative; display: flex; flex-direction: column; align-items: center;
-            background: #000; width: 100%; max-width: min(100vw, calc((100vh - 120px) * 5 / 3));
-            margin: 0 auto; flex-shrink: 0;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #000;
+            width: 100%;
+            max-width: min(100vw, calc((100vh - 120px) * 5 / 3));
+            margin: 0 auto;
+            flex-shrink: 0;
         }
+
         #canvas-area {
-            position: relative; aspect-ratio: 5 / 3; background: #000;
-            width: 100%; max-width: 100%; overflow: visible;
+            position: relative;
+            aspect-ratio: 5 / 3;
+            background: #000;
+            width: 100%;
+            max-width: 100%;
+            overflow: visible;
         }
-        @media (min-width: 768px) { #video-container { max-width: min(960px, calc((100vh - 150px) * 5 / 3)); } }
+
+        @media (min-width: 768px) {
+            #video-container {
+                max-width: min(960px, calc((100vh - 150px) * 5 / 3));
+            }
+        }
 
         /* ── 정상적인 전체화면 ── */
-        #screen-wrapper:fullscreen { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; background: #000; }
-        #screen-wrapper:fullscreen #video-container { max-width: 100% !important; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
-        #screen-wrapper:fullscreen #canvas-area { width: 100% !important; height: 100% !important; max-width: calc(100vh * 5 / 3) !important; max-height: calc(100vw * 3 / 5) !important; margin: auto; }
-        @media (orientation: landscape) { #screen-wrapper:fullscreen #playlist-sidebar { display: none !important; } }
+        #screen-wrapper:fullscreen {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+        }
+
+        #screen-wrapper:fullscreen #video-container {
+            max-width: 100% !important;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #screen-wrapper:fullscreen #canvas-area {
+            width: 100% !important;
+            height: 100% !important;
+            max-width: calc(100vh * 5 / 3) !important;
+            max-height: calc(100vw * 3 / 5) !important;
+            margin: auto;
+        }
+
+        @media (orientation: landscape) {
+            #screen-wrapper:fullscreen #playlist-sidebar {
+                display: none !important;
+            }
+        }
 
         /* ── 아이폰 전용 강제 가로모드 ── */
         @media screen and (orientation: portrait) {
             .ios-fullscreen-fix {
-                position: fixed !important; top: 50% !important; left: 50% !important;
-                width: 100vh !important; height: 100vw !important; width: 100dvh !important; height: 100dvw !important;
-                transform: translate(-50%, -50%) rotate(90deg) !important; transform-origin: center center !important;
-                background: #000 !important; z-index: 9999 !important; margin: 0 !important; padding: 0 !important;
-                display: flex !important; align-items: center !important; justify-content: center !important;
+                position: fixed !important;
+                top: 50% !important;
+                left: 50% !important;
+                width: 100vh !important;
+                height: 100vw !important;
+                width: 100dvh !important;
+                height: 100dvw !important;
+                transform: translate(-50%, -50%) rotate(90deg) !important;
+                transform-origin: center center !important;
+                background: #000 !important;
+                z-index: 9999 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
             }
-            .ios-fullscreen-fix #video-container { width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; margin: 0 !important; display: flex !important; align-items: center !important; justify-content: center !important; }
-            .ios-fullscreen-fix #canvas-area { width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; aspect-ratio: 5 / 3 !important; margin: auto !important; }
-            .ios-fullscreen-fix #playlist-sidebar { display: none !important; }
+
+            .ios-fullscreen-fix #video-container {
+                width: 100% !important;
+                height: 100% !important;
+                max-width: 100% !important;
+                max-height: 100% !important;
+                margin: 0 !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
+
+            .ios-fullscreen-fix #canvas-area {
+                width: 100% !important;
+                height: 100% !important;
+                max-width: 100% !important;
+                max-height: 100% !important;
+                aspect-ratio: 5 / 3 !important;
+                margin: auto !important;
+            }
+
+            .ios-fullscreen-fix #playlist-sidebar {
+                display: none !important;
+            }
         }
 
         /* ── 4:3 비율 토글 ── */
-        body.aspect-4-3 #video-container { max-width: min(100vw, calc((100vh - 120px) * 4 / 3)); }
-        @media (min-width: 768px) { body.aspect-4-3 #video-container { max-width: min(960px, calc((100vh - 150px) * 4 / 3)); } }
-        body.aspect-4-3 #canvas-area { aspect-ratio: 4 / 3 !important; }
-        body.aspect-4-3 #screen-wrapper:fullscreen #canvas-area { max-width: calc(100vh * 4 / 3) !important; max-height: calc(100vw * 3 / 4) !important; }
-        @media screen and (orientation: portrait) { body.aspect-4-3 .ios-fullscreen-fix #canvas-area { aspect-ratio: 4 / 3 !important; } }
+        body.aspect-4-3 #video-container {
+            max-width: min(100vw, calc((100vh - 120px) * 4 / 3));
+        }
 
-        #msx-screen { width: 100%; height: 100%; object-fit: fill; image-rendering: pixelated; display: block; }
-        #canvas-msg-overlay { position: absolute; top: 20px; bottom: 20px; left: 0; right: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #777; z-index: 20; border: 1px dashed #333; margin: 0 40px; border-radius: 4px; cursor: pointer; pointer-events: auto; transition: background 0.2s, color 0.2s; }
-        #canvas-msg-overlay:hover { background: rgba(255, 255, 255, 0.05); color: #aaa; }
+        @media (min-width: 768px) {
+            body.aspect-4-3 #video-container {
+                max-width: min(960px, calc((100vh - 150px) * 4 / 3));
+            }
+        }
+
+        body.aspect-4-3 #canvas-area {
+            aspect-ratio: 4 / 3 !important;
+        }
+
+        body.aspect-4-3 #screen-wrapper:fullscreen #canvas-area {
+            max-width: calc(100vh * 4 / 3) !important;
+            max-height: calc(100vw * 3 / 4) !important;
+        }
+
+        @media screen and (orientation: portrait) {
+            body.aspect-4-3 .ios-fullscreen-fix #canvas-area {
+                aspect-ratio: 4 / 3 !important;
+            }
+        }
+
+        #msx-screen {
+            width: 100%;
+            height: 100%;
+            object-fit: fill;
+            image-rendering: pixelated;
+            display: block;
+        }
+
+        #canvas-msg-overlay {
+            position: absolute;
+            top: 20px;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: #777;
+            z-index: 20;
+            border: 1px dashed #333;
+            margin: 0 40px;
+            border-radius: 4px;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        #canvas-area.empty #canvas-msg-overlay {
+            display: flex;
+        }
+
+        #canvas-msg-overlay:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: #aaa;
+        }
 
         /* ── EQ Overlay ── */
-        #eq-overlay { position: absolute; top: 0; left: 0; width: 25%; height: 25%; pointer-events: auto; cursor: pointer; display: flex; align-items: flex-end; justify-content: space-between; padding: 2%; gap: 2%; z-index: 40; transition: opacity 0.2s; }
-        #eq-overlay.hidden { opacity: 0; }
-        .overlay-eq-bar { flex: 1; background-color: rgba(255, 255, 255, var(--eq-opacity)); height: 0%; border-radius: 1px 1px 0 0; transition: height 0.05s ease-out; }
+        #eq-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 25%;
+            height: 25%;
+            pointer-events: auto;
+            cursor: pointer;
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            padding: 2%;
+            gap: 2%;
+            z-index: 40;
+            transition: opacity 0.2s;
+        }
+
+        #eq-overlay.hidden {
+            opacity: 0;
+        }
+
+        .overlay-eq-bar {
+            flex: 1;
+            background-color: rgba(255, 255, 255, var(--eq-opacity));
+            height: 0%;
+            border-radius: 1px 1px 0 0;
+            transition: height 0.05s ease-out;
+        }
 
         /* ── OSD Controls ── */
-        #osd-controls { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, transparent 30%, transparent 70%, rgba(0, 0, 0, 0.4) 100%); display: flex; flex-direction: column; justify-content: flex-end; padding: 10px; opacity: 0; transition: opacity 0.3s; z-index: 25; pointer-events: none; }
-        @media (min-width: 768px) { #osd-controls { padding: 15px; } }
-        @media (hover: hover) { #canvas-area:hover #osd-controls { opacity: 1; pointer-events: auto; } }
-        .osd-visible #osd-controls, .paused #osd-controls { opacity: 1; pointer-events: auto; }
-        #canvas-area.empty #osd-controls { display: none !important; }
+        #osd-controls {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, transparent 30%, transparent 70%, rgba(0, 0, 0, 0.4) 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding: 10px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 25;
+            pointer-events: none;
+        }
 
-        .osd-center-controls { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 20px; pointer-events: auto; }
-        @media (min-width: 768px) { .osd-center-controls { gap: 30px; } }
-        .osd-icon-btn { background: rgba(0, 0, 0, 0.5); border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 50%; cursor: pointer; fill: white; display: flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; transition: background 0.2s, transform 0.1s; }
-        .osd-icon-btn:hover { background: rgba(0, 0, 0, 0.7); }
-        .osd-icon-btn:active { transform: scale(0.9); }
-        .btn-osd-track svg { width: 28px; height: 28px; }
-        @media (min-width: 768px) { .btn-osd-track svg { width: 36px; height: 36px; } }
-        #btn-osd-play-pause { min-width: 56px; min-height: 56px; }
-        #btn-osd-play-pause svg { width: 36px; height: 36px; }
-        @media (min-width: 768px) { #btn-osd-play-pause svg { width: 48px; height: 48px; } }
+        @media (min-width: 768px) {
+            #osd-controls {
+                padding: 15px;
+            }
+        }
 
-        .osd-frame-controls { position: relative; display: none; justify-content: center; gap: 10px; margin-bottom: 5px; pointer-events: auto; }
-        #seek-frame-tooltip { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 8px; background: rgba(128, 128, 128, 0.5); color: #ffffff; font-weight: bold; font-size: 13px; padding: 4px 8px; border-radius: 4px; pointer-events: none; display: none; white-space: nowrap; }
-        @media (min-width: 600px) { .osd-frame-controls { display: flex; } }
-        .osd-frame-btn { background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 4px; cursor: pointer; fill: #aaa; display: flex; align-items: center; justify-content: center; padding: 4px 12px; min-height: 44px; transition: all 0.2s; }
-        .osd-frame-btn:hover { fill: #fff; }
+        @media (hover: hover) {
+            #canvas-area:hover #osd-controls {
+                opacity: 1;
+                pointer-events: auto;
+            }
+        }
 
-        .osd-bottom-bar { display: flex; flex-direction: column; gap: 4px; width: 100%; pointer-events: auto; }
-        .osd-slider-row { display: flex; align-items: center; gap: 8px; width: 100%; }
-        .osd-controls-row { display: flex; align-items: center; justify-content: space-between; width: 100%; }
-        .osd-left-controls, .osd-right-controls { display: flex; align-items: center; gap: 2px; }
-        @media (min-width: 768px) { .osd-left-controls, .osd-right-controls { gap: 5px; } }
-        #btn-volume, #btn-repeat, #btn-zoom, #btn-fullscreen-toggle, #btn-osd-open, #btn-osd-save { background: transparent; border: none; cursor: pointer; fill: white; padding: 8px; display: flex; align-items: center; min-width: 40px; min-height: 40px; justify-content: center; transition: transform 0.1s; }
-        #btn-osd-open:active, #btn-osd-save:active { transform: scale(0.9); }
-        #btn-zoom { display: none !important; }
-        #osd-codec-container { display: flex; align-items: center; width: 0; opacity: 0; overflow: hidden; transition: all 0.3s ease; white-space: nowrap; gap: 5px; }
-        .osd-save-group { display: flex; align-items: center; }
-        .osd-save-group:hover #osd-codec-container { width: 130px; opacity: 1; margin-left: 5px; }
-        #osd-seek-slider { flex-grow: 1; cursor: pointer; accent-color: #ff0000; margin: 0; height: 20px; }
-        .osd-time { font-family: monospace; font-size: 11px; color: #ddd; min-width: 85px; text-align: right; white-space: nowrap; cursor: pointer; }
-        .osd-volume-group { display: flex; align-items: center; gap: 2px; }
-        #volume-slider { width: 0; opacity: 0; transition: width 0.2s, opacity 0.2s; cursor: pointer; accent-color: #fff; }
-        @media (min-width: 768px) { .osd-volume-group:hover #volume-slider { width: 60px; opacity: 1; } }
-        .osd-btn-active { fill: var(--accent) !important; }
+        .osd-visible #osd-controls,
+        .paused #osd-controls {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #canvas-area.empty #osd-controls {
+            display: none !important;
+        }
+
+        .osd-center-controls {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            pointer-events: auto;
+        }
+
+        @media (min-width: 768px) {
+            .osd-center-controls {
+                gap: 30px;
+            }
+        }
+
+        .osd-icon-btn {
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            cursor: pointer;
+            fill: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 44px;
+            min-height: 44px;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .osd-icon-btn:hover {
+            background: rgba(0, 0, 0, 0.7);
+        }
+
+        .osd-icon-btn:active {
+            transform: scale(0.9);
+        }
+
+        .btn-osd-track svg {
+            width: 28px;
+            height: 28px;
+        }
+
+        @media (min-width: 768px) {
+            .btn-osd-track svg {
+                width: 36px;
+                height: 36px;
+            }
+        }
+
+        #btn-osd-play-pause {
+            min-width: 56px;
+            min-height: 56px;
+        }
+
+        #btn-osd-play-pause svg {
+            width: 36px;
+            height: 36px;
+        }
+
+        @media (min-width: 768px) {
+            #btn-osd-play-pause svg {
+                width: 48px;
+                height: 48px;
+            }
+        }
+
+        .osd-frame-controls {
+            position: relative;
+            display: none;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 5px;
+            pointer-events: auto;
+        }
+
+        #seek-frame-tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-bottom: 8px;
+            background: rgba(128, 128, 128, 0.5);
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 13px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            pointer-events: none;
+            display: none;
+            white-space: nowrap;
+        }
+
+        @media (min-width: 600px) {
+            .osd-frame-controls {
+                display: flex;
+            }
+        }
+
+        .osd-frame-btn {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            cursor: pointer;
+            fill: #aaa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 12px;
+            min-height: 44px;
+            transition: all 0.2s;
+        }
+
+        .osd-frame-btn:hover {
+            fill: #fff;
+        }
+
+        .osd-bottom-bar {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            width: 100%;
+            pointer-events: auto;
+        }
+
+        .osd-slider-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .osd-controls-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+        }
+
+        .osd-left-controls,
+        .osd-right-controls {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        @media (min-width: 768px) {
+
+            .osd-left-controls,
+            .osd-right-controls {
+                gap: 5px;
+            }
+        }
+
+        #btn-volume,
+        #btn-repeat,
+        #btn-zoom,
+        #btn-fullscreen-toggle,
+        #btn-osd-open,
+        #btn-osd-save {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            fill: white;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            min-width: 40px;
+            min-height: 40px;
+            justify-content: center;
+            transition: transform 0.1s;
+        }
+
+        #btn-osd-open:active,
+        #btn-osd-save:active {
+            transform: scale(0.9);
+        }
+
+        #btn-zoom {
+            display: none !important;
+        }
+
+        #osd-codec-container {
+            display: flex;
+            align-items: center;
+            width: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            gap: 5px;
+        }
+
+        .osd-save-group {
+            display: flex;
+            align-items: center;
+        }
+
+        .osd-save-group:hover #osd-codec-container {
+            width: 130px;
+            opacity: 1;
+            margin-left: 5px;
+        }
+
+        #osd-seek-slider {
+            flex-grow: 1;
+            cursor: pointer;
+            accent-color: #ff0000;
+            margin: 0;
+            height: 20px;
+        }
+
+        .osd-time {
+            font-family: monospace;
+            font-size: 11px;
+            color: #ddd;
+            min-width: 85px;
+            text-align: right;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+
+        .osd-volume-group {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        #volume-slider {
+            width: 0;
+            opacity: 0;
+            transition: width 0.2s, opacity 0.2s;
+            cursor: pointer;
+            accent-color: #fff;
+        }
+
+        @media (min-width: 768px) {
+            .osd-volume-group:hover #volume-slider {
+                width: 60px;
+                opacity: 1;
+            }
+        }
+
+        .osd-btn-active {
+            fill: var(--accent) !important;
+        }
 
         /* ── 1. 세로 모드 전용 하단 히스토그램 (GPU 가속 최적화) ── */
-        #portrait-histogram { width: 100%; max-width: 960px; height: 58px; margin: 0 auto; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; flex-direction: row; flex-shrink: 0; padding: 4px 5px; gap: 2px; z-index: 5; cursor: pointer; transition: height 0.3s ease, padding 0.3s ease; overflow: hidden; }
-        @media (orientation: landscape) { #portrait-histogram { display: none !important; } }
-        #screen-wrapper:fullscreen #portrait-histogram, .ios-fullscreen-fix #portrait-histogram { display: none !important; }
+        #portrait-histogram {
+            width: 100%;
+            max-width: 960px;
+            height: 58px;
+            margin: 0 auto;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            flex-direction: row;
+            flex-shrink: 0;
+            padding: 4px 5px;
+            gap: 2px;
+            z-index: 5;
+            cursor: pointer;
+            transition: height 0.3s ease, padding 0.3s ease;
+            overflow: hidden;
+        }
 
-        .hist-tooltip { position: absolute; background: rgba(0, 0, 0, 0.8); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-family: monospace; pointer-events: none; opacity: 0; transition: opacity 0.2s; z-index: 1000; white-space: nowrap; transform: translate(-50%, -100%); margin-top: -8px; border: 1px solid rgba(255, 255, 255, 0.2); }
-        .p-hist-row, .l-hist-row { transition: transform 0.1s ease; }
-        #landscape-histogram-l .l-hist-row { transform-origin: right center; }
-        #landscape-histogram-r .l-hist-row { transform-origin: left center; }
-        @media (hover: hover) and (pointer: fine) { .p-hist-row:hover, .l-hist-row:hover { transform: scale(1.1); z-index: 20; position: relative; } }
+        @media (orientation: landscape) {
+            #portrait-histogram {
+                display: none !important;
+            }
+        }
+
+        #screen-wrapper:fullscreen #portrait-histogram,
+        .ios-fullscreen-fix #portrait-histogram {
+            display: none !important;
+        }
+
+        .hist-tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-family: monospace;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 1000;
+            white-space: nowrap;
+            transform: translate(-50%, -100%);
+            margin-top: -8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .p-hist-row,
+        .l-hist-row {
+            transition: transform 0.1s ease;
+        }
+
+        #landscape-histogram-l .l-hist-row {
+            transform-origin: right center;
+        }
+
+        #landscape-histogram-r .l-hist-row {
+            transform-origin: left center;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+
+            .p-hist-row:hover,
+            .l-hist-row:hover {
+                transform: scale(1.1);
+                z-index: 20;
+                position: relative;
+            }
+        }
 
         /* Metadata */
-        #metadata-overlay { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(20, 20, 20, 0.92); color: #ddd; border-radius: 12px; padding: 20px 24px; z-index: 100; min-width: 220px; max-width: 80%; max-height: 70%; overflow-y: auto; font-family: monospace; font-size: 12px; line-height: 1.6; backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6); }
-        #metadata-overlay.visible { display: block; }
-        #metadata-overlay h3 { margin: 0 0 12px 0; font-size: 14px; color: #fff; }
-        #metadata-overlay .meta-row { display: flex; gap: 8px; padding: 3px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
-        #metadata-overlay .meta-key { color: #888; min-width: 80px; }
-        #metadata-overlay .meta-val { color: #eee; word-break: break-all; }
-        #metadata-overlay .meta-empty { color: #666; font-style: italic; }
+        #metadata-overlay {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(20, 20, 20, 0.92);
+            color: #ddd;
+            border-radius: 12px;
+            padding: 20px 24px;
+            z-index: 100;
+            min-width: 220px;
+            max-width: 80%;
+            max-height: 70%;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+        }
 
-        .p-hist-fold-btn { display: flex; align-items: center; justify-content: center; color: #888; font-size: 14px; font-weight: bold; cursor: pointer; padding: 0 8px; user-select: none; }
-        #portrait-histogram.p-hist-mode-0 { height: 12px; padding-top: 4px; padding-bottom: 4px; }
-        #portrait-histogram.p-hist-mode-0 .p-hist-graph-area { display: none; }
-        #portrait-histogram.p-hist-mode-1 { height: 58px; }
-        #portrait-histogram.p-hist-mode-2 { height: 12px; padding-top: 4px; padding-bottom: 4px; }
-        #portrait-histogram.p-hist-mode-2 .p-hist-graph-area { display: none; }
-        #portrait-histogram.p-hist-mode-2 .p-hist-color { background-color: #030303 !important; opacity: 0.3; }
+        #metadata-overlay.visible {
+            display: block;
+        }
 
-        .p-hist-row { flex: 1; display: flex; flex-direction: column; height: 100%; gap: 1px; cursor: pointer; }
-        .p-hist-row.color-hidden .p-hist-color { opacity: 0.15; filter: grayscale(100%); }
-        .l-hist-row.color-hidden { opacity: 0.15 !important; filter: grayscale(100%); }
+        #metadata-overlay h3 {
+            margin: 0 0 12px 0;
+            font-size: 14px;
+            color: #fff;
+        }
 
-        .p-hist-graph-area { flex: 1; position: relative; width: 100%; display: flex; justify-content: center; }
-        
+        #metadata-overlay .meta-row {
+            display: flex;
+            gap: 8px;
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        #metadata-overlay .meta-key {
+            color: #888;
+            min-width: 80px;
+        }
+
+        #metadata-overlay .meta-val {
+            color: #eee;
+            word-break: break-all;
+        }
+
+        #metadata-overlay .meta-empty {
+            color: #666;
+            font-style: italic;
+        }
+
+        .p-hist-fold-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #888;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0 8px;
+            user-select: none;
+        }
+
+        #portrait-histogram.p-hist-mode-0 {
+            height: 12px;
+            padding-top: 4px;
+            padding-bottom: 4px;
+        }
+
+        #portrait-histogram.p-hist-mode-0 .p-hist-graph-area {
+            display: none;
+        }
+
+        #portrait-histogram.p-hist-mode-1 {
+            height: 58px;
+        }
+
+        #portrait-histogram.p-hist-mode-2 {
+            height: 12px;
+            padding-top: 4px;
+            padding-bottom: 4px;
+        }
+
+        #portrait-histogram.p-hist-mode-2 .p-hist-graph-area {
+            display: none;
+        }
+
+        #portrait-histogram.p-hist-mode-2 .p-hist-color {
+            background-color: #030303 !important;
+            opacity: 0.3;
+        }
+
+        .p-hist-row {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            gap: 1px;
+            cursor: pointer;
+        }
+
+        .p-hist-row.color-hidden .p-hist-color {
+            opacity: 0.15;
+            filter: grayscale(100%);
+        }
+
+        .l-hist-row.color-hidden {
+            opacity: 0.15 !important;
+            filter: grayscale(100%);
+        }
+
+        .p-hist-graph-area {
+            flex: 1;
+            position: relative;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+
         /* 🚀 GPU 최적화: height 대신 transform: scaleY() 사용을 위한 세팅 */
-        .p-hist-bar { position: absolute; bottom: 0; width: 65%; height: 100%; border-radius: 2px 2px 0 0; background-color: rgba(14, 252, 254, 0.5); transform-origin: bottom center; will-change: transform; transform: scaleY(0); }
-        .p-hist-peak { position: absolute; bottom: 0; width: 80%; height: 1px; background: rgba(255, 255, 255, 1); z-index: 2; will-change: transform; transform: translateY(0); }
-        .p-hist-color { height: 11px; border-radius: 1px; width: 100%; flex-shrink: 0; cursor: pointer; }
+        .p-hist-bar {
+            position: absolute;
+            bottom: 0;
+            width: 65%;
+            height: 100%;
+            border-radius: 2px 2px 0 0;
+            background-color: rgba(14, 252, 254, 0.5);
+            transform-origin: bottom center;
+            will-change: transform;
+            transform: scaleY(0);
+        }
+
+        .p-hist-peak {
+            position: absolute;
+            bottom: 0;
+            width: 80%;
+            height: 1px;
+            background: rgba(255, 255, 255, 1);
+            z-index: 2;
+            will-change: transform;
+            transform: translateY(0);
+        }
+
+        .p-hist-color {
+            height: 11px;
+            border-radius: 1px;
+            width: 100%;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
 
         /* ── 2. 가로 모드 전용 사이드카 히스토그램 (GPU 가속 최적화) ── */
-        #landscape-histogram-l, #landscape-histogram-r { position: absolute; top: 0; height: 100%; display: flex; flex-direction: column; transition: opacity 0.3s, width 0.3s, left 0.3s, right 0.3s; z-index: 10; pointer-events: none; gap: 0; }
-        #landscape-histogram-l { right: 100%; }
-        #landscape-histogram-r { left: 100%; }
-        @media (orientation: portrait) { #landscape-histogram-l, #landscape-histogram-r { display: none !important; } }
+        #landscape-histogram-l,
+        #landscape-histogram-r {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            transition: opacity 0.3s, width 0.3s, left 0.3s, right 0.3s;
+            z-index: 10;
+            pointer-events: none;
+            gap: 0;
+        }
 
-        #landscape-histogram-l.hist-mode-0, #landscape-histogram-r.hist-mode-0 { opacity: 1; width: 30px; background-color: transparent; pointer-events: none; }
-        #canvas-area.osd-visible #landscape-histogram-l.hist-mode-0, #canvas-area.paused #landscape-histogram-l.hist-mode-0, #canvas-area.osd-visible #landscape-histogram-r.hist-mode-0, #canvas-area.paused #landscape-histogram-r.hist-mode-0 { opacity: 1; }
-        #landscape-histogram-l.hist-mode-0 .l-hist-row, #landscape-histogram-r.hist-mode-0 .l-hist-row { display: none; }
-        #landscape-histogram-l.hist-mode-1, #landscape-histogram-r.hist-mode-1 { opacity: 1; width: calc(100% / 64); min-width: 30px; background-color: transparent; pointer-events: none; }
-        #landscape-histogram-l.hist-mode-2, #landscape-histogram-r.hist-mode-2 { opacity: 1; width: calc(100% / 16); background-color: transparent; pointer-events: auto; cursor: pointer; }
+        #landscape-histogram-l {
+            right: 100%;
+        }
 
-        #landscape-histogram-l.hist-mode-2 .l-hist-row { justify-content: flex-start; }
-        #landscape-histogram-r.hist-mode-2 .l-hist-row { justify-content: flex-end; }
-        .l-hist-fold-btn { display: block; color: #888; font-size: 20px; font-weight: bold; text-align: center; cursor: pointer; padding: 10px 0; user-select: none; pointer-events: auto; }
+        #landscape-histogram-r {
+            left: 100%;
+        }
 
-        .l-hist-row { flex: 1; display: flex; flex-direction: row; align-items: center; width: 100%; margin: 0; padding: 0; gap: 0; overflow: visible; }
-        
+        @media (orientation: portrait) {
+
+            #landscape-histogram-l,
+            #landscape-histogram-r {
+                display: none !important;
+            }
+        }
+
+        #landscape-histogram-l.hist-mode-0,
+        #landscape-histogram-r.hist-mode-0 {
+            opacity: 1;
+            width: 30px;
+            background-color: transparent;
+            pointer-events: none;
+        }
+
+        #canvas-area.osd-visible #landscape-histogram-l.hist-mode-0,
+        #canvas-area.paused #landscape-histogram-l.hist-mode-0,
+        #canvas-area.osd-visible #landscape-histogram-r.hist-mode-0,
+        #canvas-area.paused #landscape-histogram-r.hist-mode-0 {
+            opacity: 1;
+        }
+
+        #landscape-histogram-l.hist-mode-0 .l-hist-row,
+        #landscape-histogram-r.hist-mode-0 .l-hist-row {
+            display: none;
+        }
+
+        #landscape-histogram-l.hist-mode-1,
+        #landscape-histogram-r.hist-mode-1 {
+            opacity: 1;
+            width: calc(100% / 64);
+            min-width: 30px;
+            background-color: transparent;
+            pointer-events: none;
+        }
+
+        #landscape-histogram-l.hist-mode-2,
+        #landscape-histogram-r.hist-mode-2 {
+            opacity: 1;
+            width: calc(100% / 16);
+            background-color: transparent;
+            pointer-events: auto;
+            cursor: pointer;
+        }
+
+        #landscape-histogram-l.hist-mode-2 .l-hist-row {
+            justify-content: flex-start;
+        }
+
+        #landscape-histogram-r.hist-mode-2 .l-hist-row {
+            justify-content: flex-end;
+        }
+
+        .l-hist-fold-btn {
+            display: block;
+            color: #888;
+            font-size: 20px;
+            font-weight: bold;
+            text-align: center;
+            cursor: pointer;
+            padding: 10px 0;
+            user-select: none;
+            pointer-events: auto;
+        }
+
+        .l-hist-row {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            gap: 0;
+            overflow: visible;
+        }
+
         /* 🚀 GPU 최적화: width 대신 transform: scaleX() 사용을 위한 세팅 */
-        .l-hist-bar { width: 100%; height: 100%; will-change: transform; transform: scaleX(0); }
-        #landscape-histogram-l .l-hist-bar { transform-origin: left center; border-radius: 0 4px 4px 0; }
-        #landscape-histogram-r .l-hist-bar { transform-origin: right center; border-radius: 4px 0 0 4px; }
+        .l-hist-bar {
+            width: 100%;
+            height: 100%;
+            will-change: transform;
+            transform: scaleX(0);
+        }
+
+        #landscape-histogram-l .l-hist-bar {
+            transform-origin: left center;
+            border-radius: 0 4px 4px 0;
+        }
+
+        #landscape-histogram-r .l-hist-bar {
+            transform-origin: right center;
+            border-radius: 4px 0 0 4px;
+        }
 
         /* ── Playlist Sidebar ── */
-        #playlist-sidebar { width: 100%; max-width: 960px; margin: 0 auto; background: var(--surface); display: flex; flex-direction: column; border-top: 1px solid var(--border); overflow: hidden; flex-grow: 1; flex-shrink: 1; min-height: 0; }
-        #playlist-sidebar.hidden .playlist-content { display: none; }
-        .playlist-content { display: flex; flex-direction: column; width: 100%; flex-grow: 1; min-height: 0; overflow: hidden; }
-        .playlist-header { padding: 6px 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: center; background: rgba(255, 255, 255, 0.02); flex-shrink: 0; }
-        .playlist-header-btn { display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 8px; border-radius: 8px; transition: background 0.2s; min-width: 44px; min-height: 44px; }
-        .playlist-header-btn:hover { background: rgba(255, 255, 255, 0.1); }
-        .playlist-header-btn svg { fill: #888; }
-        .playlist-header-btn:hover svg { fill: #fff; }
-        .playlist-items { flex-grow: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #555 transparent; min-height: 0; -webkit-overflow-scrolling: touch; }
-        .playlist-item { padding: 10px 12px; font-size: 13px; color: #ccc; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; cursor: pointer; text-align: left; min-height: 56px; transition: background 0.15s; }
-        .playlist-thumbnail { width: 64px; height: 48px; background: #000; border: 1px solid #333; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
-        @media (max-width: 599px) { .playlist-thumbnail { width: 48px; height: 36px; } }
-        .playlist-item:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
-        .playlist-item:active { background: rgba(255, 255, 255, 0.12); }
-        .playlist-item.active { background: rgba(217, 83, 79, 0.2); color: #fff; font-weight: 600; border-left: 3px solid var(--accent); }
-        .playlist-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1; }
-        .btn-remove-item { background: transparent; border: none; color: #555; padding: 8px; cursor: pointer; font-size: 20px; display: flex; align-items: center; min-width: 44px; min-height: 44px; justify-content: center; border-radius: 50%; transition: all 0.2s; flex-shrink: 0; }
-        .btn-remove-item:hover { color: #ff4444; background: rgba(255, 68, 68, 0.1); }
-        .playlist-item-meta { font-size: 11px; color: #666; white-space: nowrap; flex-shrink: 0; text-align: right; line-height: 1.5; }
-        .meta-info-icon { color: #fff; font-weight: bold; margin-right: 2px; font-family: serif; }
-        .playlist-item-meta .meta-duration { color: #888; font-family: monospace; }
+        #playlist-sidebar {
+            width: 100%;
+            max-width: 960px;
+            margin: 0 auto;
+            background: var(--surface);
+            display: flex;
+            flex-direction: column;
+            border-top: 1px solid var(--border);
+            overflow: hidden;
+            flex-grow: 1;
+            flex-shrink: 1;
+            min-height: 0;
+        }
 
-        #status { display: none; }
-        #status-icon { position: fixed; bottom: 16px; right: 16px; width: 40px; height: 40px; border-radius: 50%; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; z-index: 100; opacity: 0; transform: scale(0.8); transition: opacity 0.3s, transform 0.3s; pointer-events: none; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
-        #status-icon.visible { opacity: 1; transform: scale(1); pointer-events: auto; }
-        #status-icon.success { border-color: #4CAF50; }
-        #status-icon.error { border-color: #ff4444; }
-        #status-icon .tooltip { position: absolute; bottom: 48px; right: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #ccc; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
-        #status-icon:hover .tooltip { opacity: 1; }
-        #info-block { margin: 10px auto 20px; width: 100%; max-width: 960px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: left; font-size: 13px; line-height: 1.6; color: #aaa; display: none; }
-        #info-block h3 { margin-top: 0; color: #eee; border-bottom: 1px solid var(--border); padding-bottom: 5px; cursor: pointer; }
-        #info-block h3:hover { color: #fff; }
-        .info-link { color: var(--accent); text-decoration: none; }
-        .info-link:hover { text-decoration: underline; }
-        .dragover #canvas-msg-overlay, #playlist-sidebar.dragover { border-color: #4CAF50; color: #4CAF50; }
+        #playlist-sidebar.hidden .playlist-content {
+            display: none;
+        }
+
+        .playlist-content {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            flex-grow: 1;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .playlist-header {
+            padding: 6px 12px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.02);
+            flex-shrink: 0;
+        }
+
+        .playlist-header-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            transition: background 0.2s;
+            min-width: 44px;
+            min-height: 44px;
+        }
+
+        .playlist-header-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .playlist-header-btn svg {
+            fill: #888;
+        }
+
+        .playlist-header-btn:hover svg {
+            fill: #fff;
+        }
+
+        .playlist-items {
+            flex-grow: 1;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #555 transparent;
+            min-height: 0;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .playlist-item {
+            padding: 10px 12px;
+            font-size: 13px;
+            color: #ccc;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            text-align: left;
+            min-height: 56px;
+            transition: background 0.15s;
+        }
+
+        .playlist-thumbnail {
+            width: 64px;
+            height: 48px;
+            background: #000;
+            border: 1px solid #333;
+            border-radius: 4px;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        @media (max-width: 599px) {
+            .playlist-thumbnail {
+                width: 48px;
+                height: 36px;
+            }
+        }
+
+        .playlist-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+        }
+
+        .playlist-item:active {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .playlist-item.active {
+            background: rgba(217, 83, 79, 0.2);
+            color: #fff;
+            font-weight: 600;
+            border-left: 3px solid var(--accent);
+        }
+
+        .playlist-item-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex-grow: 1;
+        }
+
+        .btn-remove-item {
+            background: transparent;
+            border: none;
+            color: #555;
+            padding: 8px;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            min-width: 44px;
+            min-height: 44px;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .btn-remove-item:hover {
+            color: #ff4444;
+            background: rgba(255, 68, 68, 0.1);
+        }
+
+        .playlist-item-meta {
+            font-size: 11px;
+            color: #666;
+            white-space: nowrap;
+            flex-shrink: 0;
+            text-align: right;
+            line-height: 1.5;
+        }
+
+        .meta-info-icon {
+            color: #fff;
+            font-weight: bold;
+            margin-right: 2px;
+            font-family: serif;
+        }
+
+        .playlist-item-meta .meta-duration {
+            color: #888;
+            font-family: monospace;
+        }
+
+        #status {
+            display: none;
+        }
+
+        #status-icon {
+            position: fixed;
+            bottom: 16px;
+            right: 16px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            cursor: pointer;
+            z-index: 100;
+            opacity: 0;
+            transform: scale(0.8);
+            transition: opacity 0.3s, transform 0.3s;
+            pointer-events: none;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+        }
+
+        #status-icon.visible {
+            opacity: 1;
+            transform: scale(1);
+            pointer-events: auto;
+        }
+
+        #status-icon.success {
+            border-color: #4CAF50;
+        }
+
+        #status-icon.error {
+            border-color: #ff4444;
+        }
+
+        #status-icon .tooltip {
+            position: absolute;
+            bottom: 48px;
+            right: 0;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 12px;
+            color: #ccc;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+        }
+
+        #status-icon:hover .tooltip {
+            opacity: 1;
+        }
+
+        #info-block {
+            margin: 10px auto 20px;
+            width: 100%;
+            max-width: 960px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: left;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #aaa;
+            display: none;
+        }
+
+        #info-block h3 {
+            margin-top: 0;
+            color: #eee;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 5px;
+            cursor: pointer;
+        }
+
+        #info-block h3:hover {
+            color: #fff;
+        }
+
+        .info-link {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .info-link:hover {
+            text-decoration: underline;
+        }
+
+        .dragover #canvas-msg-overlay,
+        #playlist-sidebar.dragover {
+            border-color: #4CAF50;
+            color: #4CAF50;
+        }
     </style>
 </head>
 
@@ -239,15 +1208,17 @@
     <div id="app-bar">
         <div class="app-bar-title">
             <svg viewBox="0 0 24 24" width="20" height="20">
-                <path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM8 15l4.5-6 3.5 4.51 2.5-3.01L21 15z" />
+                <path
+                    d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM8 15l4.5-6 3.5 4.51 2.5-3.01L21 15z" />
             </svg>
             <!-- DO NOT change title -->
             MSX2 MV Player (Test build)
         </div>
         <div style="display: flex; gap: 8px;">
             <button id="btn-info-toggle" title="Show Creator Info"><svg viewBox="0 0 24 24" width="18" height="18">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z" />
-            </svg></button>
+                    <path
+                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z" />
+                </svg></button>
         </div>
     </div>
 
@@ -258,7 +1229,15 @@
                 <div id="canvas-msg-overlay">📂 Drop .MV or .ZIP here</div>
 
                 <div id="eq-overlay">
-                    <div class="overlay-eq-bar"></div><div class="overlay-eq-bar"></div><div class="overlay-eq-bar"></div><div class="overlay-eq-bar"></div><div class="overlay-eq-bar"></div><div class="overlay-eq-bar"></div><div class="overlay-eq-bar"></div><div class="overlay-eq-bar"></div><div class="overlay-eq-bar"></div>
+                    <div class="overlay-eq-bar"></div>
+                    <div class="overlay-eq-bar"></div>
+                    <div class="overlay-eq-bar"></div>
+                    <div class="overlay-eq-bar"></div>
+                    <div class="overlay-eq-bar"></div>
+                    <div class="overlay-eq-bar"></div>
+                    <div class="overlay-eq-bar"></div>
+                    <div class="overlay-eq-bar"></div>
+                    <div class="overlay-eq-bar"></div>
                 </div>
 
                 <div id="landscape-histogram-l" class="hist-mode-0"></div>
@@ -266,32 +1245,63 @@
 
                 <div id="osd-controls">
                     <div class="osd-center-controls">
-                        <button id="btn-osd-prev-track" class="osd-icon-btn btn-osd-track" title="Previous Track"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" /></svg></button>
+                        <button id="btn-osd-prev-track" class="osd-icon-btn btn-osd-track" title="Previous Track"><svg
+                                viewBox="0 0 24 24" width="24" height="24">
+                                <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+                            </svg></button>
                         <button id="btn-osd-play-pause" class="osd-icon-btn">
-                            <svg id="icon-play" viewBox="0 0 24 24" width="36" height="36"><path d="M8 5v14l11-7z" /></svg>
-                            <svg id="icon-pause" viewBox="0 0 24 24" width="36" height="36" style="display:none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
+                            <svg id="icon-play" viewBox="0 0 24 24" width="36" height="36">
+                                <path d="M8 5v14l11-7z" />
+                            </svg>
+                            <svg id="icon-pause" viewBox="0 0 24 24" width="36" height="36" style="display:none;">
+                                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                            </svg>
                         </button>
-                        <button id="btn-osd-next-track" class="osd-icon-btn btn-osd-track" title="Next Track"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M6 18l8.5-6L6 6zm9-12v12h2V6z" /></svg></button>
+                        <button id="btn-osd-next-track" class="osd-icon-btn btn-osd-track" title="Next Track"><svg
+                                viewBox="0 0 24 24" width="24" height="24">
+                                <path d="M6 18l8.5-6L6 6zm9-12v12h2V6z" />
+                            </svg></button>
                     </div>
                     <div class="osd-frame-controls">
                         <div id="seek-frame-tooltip">0F</div>
-                        <button id="btn-osd-prev-frame" class="osd-frame-btn" title="Previous Frame"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" /></svg></button>
-                        <button id="btn-osd-next-frame" class="osd-frame-btn" title="Next Frame"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z" /></svg></button>
+                        <button id="btn-osd-prev-frame" class="osd-frame-btn" title="Previous Frame"><svg
+                                viewBox="0 0 24 24" width="18" height="18">
+                                <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+                            </svg></button>
+                        <button id="btn-osd-next-frame" class="osd-frame-btn" title="Next Frame"><svg
+                                viewBox="0 0 24 24" width="18" height="18">
+                                <path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z" />
+                            </svg></button>
                     </div>
                     <div class="osd-bottom-bar">
                         <div class="osd-slider-row">
-                            <span class="osd-time" style="cursor: pointer;" title="Toggle Time/Frame"><span id="osd-time-cur">00:00</span> / <span id="osd-time-total">00:00</span></span>
+                            <span class="osd-time" style="cursor: pointer;" title="Toggle Time/Frame"><span
+                                    id="osd-time-cur">00:00</span> / <span id="osd-time-total">00:00</span></span>
                             <input type="range" id="osd-seek-slider" min="0" max="100" value="0" step="0.1" disabled>
                         </div>
                         <div class="osd-controls-row">
                             <div class="osd-left-controls">
-                                <button id="btn-osd-open" title="Open Files"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z" /></svg></button>
+                                <button id="btn-osd-open" title="Open Files"><svg viewBox="0 0 24 24" width="22"
+                                        height="22">
+                                        <path
+                                            d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z" />
+                                    </svg></button>
                                 <div style="width: 10px;"></div>
-                                <button id="btn-zoom" title="Cycle Zoom (1x-5x)" data-zoom="3x"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /><path d="M12 10h-2v2H9v-2H7V9h2V7h1v2h2v1z" /></svg></button>
+                                <button id="btn-zoom" title="Cycle Zoom (1x-5x)" data-zoom="3x"><svg viewBox="0 0 24 24"
+                                        width="22" height="22">
+                                        <path
+                                            d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+                                        <path d="M12 10h-2v2H9v-2H7V9h2V7h1v2h2v1z" />
+                                    </svg></button>
                                 <div class="osd-save-group">
-                                    <button id="btn-osd-save" title="Export MP4"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M17 18v1H6v-1h11zm-.5-6.6l-.7-.7-3.8 3.7V4h-1v10.4l-3.8-3.8-.7.7 5 5 5-5z" /></svg></button>
+                                    <button id="btn-osd-save" title="Export MP4"><svg viewBox="0 0 24 24" width="22"
+                                            height="22">
+                                            <path
+                                                d="M17 18v1H6v-1h11zm-.5-6.6l-.7-.7-3.8 3.7V4h-1v10.4l-3.8-3.8-.7.7 5 5 5-5z" />
+                                        </svg></button>
                                     <div id="osd-codec-container">
-                                        <select id="audio-codec-select" style="background:#222; color:white; border:1px solid #444; border-radius:3px; font-size:11px; padding:1px 3px; cursor: pointer;">
+                                        <select id="audio-codec-select"
+                                            style="background:#222; color:white; border:1px solid #444; border-radius:3px; font-size:11px; padding:1px 3px; cursor: pointer;">
                                             <option value="opus" selected>Opus (High Quality)</option>
                                             <option value="aac">AAC (Standard)</option>
                                             <option value="none">Mute (No Audio)</option>
@@ -302,33 +1312,69 @@
                             <div class="osd-right-controls">
                                 <div class="osd-volume-group">
                                     <button id="btn-volume" title="Mute/Unmute">
-                                        <svg id="icon-vol-on" viewBox="0 0 24 24" width="20" height="20"><path d="M3 9v6h4l5 5V5L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" /></svg>
-                                        <svg id="icon-vol-off" viewBox="0 0 24 24" width="20" height="20" style="display:none;"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 5L9.91 7.09 12 9.18V5z" /></svg>
+                                        <svg id="icon-vol-on" viewBox="0 0 24 24" width="20" height="20">
+                                            <path
+                                                d="M3 9v6h4l5 5V5L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                                        </svg>
+                                        <svg id="icon-vol-off" viewBox="0 0 24 24" width="20" height="20"
+                                            style="display:none;">
+                                            <path
+                                                d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 5L9.91 7.09 12 9.18V5z" />
+                                        </svg>
                                     </button>
                                     <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="1">
                                 </div>
                                 <button id="btn-repeat" title="Repeat Mode: Off">
-                                    <svg id="icon-repeat-off" viewBox="0 0 24 24" width="22" height="22"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" opacity="0.3" /></svg>
-                                    <svg id="icon-repeat-all" viewBox="0 0 24 24" width="22" height="22" style="display:none;"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" /></svg>
-                                    <svg id="icon-repeat-one" viewBox="0 0 24 24" width="22" height="22" style="display:none;"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" /><text x="12" y="15" font-size="10" font-family="sans-serif" font-weight="bold" fill="white" text-anchor="middle">1</text></svg>
-                                    <svg id="icon-shuffle" viewBox="0 0 24 24" width="22" height="22" style="display:none;"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.45 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z" /></svg>
-                                </button>
-                                <button id="btn-aspect-toggle" title="Toggle Aspect Ratio (5:3 / 4:3)" style="background: transparent; border: none; padding: 4px; cursor: pointer; fill: #aaa; transition: fill 0.2s; display: flex; align-items: center; justify-content: center;">
-                                    <svg viewBox="0 0 24 24" width="22" height="22">
-                                        <path d="M19 5H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H5V7h14v14z" />
-                                        <path d="M7 9h2v2H7zm0 4h2v2H7zm4-4h2v2h-2zm0 4h2v2h-2zm4-4h2v2h-2zm0 4h2v2h-2z" fill-opacity="0.5" />
+                                    <svg id="icon-repeat-off" viewBox="0 0 24 24" width="22" height="22">
+                                        <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"
+                                            opacity="0.3" />
                                     </svg>
-                                    <span id="aspect-label" style="font-size: 10px; font-weight: bold; position: absolute; margin-top: 28px; opacity: 0; pointer-events: none;">5:3</span>
+                                    <svg id="icon-repeat-all" viewBox="0 0 24 24" width="22" height="22"
+                                        style="display:none;">
+                                        <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
+                                    </svg>
+                                    <svg id="icon-repeat-one" viewBox="0 0 24 24" width="22" height="22"
+                                        style="display:none;">
+                                        <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
+                                        <text x="12" y="15" font-size="10" font-family="sans-serif" font-weight="bold"
+                                            fill="white" text-anchor="middle">1</text>
+                                    </svg>
+                                    <svg id="icon-shuffle" viewBox="0 0 24 24" width="22" height="22"
+                                        style="display:none;">
+                                        <path
+                                            d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.45 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z" />
+                                    </svg>
                                 </button>
-                                <button id="btn-metadata-info" title="Track Info" style="background: transparent; border: none; padding: 4px; cursor: pointer; color: #222; transition: color 0.2s; display: flex; align-items: center; justify-content: center;">
+                                <button id="btn-aspect-toggle" title="Toggle Aspect Ratio (5:3 / 4:3)"
+                                    style="background: transparent; border: none; padding: 4px; cursor: pointer; fill: #aaa; transition: fill 0.2s; display: flex; align-items: center; justify-content: center;">
                                     <svg viewBox="0 0 24 24" width="22" height="22">
-                                        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" />
-                                        <text x="12" y="16" font-size="13" font-family="serif" font-weight="bold" fill="currentColor" text-anchor="middle">i</text>
+                                        <path
+                                            d="M19 5H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H5V7h14v14z" />
+                                        <path d="M7 9h2v2H7zm0 4h2v2H7zm4-4h2v2h-2zm0 4h2v2h-2zm4-4h2v2h-2zm0 4h2v2h-2z"
+                                            fill-opacity="0.5" />
+                                    </svg>
+                                    <span id="aspect-label"
+                                        style="font-size: 10px; font-weight: bold; position: absolute; margin-top: 28px; opacity: 0; pointer-events: none;">5:3</span>
+                                </button>
+                                <button id="btn-metadata-info" title="Track Info"
+                                    style="background: transparent; border: none; padding: 4px; cursor: pointer; color: #222; transition: color 0.2s; display: flex; align-items: center; justify-content: center;">
+                                    <svg viewBox="0 0 24 24" width="22" height="22">
+                                        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor"
+                                            stroke-width="2" />
+                                        <text x="12" y="16" font-size="13" font-family="serif" font-weight="bold"
+                                            fill="currentColor" text-anchor="middle">i</text>
                                     </svg>
                                 </button>
                                 <button id="btn-fullscreen-toggle">
-                                    <svg id="icon-expand" viewBox="0 0 24 24" width="24" height="24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" /></svg>
-                                    <svg id="icon-compress" viewBox="0 0 24 24" width="24" height="24" style="display:none;"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" /></svg>
+                                    <svg id="icon-expand" viewBox="0 0 24 24" width="24" height="24">
+                                        <path
+                                            d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
+                                    </svg>
+                                    <svg id="icon-compress" viewBox="0 0 24 24" width="24" height="24"
+                                        style="display:none;">
+                                        <path
+                                            d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
+                                    </svg>
                                 </button>
                             </div>
                         </div>
@@ -341,7 +1387,10 @@
         <div id="playlist-sidebar" title="Click Top Edge to Toggle Playlist">
             <div class="playlist-content">
                 <div class="playlist-header">
-                    <div class="playlist-header-btn" id="btn-add-playlist" title="Add File to Playlist (Append)"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" /></svg></div>
+                    <div class="playlist-header-btn" id="btn-add-playlist" title="Add File to Playlist (Append)"><svg
+                            viewBox="0 0 24 24" width="20" height="20">
+                            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                        </svg></div>
                 </div>
                 <div class="playlist-items" id="playlist-items"></div>
             </div>
@@ -354,11 +1403,13 @@
     <div id="info-block">
         <h3>MV2 and MV Media Formats</h3>
         <p><strong>Inventor: Yeongman Seo (서영만)</strong></p>
-        <p>Article: <a href="https://sharksym.blogspot.com/2025/10/slt-turbo-17-z80.html" target="_blank" class="info-link">https://sharksym.blogspot.com/2025/10/slt-turbo-17-z80.html</a></p>
+        <p>Article: <a href="https://sharksym.blogspot.com/2025/10/slt-turbo-17-z80.html" target="_blank"
+                class="info-link">https://sharksym.blogspot.com/2025/10/slt-turbo-17-z80.html</a></p>
         <h3 style="margin-top: 20px;">MV Player by Pasta & Gemini AI</h3>
     </div>
 
-    <input type="file" id="file-input" accept=".mv,.mv2,.zip,application/octet-stream,application/zip" multiple style="display:none;" />
+    <input type="file" id="file-input" accept=".mv,.mv2,.zip,application/octet-stream,application/zip" multiple
+        style="display:none;" />
 
     <script>
         // ── 극강의 최적화: LUT (Look-Up Table) 사전 생성 (O(1) 연산) ──
@@ -396,8 +1447,8 @@
                 this.isProcessingThumbs = false;
 
                 // ── 상태 추가 ──
-                this.timeDisplayMode = 'time'; 
-                this.hiddenColors = new Array(16).fill(false); 
+                this.timeDisplayMode = 'time';
+                this.hiddenColors = new Array(16).fill(false);
 
                 // ── GC(Garbage Collector) 억제용 재사용 배열 ──
                 this.colorCounts = new Uint32Array(16);
@@ -409,10 +1460,10 @@
                 };
 
                 // ── 피크 홀드 물리 엔진 배열 (위치 & 가속도) ──
-                this.peakY = new Float32Array(16); 
-                this.peakV = new Float32Array(16); 
-                this.targetCounts = new Float32Array(16); 
-                this.actualCounts = new Float32Array(16); 
+                this.peakY = new Float32Array(16);
+                this.peakV = new Float32Array(16);
+                this.targetCounts = new Float32Array(16);
+                this.actualCounts = new Float32Array(16);
 
                 window.landscapeHistMode = 0;
 
@@ -431,7 +1482,7 @@
                 const showTooltip = (e, i) => {
                     if (this.isPlaying && !this.isScrubbing) return;
                     if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
-                    
+
                     const count = Math.floor(this.actualCounts[i] || 0);
                     const pct = ((count / (256 * 192)) * 100).toFixed(1);
                     this.histTooltip.innerHTML = `${count}, ${pct}%`;
@@ -458,10 +1509,10 @@
                         };
                         const pClr = this.dom.pClr[i];
                         if (pClr) attachEvents(pClr.closest('.p-hist-row'));
-                        
+
                         const lBarL = this.dom.lBarL[i];
                         if (lBarL) attachEvents(lBarL.parentElement);
-                        
+
                         const lBarR = this.dom.lBarR[i];
                         if (lBarR) attachEvents(lBarR.parentElement);
                     }
@@ -611,14 +1662,14 @@
 
                     if (sig === "MMCSD_MV" && ver === "v1.00") {
                         fps = 12; totalFrames = Math.floor((data.length - 16384) / 16384);
-                        const targetFrame = totalFrames > 45 ? 45 : 0 ; frameOffset = 16384 + (targetFrame * 16384);
+                        const targetFrame = totalFrames > 45 ? 45 : 0; frameOffset = 16384 + (targetFrame * 16384);
                         if (frameOffset + 16384 > data.length) return null;
                         palette = [[0, 0, 0], ...this.extractPal(data.slice(frameOffset + 13232, frameOffset + 13262), 15)];
                     } else {
                         fps = 15; const isMv2 = sig.startsWith("MV2"), head = isMv2 ? 512 : 16384;
                         if (isMv2) totalFrames = 1 + Math.floor((data.length - 16384) / 16384);
                         else totalFrames = Math.floor((data.length - 16384) / 16384);
-                        const targetFrame = totalFrames > 45 ? 45 : 0 ; let off = head;
+                        const targetFrame = totalFrames > 45 ? 45 : 0; let off = head;
                         for (let i = 0; i < targetFrame; i++) { const sz = (head === 512 && off === 512) ? 15872 : 16384; if (off + sz > data.length) break; off += sz; }
                         frameOffset = off; palette = [[0, 0, 0], ...this.extractPal(data.slice(frameOffset + 12288, frameOffset + 12318), 15)];
                     }
@@ -731,7 +1782,7 @@
                                 }
                             };
                         };
-                        
+
                         setupToggle(this.dom.pClr[i], this.dom.pClr[i] ? this.dom.pClr[i].closest('.p-hist-row') : null);
                         setupToggle(this.dom.pBar[i] ? this.dom.pBar[i].parentElement : null, this.dom.pClr[i] ? this.dom.pClr[i].closest('.p-hist-row') : null);
                         setupToggle(this.dom.lBarL[i] ? this.dom.lBarL[i].parentElement : null, null);
@@ -744,12 +1795,12 @@
                 this.pause(); this.frames = []; this.fileData = null; this.audioBuffer = null; this.rawAudio = null; this.pauseTime = 0; this.lastFrame = -1; this.duration = 0;
                 this.currentRenderedFrameIdx = null;
                 this.metadata = null;
-                this.peakY.fill(0); this.peakV.fill(0); 
+                this.peakY.fill(0); this.peakV.fill(0);
                 const seek = document.getElementById('osd-seek-slider'); seek.value = 0; seek.disabled = true;
                 document.getElementById('osd-time-cur').innerText = "00:00"; document.getElementById('osd-time-total').innerText = "00:00";
                 this.ctx.fillStyle = "black"; this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-                if (this.playlist && this.playlist.length === 0) { document.getElementById('canvas-msg-overlay').style.display = 'flex'; document.getElementById('osd-controls').style.display = 'none'; }
-                
+
+
                 const info = document.getElementById('info-block');
                 if (info && info._showingMeta) {
                     info.innerHTML = info._originalHTML;
@@ -799,7 +1850,7 @@
             }
 
             async loadFile(file) {
-                this.reset(); document.getElementById('canvas-msg-overlay').style.display = 'none';
+                this.reset();
                 const status = document.getElementById('status'); status.innerText = "파일 분석 중...";
                 try {
                     let data;
@@ -839,7 +1890,7 @@
                             if (data[i] === 0) { end = i; break; }
                         }
                         if (end === -1) end = searchEnd;
-                        
+
                         if (end > 0x100) {
                             const metaStr = new TextDecoder('utf-8').decode(data.subarray(0x100, end)).trim();
                             if (metaStr.startsWith('{')) {
@@ -866,7 +1917,7 @@
                 const info = document.getElementById('info-block');
                 const btnMeta = document.getElementById('btn-metadata-info');
                 if (btnMeta) btnMeta.style.color = this.metadata ? '#fff' : '#222';
-                
+
                 if (info && info._showingMeta && info.style.display === 'block') {
                     if (this.metadata) {
                         let html = '<h3>ⓘ Track Metadata</h3>';
@@ -928,7 +1979,7 @@
             renderFrame(idx) {
                 this.currentRenderedFrameIdx = idx;
                 const frame = this.frames[idx]; if (!frame) return;
-                
+
                 this.colorCounts.fill(0);
                 const buf32 = this.renderBuf32;
                 let ptr = 0; // 49,152번의 곱셈을 분쇄하는 마법의 포인터
@@ -940,7 +1991,7 @@
                         const c = this.fileData[frame.offset + 6144 + off];
                         const fg = c >> 4, bg = c & 15;
                         for (let px = 0; px < 8; px++) {
-                            const cIdx = (p & (1 << (7 - px))) ? fg : bg; 
+                            const cIdx = (p & (1 << (7 - px))) ? fg : bg;
                             this.colorCounts[cIdx]++;
 
                             if (this.hiddenColors[cIdx]) {
@@ -999,8 +2050,8 @@
                         this.peakY[i] += this.peakV[i];
 
                         if (this.peakY[i] <= barPct) {
-                            let hitSpeed = barPct - this.peakY[i]; 
-                            this.peakY[i] = barPct; 
+                            let hitSpeed = barPct - this.peakY[i];
+                            this.peakY[i] = barPct;
 
                             if (hitSpeed > 0) {
                                 // MANDATE: When paused, peaks should settle on bars. 
@@ -1013,7 +2064,7 @@
 
                         if (this.peakY[i] >= 100) {
                             this.peakY[i] = 100;
-                            this.peakV[i] = -0.5; 
+                            this.peakV[i] = -0.5;
                         }
 
                         if (pClr && pBar && pPeak) {
@@ -1022,7 +2073,7 @@
                                 ? `rgba(255, 255, 255, 0.12)`
                                 : `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.5)`;
                             pBar.style.backgroundColor = rgbaStr;
-                            
+
                             // GPU 가속을 위해 height, bottom 대신 transform 사용
                             pBar.style.transform = `scaleY(${barPct / 100})`;
                             pPeak.style.transform = `translateY(calc(-${this.peakY[i]}px * 0.58))`; // 전체 58px 기준 대략적인 매핑
@@ -1035,7 +2086,7 @@
                         lBarL.style.backgroundColor = rgbStr;
                         lBarR.style.backgroundColor = rgbStr;
                         if (window.landscapeHistMode === 1) {
-                            lBarL.style.transform = 'scaleX(1)'; 
+                            lBarL.style.transform = 'scaleX(1)';
                             lBarR.style.transform = 'scaleX(1)';
                             lBarL.style.opacity = pct > 0 ? '1' : '0.1';
                             lBarR.style.opacity = pct > 0 ? '1' : '0.1';
@@ -1044,7 +2095,7 @@
                         } else {
                             // GPU 가속 스케일링 적용 (4px 보정을 위해 width 혼합 조작 제거, 순수 Transform)
                             const scaleVal = Math.max(0.05, pct / 100);
-                            lBarL.style.transform = `scaleX(${scaleVal})`; 
+                            lBarL.style.transform = `scaleX(${scaleVal})`;
                             lBarR.style.transform = `scaleX(${scaleVal})`;
                             lBarL.style.opacity = '1'; lBarR.style.opacity = '1';
                             const rgbaStr = (rgb[0] === 0 && rgb[1] === 0 && rgb[2] === 0)
@@ -1457,4 +2508,5 @@
 
     </script>
 </body>
+
 </html>

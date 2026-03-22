@@ -235,4 +235,47 @@
 ## 2026-03-22 12:00:00 - iOS Web Worker Exhaustion & Hang Fix (`worker.js`)
 - **The Issue:** After mitigating the AudioContext bug, the encoder still appeared to freeze indefinitely on iPads when clicking "Start Encoding". 
 - **The Cause:** `worker.js` attempts to initialize a Rayon thread pool (`module.initThreadPool`) matching `navigator.hardwareConcurrency` (often 6-8 on iPads). iOS Safari heavily restricts the number of active ES Module Web Workers. If allocation is blocked, `initThreadPool` never resolves, and timing it out artificially causes an unrecoverable WASM deadlock inside Rayon.
-- **The Fix:** Added an OS detection check (`isIOS`) in `worker.js`. If an iOS/iPadOS device is detected, we now **completely bypass** the `initThreadPool` execution rather than capping it, forcing the module to run safely in Single-Threaded mode. This completely prevents WebKit Worker exhaustion hangs and WASM deadlocks without sacrificing compatibility.
+## 2026-03-22 12:45:00 - Global Deployment of iOS AudioContext Fix
+- **Expansion:** Extended the synchronous `AudioContext` instantiation and `resume()` fix from `hq_encoder.html` to both `encoder.html` and `wasm_encoder.html`.
+- **Reason:** Ensures consistent, guaranteed audio decoding and playback activation across all encoder variants on iOS/iPadOS Safari, preventing the browser's user gesture timeout from blocking media extraction.
+
+## 2026-03-22 15:30:00 - Live Audio Gain Preview & Feature Sync (Final)
+- **Live Preview Audio Gain:**
+    - Implemented `GainNode` for real-time volume adjustment during preview in `encoder.html`, `hq_encoder.html`, and `wasm_encoder.html`.
+    - `AudioContext` is initialized/resumed synchronously on the first user interaction (togglePlay) to comply with iOS Safari's user gesture requirements.
+    - Added `updatePreviewGain()` to instantly apply slider changes to the live audio stream.
+- **WASM Encoder Sync:**
+    - Ported the **Audio Gain** UI slider and PCM scaling logic to `wasm_encoder.html`.
+    - It now correctly applies the linear gain factor to Float32 audio chunks before MP3 encoding, ensuring feature parity with the other encoders.
+- **UX Refinement:**
+    - Updated `resetAV` and UI `oninput` handlers to ensure immediate visual and auditory feedback.
+
+## 2026-03-22 15:45:00 - OSD Visibility Fix (State-Driven UI)
+- **ISSUE:** OSD icons (play, pause, seek bar) occasionally remained hidden even after loading a file, due to "sticky" inline `display: none` styles applied during empty-playlist resets.
+- **SOLUTION:** Transitioned UI visibility to a purely **state-driven CSS approach** using the `.empty` class on the `#canvas-area` container.
+- **index.html & newplayer.html:**
+    - Removed manual `.style.display = 'none/flex'` overrides from `reset()` and `loadFile()`.
+    - Updated CSS to hide `#canvas-msg-overlay` by default and show it only when `.empty` is present.
+    - Leveraged existing CSS that hides `#osd-controls` when `.empty` is present.
+- **RESULT:** The OSD and drop-overlay now reliably toggle based on whether the playlist contains items, entirely eliminating the "disappearing icon" bug.
+
+## 2026-03-22 15:55:00 - Robust Audio Gain Preview & CORS Fix
+- **ISSUE:** Some browsers (especially Safari/iOS and Chrome) reported that Audio Gain preview was not working or produced silence.
+- **IMPROVEMENTS:**
+    - **CORS Support:** Added `crossorigin="anonymous"` to `<video id="sourceVideo">` to ensure the Web Audio API can process the stream without security restrictions.
+    - **Proactive Resumption:** Added `previewAudioCtx.resume()` to `updatePreviewGain()` so the audio engine re-awakens immediately when the user touches the slider.
+    - **Debugging Logs:** added `console.log` for `AudioContext.state` to help identify if the engine is suspended by the browser.
+    - **Mute Sync:** Ensured `sourceVideo.muted = false` is enforced upon playback.
+- **FILES UPDATED:** `hq_encoder.html`, `encoder.html`, `wasm_encoder.html`.
+
+## 2026-03-22 16:05:00 - Script Module Scope Fix (Global ReferenceError)
+- **ISSUE:** `Uncaught ReferenceError: updatePreviewGain is not defined` occurred because the functions were inside `<script type="module">` but called from HTML attributes (`oninput`).
+- **FIX:** Explicitly attached `updatePreviewGain` to the `window` object (`window.updatePreviewGain = function...`) in all encoder files.
+- **RESULT:** HTML event handlers can now correctly trigger the live audio preview updates.
+
+## 2026-03-22 16:15:00 - Audio Gain +5dB Sticky Point (Safety Feature)
+- **FEATURE:** Implemented a "soft wall" at +5dB for the Audio Gain slider to prevent accidental high-volume settings.
+- **LOGIC:** 
+    - When dragging from below +5dB, the slider will "stick" exactly at +5dB and refuse to go higher during that specific drag.
+    - To move past +5dB (up to +20dB), the user must release the slider and grab it again while it's at +5dB.
+- **FILES UPDATED:** `hq_encoder.html`, `encoder.html`, `wasm_encoder.html`.

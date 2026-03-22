@@ -488,7 +488,7 @@
     <div class="panel">
         <input type="file" id="videoInput" accept="video/*, .mp4, .webm" />
         <video id="sourceVideo" style="position: fixed; top: -10000px; left: -10000px; opacity: 0;" playsinline
-            muted></video>
+            crossorigin="anonymous" muted></video>
 
         <div class="grid" style="margin-top: 15px;">
             <div class="help-section">
@@ -712,7 +712,7 @@
                             </div>
                         </div>
                         <input type="range" id="cfg_audio_gain" value="0" min="-20" max="20" step="1"
-                            oninput="document.getElementById('val_audio_gain').innerText = this.value">
+                            oninput="document.getElementById('val_audio_gain').innerText = this.value; updatePreviewGain();">
                     </div>
                 </div>
                 <div class="help-overlay">
@@ -964,9 +964,53 @@
         }
 
         let playbackAnimFrame;
+        let previewAudioCtx, previewSource, previewGainNode;
+        let audioGainStickyBypass = false;
 
-        function togglePlay() {
+        // 🚀 [+5dB Sticky Logic] Initialize bypass on grab
+        document.getElementById('cfg_audio_gain').addEventListener('pointerdown', function () {
+            audioGainStickyBypass = (parseFloat(this.value) >= 5);
+        });
+
+        window.updatePreviewGain = function () {
+            const gainInput = document.getElementById('cfg_audio_gain');
+            let db = parseFloat(gainInput.value) || 0;
+
+            // 🚀 [+5dB Sticky Logic]
+            if (!audioGainStickyBypass && db > 5) {
+                db = 5;
+                gainInput.value = 5;
+                document.getElementById('val_audio_gain').innerText = "5";
+            }
+
+            if (previewAudioCtx && previewAudioCtx.state === 'suspended') previewAudioCtx.resume();
+            if (previewGainNode) {
+                previewGainNode.gain.value = Math.pow(10, db / 20);
+            }
+        }
+
+        async function togglePlay() {
             if (!currentFile || isEncoding) return;
+
+            // 🚀 Initialize Preview AudioContext on user gesture
+            if (!previewAudioCtx) {
+                try {
+                    previewAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    previewSource = previewAudioCtx.createMediaElementSource(sourceVideo);
+                    previewGainNode = previewAudioCtx.createGain();
+                    previewSource.connect(previewGainNode);
+                    previewGainNode.connect(previewAudioCtx.destination);
+                    updatePreviewGain();
+                } catch (e) {
+                    console.warn("Failed to initialize preview AudioContext:", e);
+                }
+            }
+            if (previewAudioCtx && previewAudioCtx.state === 'suspended') {
+                console.log("Resuming suspended preview AudioContext...");
+                await previewAudioCtx.resume();
+            }
+            console.log("Preview AudioContext state:", previewAudioCtx.state);
+
             if (sourceVideo.paused) {
                 if (currentTime >= endTime - 0.1) {
                     currentTime = startTime;
@@ -1362,6 +1406,7 @@
             input.value = defaultVal;
             document.getElementById('val_' + id).innerText = (id === 'gamma') ? parseFloat(defaultVal).toFixed(1) : defaultVal;
             drawPreviewCanvas();
+            if (id === 'audio_gain') updatePreviewGain();
         }
 
         window.toggleLockAV = function (id) {
@@ -1989,13 +2034,20 @@
                 btnStart.innerText = "Start Encoding"; btnStart.style.background = "#007acc"; btnStart.disabled = false;
 
                 document.querySelectorAll('input, select').forEach(el => el.disabled = false);
-                seekSlider.style.pointerEvents = 'auto'; seekSlider.style.opacity = '1';
-
-                document.getElementById('progressBar').value = 0;
-                document.getElementById('progressBar').style.display = 'none';
                 renderPreview();
             }
+        }); // Closing for btnStart.addEventListener
+
+        // 🚀 [+5dB Sticky Logic] Initialize bypass on grab
+        document.getElementById('cfg_audio_gain').addEventListener('pointerdown', function () {
+            audioGainStickyBypass = (parseFloat(this.value) >= 5);
         });
+        seekSlider.style.pointerEvents = 'auto'; seekSlider.style.opacity = '1';
+
+        document.getElementById('progressBar').value = 0;
+        document.getElementById('progressBar').style.display = 'none';
+        renderPreview();
+
 
         let lastEncodedMv2 = null;
 

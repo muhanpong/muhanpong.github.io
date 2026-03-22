@@ -492,7 +492,7 @@
             <!-- 🚀 [iPad 최적화] 완전히 숨기지 않고 1x1 픽셀로 노출하여 브라우저의 리소스 차단을 방지합니다. -->
             <video id="sourceVideo"
                 style="position: absolute; width: 1px; height: 1px; left: 0; bottom: 0; opacity: 0.01; pointer-events: none;"
-                playsinline muted></video>
+                playsinline muted crossorigin="anonymous"></video>
 
             <div class="grid" style="margin-top: 15px;">
                 <div class="help-section">
@@ -723,7 +723,7 @@
                                 </div>
                             </div>
                             <input type="range" id="cfg_audio_gain" value="0" min="-20" max="20" step="1"
-                                oninput="document.getElementById('val_audio_gain').innerText = this.value">
+                                oninput="document.getElementById('val_audio_gain').innerText = this.value; updatePreviewGain();">
                         </div>
                     </div>
                     <div class="help-overlay">
@@ -1019,10 +1019,51 @@
                         reject(new Error("Video Load Error: " + errorMsg));
                     };
                 });
-            } let playbackAnimFrame;
+            }
 
-            function togglePlay() {
+            let playbackAnimFrame;
+            let previewAudioCtx, previewSource, previewGainNode;
+            let audioGainStickyBypass = false;
+
+            window.updatePreviewGain = function () {
+                const gainInput = document.getElementById('cfg_audio_gain');
+                let db = parseFloat(gainInput.value) || 0;
+
+                // 🚀 [+5dB Sticky Logic]
+                if (!audioGainStickyBypass && db > 5) {
+                    db = 5;
+                    gainInput.value = 5;
+                    document.getElementById('val_audio_gain').innerText = "5";
+                }
+
+                if (previewAudioCtx && previewAudioCtx.state === 'suspended') previewAudioCtx.resume();
+                if (previewGainNode) {
+                    previewGainNode.gain.value = Math.pow(10, db / 20);
+                }
+            }
+
+            async function togglePlay() {
                 if (!currentFile || isEncoding) return;
+
+                // 🚀 Initialize Preview AudioContext on user gesture
+                if (!previewAudioCtx) {
+                    try {
+                        previewAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                        previewSource = previewAudioCtx.createMediaElementSource(sourceVideo);
+                        previewGainNode = previewAudioCtx.createGain();
+                        previewSource.connect(previewGainNode);
+                        previewGainNode.connect(previewAudioCtx.destination);
+                        updatePreviewGain();
+                    } catch (e) {
+                        console.warn("Failed to initialize preview AudioContext:", e);
+                    }
+                }
+                if (previewAudioCtx && previewAudioCtx.state === 'suspended') {
+                    console.log("Resuming suspended preview AudioContext...");
+                    await previewAudioCtx.resume();
+                }
+                console.log("Preview AudioContext state:", previewAudioCtx.state);
+
                 if (sourceVideo.paused) {
                     if (currentTime >= endTime - 0.1) {
                         currentTime = startTime;
@@ -1410,6 +1451,7 @@
                 input.value = defaultVal;
                 document.getElementById('val_' + id).innerText = (id === 'gamma') ? parseFloat(defaultVal).toFixed(1) : defaultVal;
                 drawPreviewCanvas();
+                if (id === 'audio_gain') updatePreviewGain();
             }
 
             window.toggleLockAV = function (id) {
@@ -1637,6 +1679,13 @@
                 }
 
                 const file = videoInput.files[0];
+
+                // 🚀 Create and unlock AudioContext synchronously within the click event
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: TARGET_SAMPLE_RATE });
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+
                 const video = sourceVideo;
 
                 video.pause(); video.muted = true;
@@ -1708,7 +1757,6 @@
                         worker.postMessage({ type: 'INIT', payload: { config: JSON.stringify(config) } });
                     });
 
-                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: TARGET_SAMPLE_RATE });
                     const arrayBuffer = await file.arrayBuffer();
                     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
                     const pcmFloat32 = audioBuffer.getChannelData(0);
