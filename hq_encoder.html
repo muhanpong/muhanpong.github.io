@@ -847,10 +847,9 @@
 
         let worker;
         try {
-            // Service worker cache busting and iOS WebKit Module Worker Bug Bypass
-            // 🚀 Do NOT use { type: 'module' } here. iOS Safari Service Workers silently drop module workers.
+            // Service worker cache busting
             const uniqueV = Date.now();
-            worker = new Worker('./worker.js?v=' + uniqueV);
+            worker = new Worker('./worker.js?v=' + uniqueV, { type: 'module' });
         } catch (e) {
             console.error(e);
         }

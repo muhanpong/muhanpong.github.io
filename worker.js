@@ -42,17 +42,15 @@ self.onmessage = async (e) => {
                 try {
                     // iOS/iPad Safari has strict limits on Web Workers and occasionally hangs on Promise.all when spawning
                     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-                    const maxThreads = isIOS ? 2 : 12; // Cap iOS to 2 threads to prevent WebKit Worker exhaustion hangs
-                    let threads = Math.min(navigator.hardwareConcurrency || 4, maxThreads);
 
-                    console.log(`[Worker] Attempting to initialize thread pool with ${threads} threads... (isIOS: ${isIOS})`);
-
-                    // Add an explicit timeout so it doesn't hang forever on iPad if Safari blocks worker allocation
-                    const initPromise = module.initThreadPool(threads);
-                    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Thread pool allocation timed out (WebKit limit)")), 3000));
-
-                    await Promise.race([initPromise, timeoutPromise]);
-                    console.log("[Worker] Thread pool initialized successfully.");
+                    if (isIOS) {
+                        console.warn("[Worker] iOS device detected. Bypassing WebAssembly multi-threading to prevent WebKit Worker deadlocks.");
+                    } else {
+                        let threads = Math.min(navigator.hardwareConcurrency || 4, 12);
+                        console.log(`[Worker] Attempting to initialize thread pool with ${threads} threads...`);
+                        await module.initThreadPool(threads);
+                        console.log("[Worker] Thread pool initialized successfully.");
+                    }
                 } catch (e) {
                     console.error("[Worker] Failed to initialize thread pool:", e);
                     console.warn("[Worker] Falling back to single-threaded mode.");
