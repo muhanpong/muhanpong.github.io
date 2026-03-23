@@ -9,55 +9,17 @@ self.onmessage = async (e) => {
 
     try {
         if (type === 'INIT') {
-            console.log("[Worker] Initializing WASM with manual shared memory injection...");
+            console.log("[Worker] Initializing WASM in stable single-threaded mode...");
 
             const module = await import('./pkg/mv2_wasm.js');
             init = module.default;
             Mv2Encoder = module.Mv2Encoder;
-            let memory = null;
-            if (self.crossOriginIsolated && typeof SharedArrayBuffer !== 'undefined') {
-                try {
-                    // 🚀 수동으로 SharedArrayBuffer 생성 및 주입
-                    // 바이너리 헤더와 일치하도록 initial: 513 (32MB + 1) 설정
-                    memory = new WebAssembly.Memory({ initial: 513, maximum: 16384, shared: true });
-                    console.log("[Worker] SharedArrayBuffer created manually (513 pages).");
-                } catch (e) {
-                    console.warn("[Worker] Failed to create SharedArrayBuffer manually:", e);
-                }
-            }
 
-
-            // WASM 초기화 (수동 메모리 주입 + 2MB 스택 설정)
-            await init({
-                module_or_path: './pkg/mv2_wasm_bg.wasm',
-                memory,
-                thread_stack_size: 2 * 1024 * 1024
-            });
+            // 기본 WASM 초기화
+            await init();
 
             // 패닉 후크 초기화 (에러 메시지 상세 확인용)
             if (module.init_panic_hook) module.init_panic_hook();
-
-            // 🚀 멀티스레딩 초기화
-            if (memory && module.initThreadPool) {
-                try {
-                    // iOS/iPad Safari has strict limits on Web Workers and occasionally hangs on Promise.all when spawning
-                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-                    if (isIOS) {
-                        console.warn("[Worker] iOS device detected. Bypassing WebAssembly multi-threading to prevent WebKit Worker deadlocks.");
-                    } else {
-                        let threads = Math.min(navigator.hardwareConcurrency || 4, 12);
-                        console.log(`[Worker] Attempting to initialize thread pool with ${threads} threads...`);
-                        await module.initThreadPool(threads);
-                        console.log("[Worker] Thread pool initialized successfully.");
-                    }
-                } catch (e) {
-                    console.error("[Worker] Failed to initialize thread pool:", e);
-                    console.warn("[Worker] Falling back to single-threaded mode.");
-                }
-            } else {
-                console.warn("[Worker] Environment does not support multi-threading. Using single thread.");
-            }
 
             encoder = new Mv2Encoder(payload.config);
             self.postMessage({ type: 'INIT_DONE' });
