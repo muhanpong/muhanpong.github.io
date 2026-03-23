@@ -537,6 +537,16 @@
                     </div>
                 </div>
                 <div class="help-section">
+                    <label>VRAM Local Dither (0.0-1.0)</label>
+                    <input type="number" id="cfg_vram_dither" value="0.0" min="0.0" max="1.0" step="0.1">
+                    <div class="help-overlay">
+                        <h4>VRAM Local Dither <span class="tip">(블록 내부 오차 확산)</span></h4>
+                        MSX2의 8x1 블록(가로 8픽셀) 제약 속에서 선택된 2가지 색상 내에서만 추가로 디더링을 수행합니다.<br><br>
+                        <span class="hl">0.0</span>: 적용하지 않음 (가장 선명한 윤곽선).<br>
+                        <span class="hl">0.1~1.0</span>: 블록 내부의 그라데이션을 부드럽게 연결함.
+                    </div>
+                </div>
+                <div class="help-section">
                     <label>Max Extra Colors</label>
                     <input type="number" id="cfg_colors" value="15" min="1" max="100">
                     <div class="help-overlay">
@@ -1722,6 +1732,7 @@
                             quantizer: document.getElementById('cfg_quantizer').value,
                             dither: document.getElementById('cfg_dither_mode').value,
                             dither_strength: parseInt(document.getElementById('cfg_dither').value),
+                            vram_dither: parseFloat(document.getElementById('cfg_vram_dither').value),
                             anchors: document.getElementById('cfg_anchors').value.length, anchor_colors: document.getElementById('cfg_anchors').value,
                             extra_colors: parseInt(document.getElementById('cfg_colors').value), aspect: document.getElementById('cfg_aspect').value,
                             metric: document.getElementById('cfg_metric').value, nv: false
@@ -1733,6 +1744,7 @@
                         quantizer: document.getElementById('cfg_quantizer').value,
                         dither: document.getElementById('cfg_dither_mode').value,
                         dither_strength: parseInt(document.getElementById('cfg_dither').value),
+                        vram_dither: parseFloat(document.getElementById('cfg_vram_dither').value),
                         anchor_colors: document.getElementById('cfg_anchors').value,
                         max_extra_colors: parseInt(document.getElementById('cfg_colors').value),
                         quant_iters_initial: parseInt(document.getElementById('cfg_iter_init').value),
