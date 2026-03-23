@@ -1727,6 +1727,15 @@
 
             btnStart.addEventListener('click', async () => {
                 if (!videoInput.files.length) return alert("Please select a video file first!");
+                document.getElementById('final-actions').style.display = 'none';
+                const btnPlayer = document.getElementById('btnSendToPlayer');
+                if (btnPlayer) {
+                    btnPlayer.innerText = '▶ Send to Player';
+                    btnPlayer.style.background = '';
+                    btnPlayer.disabled = false;
+                }
+                const btnSave = document.getElementById('btnSaveMv2');
+                if (btnSave) { btnSave.disabled = false; }
 
                 if (isEncoding) {
                     shouldStopEncoding = true;
@@ -2139,8 +2148,6 @@ await new Promise((resolve, reject) => {
 
                     document.getElementById('progressBar').value = 0;
                     document.getElementById('progressBar').style.display = 'none';
-                    document.getElementById('final-actions').style.display = 'none';
-                    document.getElementById('encoding-actions').style.display = 'none';
                     renderPreview();
                 }
             });

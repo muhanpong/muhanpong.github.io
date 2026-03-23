@@ -326,3 +326,9 @@
 - **Structured Status Area:** Refactored the progress section to use a dedicated flex row (`.status-row`) for status messages and action buttons.
 - **Consistent Button Styling:** Introduced the `.action-btn` class with standardized padding, height, and color schemes for Snapshot, Save, and Send to Player actions.
 - **Clean End-State:** Dynamic button injection was replaced with pre-defined, styled static elements that are revealed upon encoding completion, preventing layout shifts and text wrapping issues.
+
+## 2026-03-24 05:58:57 - Bug Fix: Action Button Visibility
+- Fixed a bug where the "Send to Player" and "Save MV2" buttons would disappear immediately after appearing due to the `finally` block hiding them.
+- Moved the logic to hide these buttons (`#final-actions`) to the beginning of the encoding process (`btnStart` handler).
+- **Button Reset Logic:** Ensuring that the "Send to Player" button is reset to its active state (clearing "✓ Sent!" status) when a new encoding starts.
+- **Metadata Verification:** Confirmed that the 16KB `interimHeader` correctly stores `recipeMeta` JSON at offset `0x100`, including source filename, duration, and all encoding settings. Distinguished the HQ encoder as "MV2 Web Encoder (HQ)" in the metadata.

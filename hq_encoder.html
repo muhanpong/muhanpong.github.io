@@ -1710,12 +1710,20 @@
             document.querySelectorAll('input, select').forEach(el => el.disabled = true);
             seekSlider.style.pointerEvents = 'none'; seekSlider.style.opacity = '0.5';
             statusText.innerHTML = "Opening Media...";
+            document.getElementById('final-actions').style.display = 'none';
+            const btnPlayer = document.getElementById('btnSendToPlayer');
+            if (btnPlayer) {
+                btnPlayer.innerText = '▶ Send to Player';
+                btnPlayer.style.background = '';
+                btnPlayer.disabled = false;
+            }
+            const btnSave = document.getElementById('btnSaveMv2');
+            if (btnSave) { btnSave.disabled = false; }
             document.getElementById('progress-container').style.display = 'block';
             document.getElementById('progressBar').style.display = 'inline-block';
             document.getElementById('progressBar').value = 0;
 
             try {
-                document.getElementById('final-actions').style.display = 'none';
                 statusText.innerText = "Extracting Audio & Preparing Video...";
                 const totalFrames = Math.floor((endTime - startTime) * TARGET_FPS);
                 const playTimeDuration = endTime - startTime;
@@ -1724,7 +1732,7 @@
                 const playTime = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
 
                 const recipeMeta = {
-                    encoder: "MV2 Web Encoder (WASM)", source: file.name, date: new Date().toISOString(),
+                    encoder: "MV2 Web Encoder (HQ)", source: file.name, date: new Date().toISOString(),
                     duration_sec: video.duration, play_time: playTime, total_frames: totalFrames,
                     settings: {
                         quantizer: document.getElementById('cfg_quantizer').value,
@@ -2120,8 +2128,6 @@
                 seekSlider.style.pointerEvents = 'auto'; seekSlider.style.opacity = '1';
 
                 document.getElementById('progressBar').value = 0;
-                document.getElementById('progressBar').style.display = 'none';
-                document.getElementById('final-actions').style.display = 'none';
                 document.getElementById('encoding-actions').style.display = 'none';
                 renderPreview();
             }
