@@ -5,7 +5,7 @@
     <script src="coi-serviceworker.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MSX2 MV2 Video Encoder - BTS comeback edition</title>
+    <title>MSX2 MV2 Video Encoder</title>
     <style>
         body {
             font-family: sans-serif;
@@ -400,7 +400,41 @@
         #statusText {
             font-weight: bold;
             color: #4db8ff;
+            flex: 1;
+            margin-right: 10px;
         }
+
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+            min-height: 32px;
+        }
+
+        .action-btn {
+            margin: 0;
+            padding: 4px 12px;
+            font-size: 13px;
+            width: auto;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: opacity 0.2s;
+        }
+
+        .action-btn:hover {
+            opacity: 0.9;
+        }
+
+        .btn-snapshot { background: #4CAF50; }
+        .btn-interim-save { background: #f0ad4e; }
+        .btn-send-player { background: #4CAF50; }
+        .btn-save-final { background: #007acc; }
 
         /* === Overlay Manual System === */
         .help-section {
@@ -756,9 +790,19 @@
             </div>
 
             <div id="progress-container">
-                <label id="statusText">Extracting Audio...</label>
-                <progress id="progressBar" value="0" max="100"></progress>
+            <div class="status-row">
+                <span id="statusText">Extracting Audio...</span>
+                <div id="encoding-actions" style="display: none; gap: 5px;">
+                    <button id="btnSnapshot" class="action-btn btn-snapshot">📸 Snapshot</button>
+                    <button id="btnInterimSave" class="action-btn btn-interim-save">💾 Save</button>
+                </div>
+                <div id="final-actions" style="display: none; gap: 5px;">
+                    <button id="btnSendToPlayer" class="action-btn btn-send-player" title="Send to MV Player tab">▶ Send to Player</button>
+                    <button id="btnSaveMv2" class="action-btn btn-save-final" title="Download Encoded File">⬇️ Save MV2</button>
+                </div>
             </div>
+            <progress id="progressBar" value="0" max="100"></progress>
+        </div>
         </div>
 
         <div class="panel">
@@ -863,12 +907,15 @@
             let startTime = 0;
             let endTime = 0;
             let currentTime = 0;
-            let monitorLeftSplit = 0.0;
-            let monitorRightSplit = 1.0;
+            let monitorLeftSplit = 0.25;
+            let monitorRightSplit = 0.75;
             let currentFile = null;
             let isDraggingMarker = null;
             let anchorTime = null;
+            let accumulatedMv2Blocks = []; // 🚀 [신규] 실시간 MV2 블록 축적
+            let interimHeader = null; // 🚀 [신규] 임시 헤더 템플릿
 
+            // Web Worker
             let worker;
             try {
                 // Service worker cache busting
@@ -1383,7 +1430,7 @@
                         if (Math.abs(newX - vLeft) < snap) { if (dragMode === 'pan') { newX = vLeft; } else { newW += newX - vLeft; newX = vLeft; } }
                         if (Math.abs(newY - vTop) < snap) { if (dragMode === 'pan') { newY = vTop; } else { newH += newY - vTop; newY = vTop; } }
                         if (Math.abs((newX + newW) - vRight) < snap) { if (dragMode === 'pan') { newX = vRight - newW; } else { newW = vRight - newX; } }
-                        if (Math.abs((newY + newH) - vBottom) < snap) { if (dragMode === 'pan') { newY = vBottom - newH; } else { newH = vBottom - newY; } }
+                        if (Math.abs((newY + newH) - vBottom) < snap) { if (dragMode === 'pan') { newX = vRight - newW; } else { newH = vBottom - newY; } }
                     }
                 }
 
@@ -1691,12 +1738,50 @@
                 const file = videoInput.files[0];
 
                 // 🚀 Create and unlock AudioContext synchronously within the click event
+                // 🚀 [신규] 실시간 MV2 조립을 위한 헤더 생성
+                function createInterimHeader(meta) {
+                    const h = new Uint8Array(16384);
+                    // Signature "MMCSD_MV"
+                    const sig = "MMCSD_MV";
+                    for(let i=0; i<sig.length; i++) h[i] = sig.charCodeAt(i);
+                    // Version "v2.00" at offset 16
+                    const ver = "v2.00";
+                    for(let i=0; i<ver.length; i++) h[16+i] = ver.charCodeAt(i);
+                    // Metadata at 0x100
+                    const metaStr = JSON.stringify(meta);
+                    for(let i=0; i<metaStr.length; i++) h[0x100+i] = metaStr.charCodeAt(i);
+                    return h;
+                }
+
+                const video = sourceVideo;
+                const totalFrames = Math.floor((endTime - startTime) * TARGET_FPS);
+                const playTimeDuration = endTime - startTime;
+                const m = Math.floor(playTimeDuration / 60), s = Math.floor(playTimeDuration % 60), ms = Math.floor((playTimeDuration % 1) * 100);
+                const playTime = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+
+                const recipeMeta = {
+                    encoder: "MV2 Web Encoder (WASM)", source: file.name, date: new Date().toISOString(),
+                    duration_sec: video.duration, play_time: playTime, total_frames: totalFrames,
+                    settings: {
+                        quantizer: document.getElementById('cfg_quantizer').value,
+                        dither: document.getElementById('cfg_dither_mode').value,
+                        dither_strength: parseInt(document.getElementById('cfg_dither').value),
+                        vram_dither: parseFloat(document.getElementById('cfg_vram_dither').value),
+                        anchors: document.getElementById('cfg_anchors').value.length, anchor_colors: document.getElementById('cfg_anchors').value,
+                        extra_colors: parseInt(document.getElementById('cfg_colors').value), aspect: document.getElementById('cfg_aspect').value,
+                        metric: document.getElementById('cfg_metric').value, nv: false
+                    }
+                };
+
+                interimHeader = createInterimHeader(recipeMeta);
+                accumulatedMv2Blocks = [];
+                document.getElementById('encoding-actions').style.display = 'flex';
+
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: TARGET_SAMPLE_RATE });
                 if (audioCtx.state === 'suspended') {
                     audioCtx.resume();
                 }
 
-                const video = sourceVideo;
 
                 video.pause(); video.muted = true;
                 if (playbackAnimFrame) cancelAnimationFrame(playbackAnimFrame);
@@ -1719,25 +1804,6 @@
 
                 try {
                     statusText.innerText = "Extracting Audio & Preparing Video...";
-                    const totalFrames = Math.floor((endTime - startTime) * TARGET_FPS);
-                    const playTimeDuration = endTime - startTime;
-
-                    const m = Math.floor(playTimeDuration / 60), s = Math.floor(playTimeDuration % 60), ms = Math.floor((playTimeDuration % 1) * 100);
-                    const playTime = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
-
-                    const recipeMeta = {
-                        encoder: "MV2 Web Encoder (WASM)", source: file.name, date: new Date().toISOString(),
-                        duration_sec: video.duration, play_time: playTime, total_frames: totalFrames,
-                        settings: {
-                            quantizer: document.getElementById('cfg_quantizer').value,
-                            dither: document.getElementById('cfg_dither_mode').value,
-                            dither_strength: parseInt(document.getElementById('cfg_dither').value),
-                            vram_dither: parseFloat(document.getElementById('cfg_vram_dither').value),
-                            anchors: document.getElementById('cfg_anchors').value.length, anchor_colors: document.getElementById('cfg_anchors').value,
-                            extra_colors: parseInt(document.getElementById('cfg_colors').value), aspect: document.getElementById('cfg_aspect').value,
-                            metric: document.getElementById('cfg_metric').value, nv: false
-                        }
-                    };
 
                     const config = {
                         width: 256, height: 192,
@@ -1907,12 +1973,34 @@
                         const actualAudioStart = frameIdx * samplesPerFrame;
                         const endSample = Math.min(actualAudioStart + samplesPerFrame, pcmInt16.length);
                         const pcmSlice = pcmInt16.subarray(actualAudioStart, endSample);
+await new Promise((resolve, reject) => {
+    worker.onmessage = (e) => {
+        if (e.data.type === 'FRAME_DONE') {
+            const { ditheredRGB, vramBytes, paletteBytes, mp3Chunk } = e.data.payload;
 
-                        await new Promise((resolve, reject) => {
-                            worker.onmessage = (e) => {
-                                if (e.data.type === 'FRAME_DONE') {
-                                    const { ditheredRGB, vramBytes, paletteBytes } = e.data.payload;
+            // 🚀 [신규] 실시간 MV2 블록 조립
+            const frameBlock = new Uint8Array(16384);
+            frameBlock.set(vramBytes, 0); // VRAM (PGT + CT) 12KB
+            // Palette: WASM returns 16 colors as RGB triplets (48 bytes). 
+            // We need to convert colors 1-15 to MSX hardware format (2 bytes each, 30 bytes total).
+            const msxPalette = new Uint8Array(30);
+            for (let i = 1; i < 16; i++) {
+                const r = Math.round(paletteBytes[i * 3 + 0] * 7 / 255);
+                const g = Math.round(paletteBytes[i * 3 + 1] * 7 / 255);
+                const b = Math.round(paletteBytes[i * 3 + 2] * 7 / 255);
+                msxPalette[(i - 1) * 2] = (r << 4) | b;
+                msxPalette[(i - 1) * 2 + 1] = g;
+            }
+            frameBlock.set(msxPalette, 12288); // Palette 30B (colors 1-15)
+            // (eqRaw는 12320에 들어가야 함. 일단 무시하거나 0으로 채움)
+            if (mp3Chunk && mp3Chunk.length > 0) {
+                const blocks = Math.ceil(mp3Chunk.length / 32);
+                frameBlock[12800] = blocks;
+                frameBlock.set(mp3Chunk, 12801);
+            }
+            accumulatedMv2Blocks.push(frameBlock);
 
+            // --- Tri-State Rendering Logic ---
                                     const split1 = Math.floor(256 * monitorLeftSplit);
                                     const split2 = Math.floor(256 * monitorRightSplit);
 
@@ -2030,9 +2118,9 @@
                         worker.postMessage({ type: 'FINISH', payload: { remainingMp3, earlyAbort: shouldStopEncoding } });
                     });
 
-                    statusText.innerHTML = (shouldStopEncoding ? `Encoding Stopped. Exported ${encodedFramesCount} frames.` : "Encoding Complete! 🎉") +
-                        ' <button id="btnSendToPlayer" style="margin-left:10px;padding:4px 12px;background:#4CAF50;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;" title="Send to MV Player tab">▶ Send to Player</button>' +
-                        ' <button id="btnSaveMv2" style="margin-left:5px;padding:4px 12px;background:#007acc;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;" title="Download Encoded File">⬇️ Save MV2</button>';
+                    statusText.innerText = (shouldStopEncoding ? `Encoding Stopped. Exported ${encodedFramesCount} frames.` : "Encoding Complete! 🎉");
+                    document.getElementById('encoding-actions').style.display = 'none';
+                    document.getElementById('final-actions').style.display = 'flex';
                     document.getElementById('btnSendToPlayer').onclick = sendToPlayer;
                     document.getElementById('btnSaveMv2').onclick = () => {
                         if (lastEncodedMv2) downloadFile(lastEncodedMv2, "retro_output.mv2", "application/octet-stream");
@@ -2051,11 +2139,39 @@
 
                     document.getElementById('progressBar').value = 0;
                     document.getElementById('progressBar').style.display = 'none';
+                    document.getElementById('final-actions').style.display = 'none';
+                    document.getElementById('encoding-actions').style.display = 'none';
                     renderPreview();
                 }
             });
 
             let lastEncodedMv2 = null;
+
+            // 🚀 [신규] 스냅샷 및 중간 저장 로직
+            function assembleInterimMv2() {
+                if (!interimHeader || accumulatedMv2Blocks.length === 0) return null;
+                const totalLen = interimHeader.length + (accumulatedMv2Blocks.length * 16384);
+                const fullData = new Uint8Array(totalLen);
+                fullData.set(interimHeader, 0);
+                for (let i = 0; i < accumulatedMv2Blocks.length; i++) {
+                    fullData.set(accumulatedMv2Blocks[i], 16384 + (i * 16384));
+                }
+                return fullData;
+            }
+
+            document.getElementById('btnSnapshot').onclick = () => {
+                const data = assembleInterimMv2();
+                if (!data) return;
+                const channel = new BroadcastChannel('msx-encoder-player');
+                channel.postMessage({ type: 'encoded-file', fileName: `snapshot_${accumulatedMv2Blocks.length}F.mv2`, data: data.buffer });
+                channel.close();
+            };
+
+            document.getElementById('btnInterimSave').onclick = () => {
+                const data = assembleInterimMv2();
+                if (!data) return;
+                downloadFile(data, `interim_${accumulatedMv2Blocks.length}F.mv2`, "application/octet-stream");
+            };
 
             function sendToPlayer() {
                 if (!lastEncodedMv2) return;

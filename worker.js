@@ -39,8 +39,8 @@ self.onmessage = async (e) => {
             // 연산 완료 후 메인 스레드로 결과 전송 (Zero-Copy)
             self.postMessage({
                 type: 'FRAME_DONE',
-                payload: { frameIdx, ditheredRGB, vramBytes, paletteBytes }
-            }, [ditheredRGB.buffer, vramBytes.buffer, paletteBytes.buffer]);
+                payload: { frameIdx, ditheredRGB, vramBytes, paletteBytes, mp3Chunk }
+            }, [ditheredRGB.buffer, vramBytes.buffer, paletteBytes.buffer, mp3Chunk.buffer]);
         }
         else if (type === 'FINISH') {
             const { remainingMp3 } = payload || { remainingMp3: new Uint8Array(0) };

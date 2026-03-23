@@ -301,3 +301,28 @@
 - **The Decision:** The experimental multi-threaded WASM implementation proved inherently unstable due to browser restrictions on memory cloning and Service Worker conflicts, causing frequent `DataCloneError` and `unreachable executed` crashes.
 - **The Rollback:** Preserved the multi-threading logic in a `wasm-unstable` branch, then completely stripped all `Rayon` thread pool initializations, manual memory injections, and linker hacks from the main branch.
 - **Current Status:** The encoder is now **100% stable** and crash-free. Performance remains excellent because the high-performance **512x512 LUT** and **SIMD (128-bit vectorization)** optimizations were preserved.
+## 2026-03-13 22:00 - Encoder Feature: Real-time Snapshot & Interim Save
+- Implemented real-time MV2 muxing in the JavaScript layer during the encoding loop.
+- Added '📸 Snapshot' button: Sends the currently encoded portion of the video to the MV Player tab without stopping the encode.
+- Added '💾 Save' button: Allows downloading the interim .mv2 file during encoding.
+- Updated worker.js to pass back mp3Chunk for JS-side muxing.
+- Added createInterimHeader logic to generate valid MV2 headers on the fly.
+
+## 2026-03-24 01:08:18 - Bug Fix: encoder.html ReferenceError
+- Fixed `Uncaught (in promise) ReferenceError: recipeMeta is not defined` in `encoder.html`.
+- Moved the `recipeMeta` calculation and its dependencies (`totalFrames`, `playTime`, `video.duration`) to the beginning of the `btnStart` click handler.
+- This ensures that `createInterimHeader(recipeMeta)` has access to the metadata during the initial setup for real-time snapshots.
+
+## 2026-03-24 01:14:13 - Bug Fix & Feature Port: Snapshot Palette & HQ Encoder Snapshots
+- **Snapshot Palette Fix:** Resolved broken colors in snapshots by converting the 48-byte RGB triplet palette to the 30-byte MSX hardware GRB format (colors 1-15) at offset 12288 in the frame block.
+- **HQ Encoder Port:** Successfully ported the '📸 Snapshot' and '💾 Save' features to `hq_encoder.html`, including real-time MV2 block accumulation and interim header generation.
+- **UI Sync:** Both encoders now feature consistent snapshot/save functionality and correct color representation in the player.
+
+## 2026-03-24 01:27:42 - UI Update: Removed Snapshot Alert
+- Removed the `alert()` popup that appeared after sending a snapshot to the player in both `encoder.html` and `hq_encoder.html` for a smoother user experience.
+
+## 2026-03-24 01:31:57 - UI Alignment & UX Polish
+- **Unified Interface:** Standardized titles, headers, and CSS across `encoder.html` and `hq_encoder.html` to ensure visual parity.
+- **Structured Status Area:** Refactored the progress section to use a dedicated flex row (`.status-row`) for status messages and action buttons.
+- **Consistent Button Styling:** Introduced the `.action-btn` class with standardized padding, height, and color schemes for Snapshot, Save, and Send to Player actions.
+- **Clean End-State:** Dynamic button injection was replaced with pre-defined, styled static elements that are revealed upon encoding completion, preventing layout shifts and text wrapping issues.
