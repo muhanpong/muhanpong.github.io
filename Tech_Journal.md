@@ -297,3 +297,7 @@
 ## 2026-03-13 21:30 - Encoder UI Fix (Seek Slider Unlocking)
 - Fixed a bug in hq_encoder.html where the seek slider remained locked after encoding due to the unlocking logic being placed outside the event listener.
 - Robustified wasm_encoder.html by moving UI unlocking logic into the finally block of the encoding handler.
+## 2026-03-21 06:30:00: Rollback to Stable Single-Threaded Architecture
+- **The Decision:** The experimental multi-threaded WASM implementation proved inherently unstable due to browser restrictions on memory cloning and Service Worker conflicts, causing frequent `DataCloneError` and `unreachable executed` crashes.
+- **The Rollback:** Preserved the multi-threading logic in a `wasm-unstable` branch, then completely stripped all `Rayon` thread pool initializations, manual memory injections, and linker hacks from the main branch.
+- **Current Status:** The encoder is now **100% stable** and crash-free. Performance remains excellent because the high-performance **512x512 LUT** and **SIMD (128-bit vectorization)** optimizations were preserved.
