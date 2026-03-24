@@ -942,10 +942,7 @@
                 if (isEncoding || !currentFile) return;
                 isVramPreviewMode = !isVramPreviewMode;
 
-                // Auto-pause video when switching to VRAM Preview
-                if (isVramPreviewMode && !sourceVideo.paused) {
-                    togglePlay();
-                }
+                // [Keep playing toggle] Removed auto-pause to allow seamless mode switching
 
                 btnTestFrame.innerText = isVramPreviewMode ? "📺 Mode: VRAM Preview" : "🎬 Mode: Source Preview";
                 btnTestFrame.style.background = isVramPreviewMode ? "#ff9800" : "#28a745";
@@ -1315,8 +1312,13 @@
 
             document.addEventListener('mousemove', handleCanvasMove);
             document.addEventListener('touchmove', handleCanvasMove, { passive: false });
-            document.addEventListener('mouseup', () => isDraggingCanvas = false);
-            document.addEventListener('touchend', () => isDraggingCanvas = false);
+            function handleCanvasUp() { 
+                const wasDragging = isDraggingCanvas;
+                isDraggingCanvas = false; 
+                if (wasDragging && sourceVideo.paused) renderPreview(); // Force redraw VRAM if paused
+            }
+            document.addEventListener('mouseup', handleCanvasUp);
+            document.addEventListener('touchend', handleCanvasUp);
 
             document.getElementById('cfg_aspect').addEventListener('change', () => { customBox = null; isCustomMode = false; drawPreviewCanvas(); });
             document.getElementById('cfg_crop_left').addEventListener('input', drawPreviewCanvas);
@@ -1438,25 +1440,29 @@
                     const config = getUIConfig();
                     try {
                         const { vramBytes, paletteBytes } = await requestVramFrameFromWorker(rgbaBytes, config);
+                        
+                        if (isDraggingCanvas || isDraggingMarker || !isVramPreviewMode) return; // Prevent overwriting
+
                         ctx.filter = 'none'; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        canvas.style.filter = 'none';
+                        
                         const vImg = ctx.createImageData(256, 192);
+                        const vData32 = new Uint32Array(vImg.data.buffer);
+                        const pal32 = new Uint32Array(16);
+                        for (let i = 0; i < 16; i++) {
+                            pal32[i] = (255 << 24) | (paletteBytes[i * 3 + 2] << 16) | (paletteBytes[i * 3 + 1] << 8) | paletteBytes[i * 3 + 0];
+                        }
+
                         for (let y = 0; y < 192; y++) {
-                            const block_row = Math.floor(y / 8); const row_in_block = y % 8;
+                            const y8 = Math.floor(y / 8), yMod8 = y % 8, rowOffset = y * 256;
                             for (let x = 0; x < 256; x++) {
-                                const block_col = Math.floor(x / 8);
-                                const vram_off = (block_row * 32 + block_col) * 8 + row_in_block;
-                                const pgt_byte = vramBytes[vram_off], ct_byte = vramBytes[6144 + vram_off];
-                                const bit = (pgt_byte >> (7 - (x % 8))) & 1;
-                                const color_idx = bit ? (ct_byte >> 4) : (ct_byte & 0x0F);
-                                const px_idx = (y * 256 + x) * 4;
-                                vImg.data[px_idx] = paletteBytes[color_idx * 3];
-                                vImg.data[px_idx + 1] = paletteBytes[color_idx * 3 + 1];
-                                vImg.data[px_idx + 2] = paletteBytes[color_idx * 3 + 2];
-                                vImg.data[px_idx + 3] = 255;
+                                const vram_off = (y8 * 32 + Math.floor(x / 8)) * 8 + yMod8;
+                                const bit = (vramBytes[vram_off] >> (7 - (x % 8))) & 1, ct = vramBytes[6144 + vram_off];
+                                vData32[rowOffset + x] = pal32[bit ? (ct >> 4) : (ct & 0xF)];
                             }
                         }
                         ctx.putImageData(vImg, 0, 0);
-                        // drawUIOverlays(box); // Hidden in VRAM Preview Mode
+                        // drawUIOverlays(box); // 사용자가 순수 VRAM 결과물만 볼 수 있도록 UI 오버레이 숨김
                     } catch (err) {
                         console.error(err);
                         ctx.filter = 'none'; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1551,9 +1557,11 @@
                 }
                 const onMove = (me) => { if (me.type === 'touchmove') me.preventDefault(); updateSliderFromDrag(me); };
                 const onUp = () => {
+                    const wasDragging = isDraggingMarker;
                     isDraggingMarker = null; document.removeEventListener('mousemove', onMove);
                     document.removeEventListener('mouseup', onUp); document.removeEventListener('touchmove', onMove);
                     document.removeEventListener('touchend', onUp);
+                    if (wasDragging && sourceVideo.paused) renderPreview(); // Force redraw VRAM if paused
                 };
                 document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
                 document.addEventListener('touchmove', onMove, { passive: false }); document.addEventListener('touchend', onUp);

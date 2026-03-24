@@ -72,6 +72,7 @@ self.onmessage = async (e) => {
             const tempEncoder = new Mv2Encoder(config);
             tempEncoder.add_frame(rgbaBytes, origW, origH, 4);
 
+            const ditheredRGB = tempEncoder.get_last_dithered_frame().slice();
             const vramBytes = tempEncoder.get_last_vram().slice();
             const paletteBytes = tempEncoder.get_last_palette().slice();
             
@@ -79,8 +80,8 @@ self.onmessage = async (e) => {
 
             self.postMessage({
                 type: 'TEST_FRAME_DONE',
-                payload: { vramBytes, paletteBytes }
-            }, [vramBytes.buffer, paletteBytes.buffer]);
+                payload: { ditheredRGB, vramBytes, paletteBytes }
+            }, [ditheredRGB.buffer, vramBytes.buffer, paletteBytes.buffer]);
         }
 
         else if (type === 'FINISH') {
