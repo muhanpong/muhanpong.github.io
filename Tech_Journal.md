@@ -332,3 +332,18 @@
 - Moved the logic to hide these buttons (`#final-actions`) to the beginning of the encoding process (`btnStart` handler).
 - **Button Reset Logic:** Ensuring that the "Send to Player" button is reset to its active state (clearing "✓ Sent!" status) when a new encoding starts.
 - **Metadata Verification:** Confirmed that the 16KB `interimHeader` correctly stores `recipeMeta` JSON at offset `0x100`, including source filename, duration, and all encoding settings. Distinguished the HQ encoder as "MV2 Web Encoder (HQ)" in the metadata.
+
+## 2026-03-24 10:30:00 - Implementation: VRAM Preview Toggle Mode (True WYSIWYG)
+- **Feature Overview:** Implemented a real-time switching mechanism between **Source Preview** (Raw pixels) and **VRAM Preview** (MSX hardware-accurate pixels) in `encoder.html`.
+- **Architectural Integration:**
+    - Leveraged the 256x192 `offscreenCanvas` preprocessing pipeline to provide a unified data source for both the encoder and the live preview.
+    - Updated `worker.js` with a new `TEST_FRAME` handler. This allows the main thread to request a single-frame conversion (K-Means + Dithering) using a temporary WASM encoder instance, ensuring settings changes are previewed without corrupting the main encoding state.
+- **True VRAM Decoding (Screen 4):**
+    - The preview now displays the **actual VRAM-packed data** instead of just dithered RGB.
+    - Implemented a Screen 4 reconstruction loop in JS that decodes the MSX Pattern Generator Table (PGT) and Color Table (CT) pixel-by-pixel, using the hardware-mapped palette. This provides 100% fidelity to the final hardware output.
+- **UX & Stability:**
+    - **Auto-Pause:** Activating VRAM Preview automatically pauses video playback to ensure stable, high-fidelity frame analysis.
+    - **Performance Lock:** Implemented `isVramProcessing` to prevent worker congestion during rapid parameter changes.
+    - **Bypass during Drag:** Temporarily reverts to Source Preview while scrubbing the timeline or dragging the crop box to maintain 60FPS UI responsiveness.
+    - **WASM Compatibility:** Added dummy `metadata` to the preview constructor to satisfy WASM initialization requirements and implemented a 5-second timeout for worker reliability.
+- **Scope:** Primary implementation completed in `encoder.html` and `worker.js`. Standardized the rendering pipeline to extract UI overlays (box, handles, dimensions) into a dedicated `drawUIOverlays` function.

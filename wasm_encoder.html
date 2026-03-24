@@ -656,6 +656,7 @@
             </div>
         </div>
 
+        <button id="btnTestFrame" style="margin-bottom: 10px; background: #28a745;">🎬 Mode: Source Preview</button>
         <button id="btnStart">Start Encoding</button>
 
         <div id="progress-container">
@@ -770,6 +771,28 @@
         let currentFile = null;
         let isDraggingMarker = null;
         let anchorTime = null;
+
+        // VRAM Preview States
+        let isVramPreviewMode = false;
+        let isVramProcessing = false;
+
+        // Global Offscreen Canvas for Preprocessing (Fixed 256x192)
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = 256;
+        offscreenCanvas.height = 192;
+        const offCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
+
+        // VRAM Preview Toggle Button
+        const btnTestFrame = document.getElementById('btnTestFrame');
+        btnTestFrame.addEventListener('click', () => {
+            if (isEncoding || !currentFile) return;
+            isVramPreviewMode = !isVramPreviewMode;
+
+            btnTestFrame.innerText = isVramPreviewMode ? "📺 Mode: VRAM Preview" : "🎬 Mode: Source Preview";
+            btnTestFrame.style.background = isVramPreviewMode ? "#ff9800" : "#28a745";
+
+            renderPreview();
+        });
 
         // Web Worker
         const worker = new Worker('./worker.js?v=' + Date.now(), { type: 'module' });
@@ -1295,92 +1318,156 @@
             drawPreviewCanvas();
         }));
 
-        function drawPreviewCanvas() {
-            if (currentMode === 'monitor') return; // Handled separately during encoding
+        window.resetAV = function (id, defaultVal) {
+            const input = document.getElementById('cfg_' + id);
+            if (input.disabled) return;
+            input.value = defaultVal;
+            document.getElementById('val_' + id).innerText = (id === 'gamma') ? parseFloat(defaultVal).toFixed(1) : defaultVal;
+            drawPreviewCanvas();
+            if (id === 'audio_gain') updatePreviewGain();
+        }
 
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        function getUIConfig() {
+            return {
+                width: 256, height: 192,
+                quantizer: document.getElementById('cfg_quantizer').value,
+                dither: document.getElementById('cfg_dither_mode').value,
+                dither_strength: parseInt(document.getElementById('cfg_dither').value),
+                vram_dither: parseFloat(document.getElementById('cfg_vram_dither').value),
+                anchor_colors: document.getElementById('cfg_anchors').value,
+                max_extra_colors: parseInt(document.getElementById('cfg_colors').value),
+                quant_iters_initial: parseInt(document.getElementById('cfg_iter_init').value),
+                quant_iters_subsequent: parseInt(document.getElementById('cfg_iter_sub').value),
+                aspect_mode: "force",
+                crop_left: 0,
+                crop_up: 0,
+                sample_rate: TARGET_SAMPLE_RATE, fps: TARGET_FPS,
+                metric: document.getElementById('cfg_metric').value
+            };
+        }
 
-            if (!currentFile) return;
+        function requestVramFrameFromWorker(rgbaBytes, config) {
+            return new Promise((resolve, reject) => {
+                const tempHandler = (e) => {
+                    if (e.data.type === 'TEST_FRAME_DONE') {
+                        worker.removeEventListener('message', tempHandler);
+                        resolve(e.data.payload.ditheredRGB);
+                    } else if (e.data.type === 'ERROR') {
+                        worker.removeEventListener('message', tempHandler);
+                        reject(e.data.payload);
+                    }
+                };
+                worker.addEventListener('message', tempHandler);
+                worker.postMessage({
+                    type: 'TEST_FRAME',
+                    payload: { config: JSON.stringify(config), rgbaBytes, origW: 256, origH: 192 }
+                }, [rgbaBytes.buffer]);
+            });
+        }
 
-            const vw = sourceVideo.videoWidth;
-            const vh = sourceVideo.videoHeight;
-            if (!vw || !vh) return;
+        async function drawPreviewCanvas() {
+            if (currentMode === 'monitor' || isEncoding) return;
 
-            const aspectMode = document.getElementById('cfg_aspect').value;
             const targetRatioStr = document.querySelector('input[name="cfg_target_ratio"]:checked').value;
-            const targetRatio = targetRatioStr === '5:3' ? (5 / 3) : (4 / 3);
+            canvas.style.aspectRatio = targetRatioStr === '5:3' ? '5 / 3' : '4 / 3';
 
-            let drawW = canvas.width;
-            let drawH = canvas.height;
-            let drawX = 0;
-            let drawY = 0;
+            let box = customBox || getCalculatedBox();
+            if (!box) return;
 
-            if (aspectMode === 'force') {
-                // In force mode, stretch the video to fill the entire canvas (ignoring original aspect)
-                ctx.drawImage(sourceVideo, 0, 0, canvas.width, canvas.height);
+            // 1. Prepare Offscreen Preprocessed Frame (Fixed 256x192)
+            offCtx.filter = 'none';
+            offCtx.fillStyle = '#000';
+            offCtx.fillRect(0, 0, 256, 192);
 
-                // Target overlay spans the entire canvas
-                let targetX = 0, targetY = 0, targetW = canvas.width, targetH = canvas.height;
+            // wasm_encoder doesn't have applyVideoFilters yet, so we just draw the video
+            const vw = sourceVideo.videoWidth, vh = sourceVideo.videoHeight;
+            if (vw > 0 && vh > 0) {
+                const scaleVidX = vw / box.drawW;
+                const scaleVidY = vh / box.drawH;
+                const vidSx = (box.x - box.drawX) * scaleVidX;
+                const vidSy = (box.y - box.drawY) * scaleVidY;
+                const vidSw = box.w * scaleVidX;
+                const vidSh = box.h * scaleVidY;
 
-                // Draw border
-                ctx.strokeStyle = 'rgba(77, 184, 255, 0.8)';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([]);
-                ctx.strokeRect(targetX, targetY, targetW, targetH);
-                return; // Done drawing for force mode
-            }
-
-            // For crop and pad, fit video to canvas bounds to show whole source with original aspect ratio
-            const canvasAspect = canvas.width / canvas.height;
-            const videoAspect = vw / vh;
-
-            if (videoAspect > canvasAspect) {
-                drawH = canvas.width / videoAspect;
-                drawY = (canvas.height - drawH) / 2;
-            } else {
-                drawW = canvas.height * videoAspect;
-                drawX = (canvas.width - drawW) / 2;
-            }
-
-            ctx.drawImage(sourceVideo, drawX, drawY, drawW, drawH);
-
-            // Draw Target Overlay for crop/pad
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; // Darken outside
-
-            let targetX = drawX, targetY = drawY, targetW = drawW, targetH = drawH;
-
-            if (aspectMode === 'pad') {
-                // In pad mode, target is the full canvas, video is letterboxed inside
-                targetX = 0;
-                targetY = 0;
-                targetW = canvas.width;
-                targetH = canvas.height;
-            } else if (aspectMode === 'crop') {
-                if (videoAspect > targetRatio) {
-                    targetW = drawH * targetRatio;
-                    let cropOffX = parseFloat(document.getElementById('cfg_crop_left').value) || 0;
-                    let maxOffX = drawW - targetW;
-                    targetX = drawX + (maxOffX / 2) + (maxOffX / 2) * (cropOffX / 100);
-                } else {
-                    targetH = drawW / targetRatio;
-                    let cropOffY = parseFloat(document.getElementById('cfg_crop_up').value) || 0;
-                    let maxOffY = drawH - targetH;
-                    targetY = drawY + (maxOffY / 2) + (maxOffY / 2) * (cropOffY / 100);
+                if (vidSw > 0 && vidSh > 0) {
+                    offCtx.drawImage(sourceVideo, vidSx, vidSy, vidSw, vidSh, 0, 0, 256, 192);
                 }
             }
 
-            // Draw semi-transparent masks outside the target window
-            ctx.fillRect(0, 0, canvas.width, targetY); // Top
-            ctx.fillRect(0, targetY + targetH, canvas.width, canvas.height - (targetY + targetH)); // Bottom
-            ctx.fillRect(0, targetY, targetX, targetH); // Left
-            ctx.fillRect(targetX + targetW, targetY, canvas.width - (targetX + targetW), targetH); // Right
+            // 2. Render to Main Canvas
+            if (!isVramPreviewMode) {
+                // [Source Preview Mode]
+                ctx.filter = 'none';
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Draw border
+                ctx.drawImage(sourceVideo, box.drawX, box.drawY, box.drawW, box.drawH);
+                ctx.filter = 'none';
+
+                drawUIOverlays(box);
+            } else {
+                // [VRAM Preview Mode]
+                if (isVramProcessing || isDraggingCanvas || isDraggingMarker) {
+                    // While processing or dragging, we show source for better responsiveness
+                    // or just draw UI overlays on top of current canvas.
+                    // To follow the spec strictly: skip VRAM update during drag.
+                    if (isDraggingCanvas || isDraggingMarker) {
+                        ctx.filter = 'none';
+                        ctx.fillStyle = '#000';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                        ctx.drawImage(sourceVideo, box.drawX, box.drawY, box.drawW, box.drawH);
+                        ctx.filter = 'none';
+                    }
+                    drawUIOverlays(box);
+                    return;
+                }
+
+                isVramProcessing = true;
+                const frameData = offCtx.getImageData(0, 0, 256, 192);
+                const rgbaBytes = new Uint8Array(frameData.data.buffer);
+                const config = getUIConfig();
+
+                try {
+                    const ditheredRGB = await requestVramFrameFromWorker(rgbaBytes, config);
+
+                    // Clear and draw result
+                    ctx.filter = 'none';
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                    const tImg = ctx.createImageData(256, 192);
+                    for (let i = 0, j = 0; i < ditheredRGB.length; i += 3, j += 4) {
+                        tImg.data[j] = ditheredRGB[i];
+                        tImg.data[j + 1] = ditheredRGB[i + 1];
+                        tImg.data[j + 2] = ditheredRGB[i + 2];
+                        tImg.data[j + 3] = 255;
+                    }
+                    ctx.putImageData(tImg, 0, 0);
+
+                    drawUIOverlays(box);
+
+                } catch (err) {
+                    console.error("VRAM Preview Error:", err);
+                } finally {
+                    isVramProcessing = false;
+                }
+            }
+        }
+
+        function drawUIOverlays(box) {
+            // Darken outside the box
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.fillRect(0, 0, canvas.width, box.y); // Top
+            ctx.fillRect(0, box.y + box.h, canvas.width, canvas.height - (box.y + box.h)); // Bottom
+            ctx.fillRect(0, box.y, box.x, box.h); // Left
+            ctx.fillRect(box.x + box.w, box.y, canvas.width - (box.x + box.w), box.h); // Right
+
+            // Draw Target Box Border
             ctx.strokeStyle = 'rgba(77, 184, 255, 0.8)';
             ctx.lineWidth = 1;
             ctx.setLineDash([]);
-            ctx.strokeRect(targetX, targetY, targetW, targetH);
+            ctx.strokeRect(box.x, box.y, box.w, box.h);
         }
 
         // --- Timeline Slider Interaction ---

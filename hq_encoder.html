@@ -772,6 +772,7 @@
 
         <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 5px;">
             <button id="btnStart" style="flex: 1;">Start Encoding</button>
+            <button id="btnTestFrame" style="flex: 1; background: #28a745;">🎬 Mode: Source Preview</button>
             <label style="display: flex; align-items: center; gap: 5px; font-size: 13px; color: #ccc;"
                 title="Automatically download the encoded file">
                 <input type="checkbox" id="cfg_auto_download" checked> Auto-Download
@@ -898,6 +899,28 @@
         let currentFile = null;
         let isDraggingMarker = null;
         let anchorTime = null;
+
+        // VRAM Preview States
+        let isVramPreviewMode = false;
+        let isVramProcessing = false;
+
+        // Global Offscreen Canvas for Preprocessing (Fixed 256x192)
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = 256;
+        offscreenCanvas.height = 192;
+        const offCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
+
+        // VRAM Preview Toggle Button
+        const btnTestFrame = document.getElementById('btnTestFrame');
+        btnTestFrame.addEventListener('click', () => {
+            if (isEncoding || !currentFile) return;
+            isVramPreviewMode = !isVramPreviewMode;
+
+            btnTestFrame.innerText = isVramPreviewMode ? "📺 Mode: VRAM Preview" : "🎬 Mode: Source Preview";
+            btnTestFrame.style.background = isVramPreviewMode ? "#ff9800" : "#28a745";
+
+            renderPreview();
+        });
 
         let worker;
         try {
@@ -1479,6 +1502,44 @@
             window.resetAV('audio_gain', 0);
         }
 
+        function getUIConfig() {
+            return {
+                width: 256, height: 192,
+                quantizer: document.getElementById('cfg_quantizer').value,
+                dither: document.getElementById('cfg_dither_mode').value,
+                dither_strength: parseInt(document.getElementById('cfg_dither').value),
+                vram_dither: parseFloat(document.getElementById('cfg_vram_dither').value),
+                anchor_colors: document.getElementById('cfg_anchors').value,
+                max_extra_colors: parseInt(document.getElementById('cfg_colors').value),
+                quant_iters_initial: parseInt(document.getElementById('cfg_iter_init').value),
+                quant_iters_subsequent: parseInt(document.getElementById('cfg_iter_sub').value),
+                aspect_mode: "force",
+                crop_left: 0,
+                crop_up: 0,
+                sample_rate: TARGET_SAMPLE_RATE, fps: TARGET_FPS,
+                metric: document.getElementById('cfg_metric').value
+            };
+        }
+
+        function requestVramFrameFromWorker(rgbaBytes, config) {
+            return new Promise((resolve, reject) => {
+                const tempHandler = (e) => {
+                    if (e.data.type === 'TEST_FRAME_DONE') {
+                        worker.removeEventListener('message', tempHandler);
+                        resolve(e.data.payload.ditheredRGB);
+                    } else if (e.data.type === 'ERROR') {
+                        worker.removeEventListener('message', tempHandler);
+                        reject(e.data.payload);
+                    }
+                };
+                worker.addEventListener('message', tempHandler);
+                worker.postMessage({
+                    type: 'TEST_FRAME',
+                    payload: { config: JSON.stringify(config), rgbaBytes, origW: 256, origH: 192 }
+                }, [rgbaBytes.buffer]);
+            });
+        }
+
         function applyVideoFilters(context) {
             const b = parseFloat(document.getElementById('cfg_brightness').value) + 100;
             const c = parseFloat(document.getElementById('cfg_contrast').value) + 100;
@@ -1499,24 +1560,101 @@
             }
         }
 
-        function drawPreviewCanvas() {
-            if (currentMode === 'monitor') return;
+        async function drawPreviewCanvas() {
+            if (currentMode === 'monitor' || isEncoding) return;
 
             const targetRatioStr = document.querySelector('input[name="cfg_target_ratio"]:checked').value;
             canvas.style.aspectRatio = targetRatioStr === '5:3' ? '5 / 3' : '4 / 3';
 
-            ctx.filter = 'none';
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            if (!currentFile) return;
-
             let box = customBox || getCalculatedBox();
             if (!box) return;
 
-            applyVideoFilters(ctx);
-            ctx.drawImage(sourceVideo, box.drawX, box.drawY, box.drawW, box.drawH);
-            ctx.filter = 'none';
+            // 1. Prepare Offscreen Preprocessed Frame (Fixed 256x192)
+            offCtx.filter = 'none';
+            offCtx.fillStyle = '#000';
+            offCtx.fillRect(0, 0, 256, 192);
 
+            applyVideoFilters(offCtx);
+
+            // Draw only the cropped/padded part to the 256x192 offscreen canvas
+            const vw = sourceVideo.videoWidth, vh = sourceVideo.videoHeight;
+            if (vw > 0 && vh > 0) {
+                const scaleVidX = vw / box.drawW;
+                const scaleVidY = vh / box.drawH;
+                const vidSx = (box.x - box.drawX) * scaleVidX;
+                const vidSy = (box.y - box.drawY) * scaleVidY;
+                const vidSw = box.w * scaleVidX;
+                const vidSh = box.h * scaleVidY;
+
+                if (vidSw > 0 && vidSh > 0) {
+                    offCtx.drawImage(sourceVideo, vidSx, vidSy, vidSw, vidSh, 0, 0, 256, 192);
+                }
+            }
+            offCtx.filter = 'none';
+
+            // 2. Render to Main Canvas
+            if (!isVramPreviewMode) {
+                // [Source Preview Mode]
+                ctx.filter = 'none';
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                applyVideoFilters(ctx);
+                ctx.drawImage(sourceVideo, box.drawX, box.drawY, box.drawW, box.drawH);
+                ctx.filter = 'none';
+
+                drawUIOverlays(box);
+            } else {
+                // [VRAM Preview Mode]
+                if (isVramProcessing || isDraggingCanvas || isDraggingMarker) {
+                    // While processing or dragging, we show source for better responsiveness
+                    // or just draw UI overlays on top of current canvas.
+                    // To follow the spec strictly: skip VRAM update during drag.
+                    if (isDraggingCanvas || isDraggingMarker) {
+                        ctx.filter = 'none';
+                        ctx.fillStyle = '#000';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        applyVideoFilters(ctx);
+                        ctx.drawImage(sourceVideo, box.drawX, box.drawY, box.drawW, box.drawH);
+                        ctx.filter = 'none';
+                    }
+                    drawUIOverlays(box); 
+                    return;
+                }
+
+                isVramProcessing = true;
+                const frameData = offCtx.getImageData(0, 0, 256, 192);
+                const rgbaBytes = new Uint8Array(frameData.data.buffer);
+                const config = getUIConfig();
+
+                try {
+                    const ditheredRGB = await requestVramFrameFromWorker(rgbaBytes, config);
+
+                    // Clear and draw result
+                    ctx.filter = 'none';
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                    const tImg = ctx.createImageData(256, 192);
+                    for (let i = 0, j = 0; i < ditheredRGB.length; i += 3, j += 4) {
+                        tImg.data[j] = ditheredRGB[i];
+                        tImg.data[j + 1] = ditheredRGB[i + 1];
+                        tImg.data[j + 2] = ditheredRGB[i + 2];
+                        tImg.data[j + 3] = 255;
+                    }
+                    ctx.putImageData(tImg, 0, 0);
+
+                    drawUIOverlays(box);
+
+                } catch (err) {
+                    console.error("VRAM Preview Error:", err);
+                } finally {
+                    isVramProcessing = false;
+                }
+            }
+        }
+
+        function drawUIOverlays(box) {
             // Darken outside the box
             ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
             ctx.fillRect(0, 0, canvas.width, box.y); // Top
@@ -1583,18 +1721,21 @@
                 ctx.strokeRect(pipX, pipY, pipW, pipH);
 
                 // Draw PiP Image
-                const scaleVidX = sourceVideo.videoWidth / box.drawW;
-                const scaleVidY = sourceVideo.videoHeight / box.drawH;
+                const vw = sourceVideo.videoWidth, vh = sourceVideo.videoHeight;
+                if (vw > 0 && vh > 0) {
+                    const scaleVidX = vw / box.drawW;
+                    const scaleVidY = vh / box.drawH;
 
-                const vidSx = (box.x - box.drawX) * scaleVidX;
-                const vidSy = (box.y - box.drawY) * scaleVidY;
-                const vidSw = box.w * scaleVidX;
-                const vidSh = box.h * scaleVidY;
+                    const vidSx = (box.x - box.drawX) * scaleVidX;
+                    const vidSy = (box.y - box.drawY) * scaleVidY;
+                    const vidSw = box.w * scaleVidX;
+                    const vidSh = box.h * scaleVidY;
 
-                if (vidSw > 0 && vidSh > 0) {
-                    applyVideoFilters(ctx);
-                    ctx.drawImage(sourceVideo, vidSx, vidSy, vidSw, vidSh, pipX, pipY, pipW, pipH);
-                    ctx.filter = 'none';
+                    if (vidSw > 0 && vidSh > 0) {
+                        applyVideoFilters(ctx);
+                        ctx.drawImage(sourceVideo, vidSx, vidSy, vidSw, vidSh, pipX, pipY, pipW, pipH);
+                        ctx.filter = 'none';
+                    }
                 }
             }
         }
