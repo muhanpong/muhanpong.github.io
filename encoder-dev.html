@@ -431,10 +431,21 @@
             opacity: 0.9;
         }
 
-        .btn-snapshot { background: #4CAF50; }
-        .btn-interim-save { background: #f0ad4e; }
-        .btn-send-player { background: #4CAF50; }
-        .btn-save-final { background: #007acc; }
+        .btn-snapshot {
+            background: #4CAF50;
+        }
+
+        .btn-interim-save {
+            background: #f0ad4e;
+        }
+
+        .btn-send-player {
+            background: #4CAF50;
+        }
+
+        .btn-save-final {
+            background: #007acc;
+        }
 
         /* === Overlay Manual System === */
         .help-section {
@@ -788,19 +799,21 @@
                 </label>
             </div>
             <div id="progress-container">
-            <div class="status-row">
-                <span id="statusText">Extracting Audio...</span>
-                <div id="encoding-actions" style="display: none; gap: 5px;">
-                    <button id="btnSnapshot" class="action-btn btn-snapshot">📸 Snapshot</button>
-                    <button id="btnInterimSave" class="action-btn btn-interim-save">💾 Save</button>
+                <div class="status-row">
+                    <span id="statusText">Extracting Audio...</span>
+                    <div id="encoding-actions" style="display: none; gap: 5px;">
+                        <button id="btnSnapshot" class="action-btn btn-snapshot">📸 Snapshot</button>
+                        <button id="btnInterimSave" class="action-btn btn-interim-save">💾 Save</button>
+                    </div>
+                    <div id="final-actions" style="display: none; gap: 5px;">
+                        <button id="btnSendToPlayer" class="action-btn btn-send-player" title="Send to MV Player tab">▶
+                            Send to Player</button>
+                        <button id="btnSaveMv2" class="action-btn btn-save-final" title="Download Encoded File">⬇️ Save
+                            MV2</button>
+                    </div>
                 </div>
-                <div id="final-actions" style="display: none; gap: 5px;">
-                    <button id="btnSendToPlayer" class="action-btn btn-send-player" title="Send to MV Player tab">▶ Send to Player</button>
-                    <button id="btnSaveMv2" class="action-btn btn-save-final" title="Download Encoded File">⬇️ Save MV2</button>
-                </div>
+                <progress id="progressBar" value="0" max="100"></progress>
             </div>
-            <progress id="progressBar" value="0" max="100"></progress>
-        </div>
         </div>
 
         <div class="panel">
@@ -944,7 +957,7 @@
             let worker;
             try {
                 const uniqueV = Date.now();
-                worker = new Worker('./worker.js?v=' + uniqueV, { type: 'module' });
+                worker = new Worker('./worker-dev.js?v=' + uniqueV, { type: 'module' });
             } catch (e) { console.error(e); }
 
             // Tooltip Logic
@@ -1415,7 +1428,7 @@
                             ctx.filter = 'none'; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
                             applyVideoFilters(ctx); ctx.drawImage(sourceVideo, box.drawX, box.drawY, box.drawW, box.drawH);
                             ctx.filter = 'none';
-                            drawUIOverlays(box); 
+                            drawUIOverlays(box);
                         }
                         return;
                     }
@@ -1442,13 +1455,13 @@
                                 vImg.data[px_idx + 3] = 255;
                             }
                         }
-                        ctx.putImageData(vImg, 0, 0); 
+                        ctx.putImageData(vImg, 0, 0);
                         // drawUIOverlays(box); // Hidden in VRAM Preview Mode
                     } catch (err) {
                         console.error(err);
                         ctx.filter = 'none'; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
                         applyVideoFilters(ctx); ctx.drawImage(sourceVideo, box.drawX, box.drawY, box.drawW, box.drawH);
-                        ctx.filter = 'none'; 
+                        ctx.filter = 'none';
                         // drawUIOverlays(box); // Hidden in VRAM Preview Mode
                     } finally { isVramProcessing = false; }
                 }
@@ -1671,23 +1684,23 @@
                                     frameBlock.set(msxPal, 12288);
                                     if (mp3Chunk.length > 0) { frameBlock[12800] = Math.ceil(mp3Chunk.length / 32); frameBlock.set(mp3Chunk, 12801); }
                                     accumulatedMv2Blocks.push(frameBlock);
-                                    
+
                                     ctx.clearRect(0, 0, 256, 192);
                                     const s1 = Math.floor(256 * monitorLeftSplit), s2 = Math.floor(256 * monitorRightSplit);
                                     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, s1, 192); ctx.clip(); ctx.drawImage(offscreenCanvas, 0, 0); ctx.restore();
                                     const dCanvas = document.createElement('canvas'); dCanvas.width = 256; dCanvas.height = 192;
                                     const dCtx = dCanvas.getContext('2d'); const dImg = dCtx.createImageData(256, 192);
-                                    for (let i = 0, j = 0; i < ditheredRGB.length; i += 3, j += 4) { dImg.data[j] = ditheredRGB[i]; dImg.data[j+1] = ditheredRGB[i+1]; dImg.data[j+2] = ditheredRGB[i+2]; dImg.data[j+3] = 255; }
+                                    for (let i = 0, j = 0; i < ditheredRGB.length; i += 3, j += 4) { dImg.data[j] = ditheredRGB[i]; dImg.data[j + 1] = ditheredRGB[i + 1]; dImg.data[j + 2] = ditheredRGB[i + 2]; dImg.data[j + 3] = 255; }
                                     dCtx.putImageData(dImg, 0, 0);
                                     ctx.save(); ctx.beginPath(); ctx.rect(s1, 0, s2 - s1, 192); ctx.clip(); ctx.drawImage(dCanvas, 0, 0); ctx.restore();
                                     const vCanvas = document.createElement('canvas'); vCanvas.width = 256; vCanvas.height = 192;
                                     const vCtx = vCanvas.getContext('2d'); const vImg = vCtx.createImageData(256, 192);
                                     for (let y = 0; y < 192; y++) {
                                         for (let x = 0; x < 256; x++) {
-                                            const off = (Math.floor(y/8)*32 + Math.floor(x/8))*8 + (y%8);
-                                            const bit = (vramBytes[off] >> (7-(x%8))) & 1, ct = vramBytes[6144+off];
+                                            const off = (Math.floor(y / 8) * 32 + Math.floor(x / 8)) * 8 + (y % 8);
+                                            const bit = (vramBytes[off] >> (7 - (x % 8))) & 1, ct = vramBytes[6144 + off];
                                             const c = bit ? (ct >> 4) : (ct & 0xF);
-                                            const p = (y*256+x)*4; vImg.data[p]=paletteBytes[c*3]; vImg.data[p+1]=paletteBytes[c*3+1]; vImg.data[p+2]=paletteBytes[c*3+2]; vImg.data[p+3]=255;
+                                            const p = (y * 256 + x) * 4; vImg.data[p] = paletteBytes[c * 3]; vImg.data[p + 1] = paletteBytes[c * 3 + 1]; vImg.data[p + 2] = paletteBytes[c * 3 + 2]; vImg.data[p + 3] = 255;
                                         }
                                     }
                                     vCtx.putImageData(vImg, 0, 0);
