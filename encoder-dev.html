@@ -1583,6 +1583,7 @@
 
             btnStart.addEventListener('click', async () => {
                 if (!videoInput.files.length) return alert("Please select a video file first!");
+                document.getElementById('final-actions').style.display = 'none';
                 if (isEncoding) { shouldStopEncoding = true; btnStart.disabled = true; btnStart.innerText = "Stopping..."; return; }
                 const file = videoInput.files[0];
                 const totalFrames = Math.floor((endTime - startTime) * TARGET_FPS);
@@ -1616,6 +1617,7 @@
                 previewContainer.classList.add('monitor-mode');
                 btnStart.innerText = "Stop Encoding"; btnStart.style.background = "#d9534f";
                 document.querySelectorAll('input, select').forEach(el => el.disabled = true);
+                document.getElementById('encoding-actions').style.display = 'flex';
                 document.getElementById('progress-container').style.display = 'block';
                 document.getElementById('progressBar').style.display = 'inline-block';
                 document.getElementById('progressBar').value = 0;
@@ -1735,8 +1737,11 @@
                         };
                         worker.postMessage({ type: 'FINISH', payload: { remainingMp3: (shouldStopEncoding || globalMp3Offset >= fullMp3.length) ? new Uint8Array(0) : fullMp3.slice(globalMp3Offset) } });
                     });
-                    statusText.innerText = "Encoding Complete! 🎉";
+                    statusText.innerText = (shouldStopEncoding ? `Encoding Stopped. Exported ${encodedFramesCount} frames.` : "Encoding Complete! 🎉");
+                    document.getElementById('encoding-actions').style.display = 'none';
                     document.getElementById('final-actions').style.display = 'flex';
+                    document.getElementById('btnSendToPlayer').onclick = sendToPlayer;
+                    document.getElementById('btnSaveMv2').onclick = () => { if (lastEncodedMv2) downloadFile(lastEncodedMv2, "output.mv2", "application/octet-stream"); };
                 } catch (err) { console.error(err); statusText.innerText = "Error: " + err; }
                 finally {
                     isEncoding = false; currentMode = 'preview'; previewContainer.classList.remove('monitor-mode');
@@ -1747,10 +1752,35 @@
             });
 
             let lastEncodedMv2 = null;
+
+            function assembleInterimMv2() {
+                if (!interimHeader || accumulatedMv2Blocks.length === 0) return null;
+                const fullData = new Uint8Array(interimHeader.length + accumulatedMv2Blocks.length * 16384);
+                fullData.set(interimHeader, 0);
+                for (let i = 0; i < accumulatedMv2Blocks.length; i++) fullData.set(accumulatedMv2Blocks[i], 16384 + i * 16384);
+                return fullData;
+            }
+
             document.getElementById('btnSnapshot').onclick = () => {
-                const data = lastEncodedMv2; if (!data) return;
-                new BroadcastChannel('msx-encoder-player').postMessage({ type: 'encoded-file', fileName: 'snapshot.mv2', data: data.buffer });
+                const data = assembleInterimMv2(); if (!data) return;
+                const channel = new BroadcastChannel('msx-encoder-player');
+                channel.postMessage({ type: 'encoded-file', fileName: `snapshot_${accumulatedMv2Blocks.length}F.mv2`, data: data.buffer });
+                channel.close();
             };
+
+            document.getElementById('btnInterimSave').onclick = () => {
+                const data = assembleInterimMv2(); if (!data) return;
+                downloadFile(data, `interim_${accumulatedMv2Blocks.length}F.mv2`, "application/octet-stream");
+            };
+
+            function sendToPlayer() {
+                if (!lastEncodedMv2) return;
+                const channel = new BroadcastChannel('msx-encoder-player');
+                channel.postMessage({ type: 'encoded-file', fileName: 'output.mv2', data: lastEncodedMv2.buffer });
+                channel.close();
+                const btn = document.getElementById('btnSendToPlayer');
+                if (btn) { btn.innerText = '✓ Sent!'; btn.style.background = '#666'; btn.disabled = true; }
+            }
             function downloadFile(u8, name, mime) {
                 const url = URL.createObjectURL(new Blob([u8], { type: mime }));
                 const a = document.createElement("a"); a.href = url; a.download = name;
