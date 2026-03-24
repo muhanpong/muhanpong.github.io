@@ -1709,14 +1709,22 @@
                                 }
                                 if (e.data.type === 'ERROR') reject(e.data.payload);
                             };
-                            worker.postMessage({ type: 'ENCODE_FRAME', payload: { rgbaBytes, origW: 256, origH: 192, mp3Chunk, pcmSlice, frameIdx } }, [rgbaBytes.buffer, mp3Chunk.buffer, pcmSlice.buffer]);
+                            worker.postMessage({ type: 'ENCODE_FRAME', payload: { rgbaBytes, origW: 256, origH: 192, mp3Chunk, pcmSlice, frameIdx } }, [rgbaBytes.buffer, mp3Chunk.buffer]);
                         });
                         encodedFramesCount++;
                     }
                     await new Promise((resolve, reject) => {
                         worker.onmessage = (e) => {
                             if (e.data.type === 'FINISHED') {
-                                const { mv2Bytes } = e.data.payload;
+                                if (shouldStopEncoding) {
+                                    recipeMeta.total_frames = accumulatedMv2Blocks.length;
+                                    const actualDuration = accumulatedMv2Blocks.length / TARGET_FPS;
+                                    const m = Math.floor(actualDuration / 60), s = Math.floor(actualDuration % 60), ms = Math.floor((actualDuration % 1) * 100);
+                                    recipeMeta.play_time = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+                                    const metaStr = JSON.stringify(recipeMeta);
+                                    for (let i = 256; i < 16384; i++) interimHeader[i] = 0;
+                                    for (let i = 0; i < metaStr.length; i++) interimHeader[256 + i] = metaStr.charCodeAt(i);
+                                }
                                 const fullData = new Uint8Array(interimHeader.length + accumulatedMv2Blocks.length * 16384);
                                 fullData.set(interimHeader, 0);
                                 for (let i = 0; i < accumulatedMv2Blocks.length; i++) fullData.set(accumulatedMv2Blocks[i], 16384 + i * 16384);
@@ -1725,7 +1733,7 @@
                             }
                             if (e.data.type === 'ERROR') reject(e.data.payload);
                         };
-                        worker.postMessage({ type: 'FINISH', payload: { remainingMp3: fullMp3.slice(globalMp3Offset) } });
+                        worker.postMessage({ type: 'FINISH', payload: { remainingMp3: (shouldStopEncoding || globalMp3Offset >= fullMp3.length) ? new Uint8Array(0) : fullMp3.slice(globalMp3Offset) } });
                     });
                     statusText.innerText = "Encoding Complete! 🎉";
                     document.getElementById('final-actions').style.display = 'flex';
