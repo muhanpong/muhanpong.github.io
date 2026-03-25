@@ -2,6 +2,7 @@
 let init = null;
 let Mv2Encoder = null;
 let encoder = null;
+let isBusy = false;
 
 // Gamma LUT state
 let gammaLUT = new Uint8Array(256);
@@ -54,16 +55,21 @@ async function ensureWasm() {
 
 // 메인 스레드(HTML)로부터 메시지를 받을 때 실행됨
 self.onmessage = async (e) => {
+    if (isBusy) {
+        console.warn("[Worker] Busy handling another message. Skipping:", e.data.type);
+        return;
+    }
     const { type, payload } = e.data;
 
     try {
+        isBusy = true;
         // Every command requires WASM to be loaded
         await ensureWasm();
 
         if (type === 'INIT') {
             console.log("[Worker] Initializing Main Encoder instance...");
             if (encoder) {
-                encoder.free();
+                try { encoder.free(); } catch(e) {}
             }
             encoder = new Mv2Encoder(payload.config);
             self.postMessage({ type: 'INIT_DONE' });
@@ -91,14 +97,14 @@ self.onmessage = async (e) => {
 
             // Offload decoding to worker
             const ditheredRGBA = new Uint8ClampedArray(256 * 192 * 4);
+            const vramRGBA = new Uint8ClampedArray(256 * 192 * 4);
+            const vData32 = new Uint32Array(vramRGBA.buffer);
+            const pal32 = new Uint32Array(16);
+
             for (let i = 0, j = 0; i < dRGB.length; i += 3, j += 4) {
                 ditheredRGBA[j] = dRGB[i]; ditheredRGBA[j + 1] = dRGB[i + 1];
                 ditheredRGBA[j + 2] = dRGB[i + 2]; ditheredRGBA[j + 3] = 255;
             }
-
-            const vramRGBA = new Uint8ClampedArray(256 * 192 * 4);
-            const vData32 = new Uint32Array(vramRGBA.buffer);
-            const pal32 = new Uint32Array(16);
             for (let i = 0; i < 16; i++) {
                 pal32[i] = (255 << 24) | (pBytes[i * 3 + 2] << 16) | (pBytes[i * 3 + 1] << 8) | pBytes[i * 3 + 0];
             }
@@ -134,9 +140,17 @@ self.onmessage = async (e) => {
                 type: 'FINISHED',
                 payload: { mv2Bytes, rgbBytes }
             }, [mv2Bytes.buffer, rgbBytes.buffer]);
+            
+            // Cleanup
+            encoder.free();
+            encoder = null;
         }
     } catch (err) {
         console.error("[Worker] Error handling message:", type, err);
         self.postMessage({ type: 'ERROR', payload: err.message });
+        // Error state recovery
+        if (encoder) { try { encoder.free(); } catch(e) {} encoder = null; }
+    } finally {
+        isBusy = false;
     }
 };

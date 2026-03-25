@@ -590,13 +590,17 @@
                 </div>
                 <div class="help-section">
                     <label>Anchor Colors (Shorthand)</label>
-                    <input type="text" id="cfg_anchors" value="K_W">
+                    <div style="display: flex; gap: 5px;">
+                        <input type="text" id="cfg_anchors" value="K_W" style="flex: 1;">
+                        <button id="btnClearAnchors" class="action-btn" style="background: #777; padding: 4px 8px;" title="Clear Anchors">Clear</button>
+                    </div>
                     <div class="help-overlay">
                         <h4>Anchor Colors <span class="tip">(고정 색상)</span></h4>
                         자동 추출 대신, 영상에 반드시 포함시켜야 할 핵심 색상들을 강제로 고정(Anchor)합니다. 색상 밝기 고정은 _를 앞에 붙입니다.<br><br>
                         <span class="hl">지원 색상 코드</span>: <b>K</b>(검정), <b>W</b>(흰색), <b>R</b>(빨강), <b>G</b>(초록),
                         <b>B</b>(파랑), <b>Y</b>(노랑), <b>M</b>(마젠타), <b>C</b>(시안). 소문자는 어두운 색<br>
-                        예: <span class="hl">K_W_a_R</span> (검정, 흰, 어두운 회색, 빨강 세 가지를 파렛트에 무조건 추가. 검정은 내부적 불변)
+                        또는 <span class="hl">#RRGGBB</span> 형식의 <b>Hexcodes</b>를 사용할 수 있습니다.<br><br>
+                        💡 <b>팁</b>: VRAM Preview 모드에서 화면을 클릭하면 해당 색상이 자동으로 앵커에 추가됩니다.
                     </div>
                 </div>
                 <div class="help-section">
@@ -899,6 +903,7 @@
             const iconPlay = document.getElementById('icon-play');
             const iconPause = document.getElementById('icon-pause');
             const btnTestFrame = document.getElementById('btnTestFrame');
+            const btnSendToPlayer = document.getElementById('btnSendToPlayer');
 
             window.monitorTempCanvas = document.createElement('canvas');
             window.monitorTempCanvas.width = 256; window.monitorTempCanvas.height = 192;
@@ -1278,7 +1283,7 @@
 
                 if (dragMode === 'pan') { newX += dx; newY += dy; }
                 else {
-                    const targetRatio = document.querySelector('input[name="cfg_target_ratio"]:checked').value === '5:3' ? (5 / 3) : (4 / 3);
+                    const targetRatio = (document.querySelector('input[name="cfg_target_ratio"]:checked') || {value: '5:3'}).value === '5:3' ? (5 / 3) : (4 / 3);
                     let targetW = dragStartBox.w, targetH = dragStartBox.h;
                     if (dragMode === 'resize_br') { targetW += dx; targetH += dy; }
                     else if (dragMode === 'resize_bl') { targetW -= dx; targetH += dy; }
@@ -1394,7 +1399,7 @@
 
             async function drawPreviewCanvas() {
                 if (currentMode === 'monitor' || isEncoding) return;
-                const targetRatioStr = document.querySelector('input[name="cfg_target_ratio"]:checked').value;
+                const targetRatioStr = (document.querySelector('input[name="cfg_target_ratio"]:checked') || {value: '5:3'}).value;
                 canvas.style.aspectRatio = targetRatioStr === '5:3' ? '5 / 3' : '4 / 3';
                 if (!currentFile || !sourceVideo.videoWidth) {
                     ctx.filter = 'none'; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1442,6 +1447,8 @@
 
                         const vImg = new ImageData(new Uint8ClampedArray(payload.vramRGBA), 256, 192);
                         ctx.putImageData(vImg, 0, 0);
+                        // 🎨 Update temp canvas for Color Picker sampling
+                        window.vramTempCanvas.getContext('2d').putImageData(vImg, 0, 0);
                         drawUIOverlays(box);
                     }).catch(err => {
                         console.error(err);
@@ -1593,6 +1600,33 @@
                 updateSliderVisuals(); updateVideoTime();
             }
 
+            // 🎨 Color Picker from VRAM Preview
+            canvas.addEventListener('click', (e) => {
+                if (!isVramPreviewMode || isEncoding || !currentFile) return;
+                
+                const rect = canvas.getBoundingClientRect();
+                const x = ((e.clientX - rect.left) / rect.width) * 256;
+                const y = ((e.clientY - rect.top) / rect.height) * 192;
+                
+                // global vramTempCanvas context should be available
+                const tempCtx = window.vramTempCanvas.getContext('2d');
+                const pixel = tempCtx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
+                const hex = "#" + ((1 << 24) | (pixel[0] << 16) | (pixel[1] << 8) | pixel[2]).toString(16).slice(1).toUpperCase();
+                
+                const anchorInput = document.getElementById('cfg_anchors');
+                let current = anchorInput.value.trim();
+                // Append if not already there or if just K_W
+                if (!current.includes(hex)) {
+                    anchorInput.value = current ? `${current}_${hex}` : hex;
+                    renderPreview(); // Instantly update preview with locked color
+                }
+            });
+
+            document.getElementById('btnClearAnchors').onclick = () => {
+                document.getElementById('cfg_anchors').value = "K_W";
+                if (isVramPreviewMode) renderPreview();
+            };
+
             timeStartInput.addEventListener('change', () => {
                 startTime = Math.max(0, Math.min(parseTimeInput(timeStartInput.value), endTime));
                 timeStartInput.value = formatTimeInput(startTime); updateSliderVisuals(); updateVideoTime();
@@ -1679,12 +1713,15 @@
 
                     progressBar.max = totalFrames;
                     let globalMp3Offset = 0, encodedFramesCount = 0;
+
+                    // 🛠️ Pipelining: Pre-seek first frame
+                    sourceVideo.currentTime = startTime;
+                    await new Promise(r => sourceVideo.onseeked = r);
+
                     for (let frameIdx = 0; frameIdx < totalFrames; frameIdx++) {
                         if (shouldStopEncoding) break;
                         statusText.innerText = `Encoding Frame ${frameIdx + 1} / ${totalFrames}...`;
                         progressBar.value = frameIdx + 1;
-                        sourceVideo.currentTime = startTime + (frameIdx / TARGET_FPS);
-                        await new Promise(r => sourceVideo.onseeked = r);
 
                         offCtx.fillStyle = '#000'; offCtx.fillRect(0, 0, 256, 192);
                         let box = customBox || getCalculatedBox();
@@ -1692,14 +1729,13 @@
                         applyVideoFilters(offCtx);
                         offCtx.drawImage(sourceVideo, (box.x - box.drawX) * scaleX, (box.y - box.drawY) * scaleY, box.w * scaleX, box.h * scaleY, 0, 0, 256, 192);
                         offCtx.filter = 'none';
-                        const frameData = offCtx.getImageData(0, 0, 256, 192);
-                        const rgbaBytes = new Uint8Array(frameData.data.buffer);
+                        const rgbaBytes = new Uint8Array(offCtx.getImageData(0, 0, 256, 192).data.buffer);
                         const mp3ChunkSize = Math.floor((frameIdx + 1) * (16000 / TARGET_FPS)) - globalMp3Offset;
                         const mp3Chunk = fullMp3.slice(globalMp3Offset, globalMp3Offset + mp3ChunkSize);
                         globalMp3Offset += mp3ChunkSize;
                         const pcmSlice = pcmInt16.slice(frameIdx * (TARGET_SAMPLE_RATE / TARGET_FPS), (frameIdx + 1) * (TARGET_SAMPLE_RATE / TARGET_FPS));
 
-                        await new Promise((resolve, reject) => {
+                        const workerPromise = new Promise((resolve, reject) => {
                             worker.onmessage = (e) => {
                                 if (e.data.type === 'FRAME_DONE') {
                                     const { vramBytes, paletteBytes, ditheredRGBA, vramRGBA } = e.data.payload;
@@ -1731,22 +1767,11 @@
                                     }
                                     window.vramTempCanvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(vramRGBA), 256, 192), 0, 0);
 
-                                    // Monitor split view (tri-state)
+                                    // Monitor split view (tri-state) - Optimized: No clipping
                                     const s1 = Math.floor(256 * monitorLeftSplit), s2 = Math.floor(256 * monitorRightSplit);
-                                    ctx.save();
-                                    ctx.beginPath(); ctx.rect(0, 0, s1, 192); ctx.clip();
-                                    ctx.drawImage(offscreenCanvas, 0, 0);
-                                    ctx.restore();
-
-                                    ctx.save();
-                                    ctx.beginPath(); ctx.rect(s1, 0, s2 - s1, 192); ctx.clip();
-                                    ctx.drawImage(window.monitorTempCanvas, 0, 0);
-                                    ctx.restore();
-
-                                    ctx.save();
-                                    ctx.beginPath(); ctx.rect(s2, 0, 256 - s2, 192); ctx.clip();
-                                    ctx.drawImage(window.vramTempCanvas, 0, 0);
-                                    ctx.restore();
+                                    if (s1 > 0) ctx.drawImage(offscreenCanvas, 0, 0, s1, 192, 0, 0, s1, 192);
+                                    if (s2 > s1) ctx.drawImage(window.monitorTempCanvas, s1, 0, s2 - s1, 192, s1, 0, s2 - s1, 192);
+                                    if (256 > s2) ctx.drawImage(window.vramTempCanvas, s2, 0, 256 - s2, 192, s2, 0, 256 - s2, 192);
 
                                     resolve();
                                 }
@@ -1755,6 +1780,17 @@
                             const gamma = parseFloat(document.getElementById('cfg_gamma').value) || 1.0;
                             worker.postMessage({ type: 'ENCODE_FRAME', payload: { rgbaBytes, origW: 256, origH: 192, mp3Chunk, pcmSlice, frameIdx, gamma } }, [rgbaBytes.buffer, mp3Chunk.buffer, pcmSlice.buffer]);
                         });
+                        // 3. Initiate Seek for Next Frame (Background)
+                        let nextSeekPromise = null;
+                        if (frameIdx + 1 < totalFrames) {
+                            sourceVideo.currentTime = startTime + ((frameIdx + 1) / TARGET_FPS);
+                            nextSeekPromise = new Promise(r => sourceVideo.onseeked = r);
+                        }
+
+                        // 4. Synchronize
+                        await workerPromise;
+                        if (nextSeekPromise) await nextSeekPromise;
+
                         encodedFramesCount++;
                     }
                     await new Promise((resolve, reject) => {
@@ -1769,7 +1805,9 @@
                             }
                             if (e.data.type === 'ERROR') reject(e.data.payload);
                         };
-                        const finalMp3 = shouldStopEncoding ? new Uint8Array(0) : fullMp3.slice(globalMp3Offset);
+                        let finalMp3 = shouldStopEncoding ? new Uint8Array(0) : fullMp3.slice(globalMp3Offset);
+                        // 🛠️ Stability: Clamp tail audio to avoid WASM panic if too large
+                        if (finalMp3.length > 8192) finalMp3 = finalMp3.slice(0, 8192);
                         worker.postMessage({ type: 'FINISH', payload: { remainingMp3: finalMp3 } });
                     });
                     statusText.innerText = "Encoding Complete! 🎉";
@@ -1827,6 +1865,7 @@
                 const btn = document.getElementById('btnSendToPlayer');
                 if (btn) { btn.innerText = '✓ Sent!'; btn.style.background = '#666'; btn.disabled = true; }
             }
+            document.getElementById('btnSendToPlayer').onclick = sendToPlayer;
 
             function downloadFile(uint8Array, filename, mimeType) {
                 const blob = new Blob([uint8Array], { type: mimeType });
