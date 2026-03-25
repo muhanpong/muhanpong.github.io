@@ -3,30 +3,6 @@ let init = null;
 let Mv2Encoder = null;
 let encoder = null;
 
-// Gamma LUT state
-let gammaLUT = new Uint8Array(256);
-let currentGamma = 1.0;
-
-// Initialize Gamma LUT
-function updateGammaLUT(gamma) {
-    if (Math.abs(currentGamma - gamma) < 0.001 && gammaLUT[255] !== 0) return;
-    currentGamma = gamma;
-    for (let i = 0; i < 256; i++) {
-        gammaLUT[i] = Math.pow(i / 255, 1 / gamma) * 255;
-    }
-}
-
-// Apply Gamma LUT to RGBA buffer
-function applyGamma(rgbaBytes, gamma) {
-    if (Math.abs(gamma - 1.0) < 0.001) return; // Skip if gamma is 1.0
-    updateGammaLUT(gamma);
-    for (let i = 0; i < rgbaBytes.length; i += 4) {
-        rgbaBytes[i] = gammaLUT[rgbaBytes[i]];
-        rgbaBytes[i + 1] = gammaLUT[rgbaBytes[i + 1]];
-        rgbaBytes[i + 2] = gammaLUT[rgbaBytes[i + 2]];
-    }
-}
-
 /**
  * Ensures WASM module is loaded and initialized.
  * This is called automatically before handling any message.
@@ -70,12 +46,9 @@ self.onmessage = async (e) => {
         }
 
         else if (type === 'ENCODE_FRAME') {
-            const { rgbaBytes, origW, origH, mp3Chunk, pcmSlice, frameIdx, gamma } = payload;
+            const { rgbaBytes, origW, origH, mp3Chunk, pcmSlice, frameIdx } = payload;
 
             if (!encoder) throw new Error("Encoder not initialized. Send INIT first.");
-
-            // Apply Gamma correction in the worker (GPU-friendly LUT)
-            if (gamma) applyGamma(rgbaBytes, gamma);
 
             // 🚀 매우 무거운 WASM 연산
             encoder.add_frame(rgbaBytes, origW, origH, 4, mp3Chunk, pcmSlice);
@@ -92,11 +65,8 @@ self.onmessage = async (e) => {
         }
 
         else if (type === 'TEST_FRAME') {
-            const { rgbaBytes, origW, origH, config, gamma } = payload;
+            const { rgbaBytes, origW, origH, config } = payload;
             
-            // Apply Gamma correction in the worker
-            if (gamma) applyGamma(rgbaBytes, gamma);
-
             // Create a temporary encoder for a single frame preview as WASM lacks update_config
             // This allows previewing settings changes without affecting the main encoding stream
             const tempEncoder = new Mv2Encoder(config);
