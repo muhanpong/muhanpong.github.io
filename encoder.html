@@ -592,6 +592,7 @@
                     <label>Anchor Colors (Shorthand)</label>
                     <div style="display: flex; gap: 5px;">
                         <input type="text" id="cfg_anchors" value="K_W" style="flex: 1;">
+                        <button id="btnPickColor" class="action-btn" style="background: #5bc0de; padding: 4px 8px;" title="Toggle Color Picker (Available in VRAM Preview mode)" disabled>Pick</button>
                         <button id="btnClearAnchors" class="action-btn" style="background: #777; padding: 4px 8px;" title="Clear Anchors">Clear</button>
                     </div>
                     <div class="help-overlay">
@@ -916,7 +917,9 @@
             let shouldStopEncoding = false;
             let isVramPreviewMode = false;
             let isVramProcessing = false;
+            let isColorPickerActive = false;
             let currentMode = 'preview';
+            const btnPickColor = document.getElementById('btnPickColor');
             let videoDuration = 0;
             let startTime = 0;
             let endTime = 0;
@@ -1173,10 +1176,14 @@
                     btnTestFrame.innerText = "🎬 Mode: VRAM Preview";
                     btnTestFrame.style.background = "#007acc";
                     previewContainer.classList.add('vram-mode');
+                    btnPickColor.disabled = false;
                 } else {
                     btnTestFrame.innerText = "🎬 Mode: Source Preview";
                     btnTestFrame.style.background = "#28a745";
                     previewContainer.classList.remove('vram-mode');
+                    btnPickColor.disabled = true;
+                    isColorPickerActive = false;
+                    updatePickerUI();
                 }
                 drawPreviewCanvas();
             };
@@ -1191,7 +1198,7 @@
             let isCustomMode = false;
 
             function handleCanvasDown(e) {
-                if (currentMode !== 'preview' || !currentFile) return;
+                if (currentMode !== 'preview' || !currentFile || isColorPickerActive) return;
                 const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
                 const rect = canvas.getBoundingClientRect();
@@ -1600,9 +1607,27 @@
                 updateSliderVisuals(); updateVideoTime();
             }
 
+            btnPickColor.onclick = () => {
+                if (!isVramPreviewMode) return;
+                isColorPickerActive = !isColorPickerActive;
+                updatePickerUI();
+            };
+
+            function updatePickerUI() {
+                if (isColorPickerActive) {
+                    btnPickColor.style.background = "#ff9800";
+                    btnPickColor.innerText = "Picking...";
+                    canvas.style.cursor = 'crosshair';
+                } else {
+                    btnPickColor.style.background = "#5bc0de";
+                    btnPickColor.innerText = "Pick";
+                    canvas.style.cursor = 'default';
+                }
+            }
+
             // 🎨 Color Picker from VRAM Preview
             canvas.addEventListener('click', (e) => {
-                if (!isVramPreviewMode || isEncoding || !currentFile) return;
+                if (!isVramPreviewMode || !isColorPickerActive || isEncoding || !currentFile) return;
                 
                 const rect = canvas.getBoundingClientRect();
                 const x = ((e.clientX - rect.left) / rect.width) * 256;
@@ -1672,6 +1697,7 @@
                 btnStart.innerText = "Stop Encoding"; btnStart.style.background = "#d9534f";
                 document.querySelectorAll('input, select').forEach(el => el.disabled = true);
                 document.getElementById('progress-container').style.display = 'block';
+                document.getElementById('encoding-actions').style.display = 'flex';
                 document.getElementById('progressBar').style.display = 'inline-block';
                 document.getElementById('progressBar').value = 0;
                 statusText.innerText = "Initializing...";
@@ -1797,11 +1823,25 @@
                         worker.onmessage = (e) => {
                             if (e.data.type === 'FINISHED') {
                                 const { mv2Bytes } = e.data.payload;
-                                const fullData = new Uint8Array(interimHeader.length + accumulatedMv2Blocks.length * 16384);
-                                fullData.set(interimHeader, 0);
-                                for (let i = 0; i < accumulatedMv2Blocks.length; i++) fullData.set(accumulatedMv2Blocks[i], interimHeader.length + i * 16384);
-                                if (document.getElementById('cfg_auto_download').checked) downloadFile(fullData, "output.mv2", "application/octet-stream");
-                                lastEncodedMv2 = fullData; resolve();
+                                let finalResult;
+                                if (shouldStopEncoding) {
+                                    // STOPPED: Use manual assembly but update metadata first
+                                    recipeMeta.total_frames = accumulatedMv2Blocks.length;
+                                    const actualDuration = accumulatedMv2Blocks.length / TARGET_FPS;
+                                    const m = Math.floor(actualDuration / 60), s = Math.floor(actualDuration % 60), ms = Math.floor((actualDuration % 1) * 100);
+                                    recipeMeta.play_time = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+                                    const metaStr = JSON.stringify(recipeMeta);
+                                    for (let i = 256; i < 16384; i++) interimHeader[i] = 0;
+                                    for (let i = 0; i < metaStr.length; i++) interimHeader[256 + i] = metaStr.charCodeAt(i);
+                                    finalResult = assembleInterimMv2();
+                                } else {
+                                    // COMPLETE: Use worker's muxed result
+                                    finalResult = mv2Bytes;
+                                }
+                                if (document.getElementById('cfg_auto_download').checked) {
+                                    downloadFile(finalResult, "output.mv2", "application/octet-stream");
+                                }
+                                lastEncodedMv2 = finalResult; resolve();
                             }
                             if (e.data.type === 'ERROR') reject(e.data.payload);
                         };
@@ -1811,13 +1851,24 @@
                         worker.postMessage({ type: 'FINISH', payload: { remainingMp3: finalMp3 } });
                     });
                     statusText.innerText = "Encoding Complete! 🎉";
+                    document.getElementById('encoding-actions').style.display = 'none';
                     document.getElementById('final-actions').style.display = 'flex';
+                    const btnSend = document.getElementById('btnSendToPlayer');
+                    btnSend.innerText = "▶ Send to Player";
+                    btnSend.disabled = false;
+                    btnSend.style.background = "";
+                    btnSend.onclick = sendToPlayer;
+                    document.getElementById('btnSaveMv2').onclick = () => {
+                        if (lastEncodedMv2) downloadFile(lastEncodedMv2, "output.mv2", "application/octet-stream");
+                    };
                 } catch (err) { console.error(err); statusText.innerText = "Error: " + err; }
                 finally {
                     isEncoding = false; currentMode = 'preview'; previewContainer.classList.remove('monitor-mode');
                     btnStart.innerText = "Start Encoding"; btnStart.style.background = "#007acc"; btnStart.disabled = false;
                     document.querySelectorAll('input, select').forEach(el => el.disabled = false);
-                    document.getElementById('progressBar').style.display = 'none'; renderPreview();
+                    document.getElementById('progressBar').style.display = 'none'; 
+                    document.getElementById('encoding-actions').style.display = 'none';
+                    renderPreview();
                 }
             });
 
@@ -1825,10 +1876,10 @@
 
             function assembleInterimMv2() {
                 if (!interimHeader || accumulatedMv2Blocks.length === 0) return null;
-                const fullData = new Uint8Array(interimHeader.length + accumulatedMv2Blocks.length * 16384);
+                const fullData = new Uint8Array(16384 + accumulatedMv2Blocks.length * 16384);
                 fullData.set(interimHeader, 0);
                 for (let i = 0; i < accumulatedMv2Blocks.length; i++) {
-                    fullData.set(accumulatedMv2Blocks[i], interimHeader.length + i * 16384);
+                    fullData.set(accumulatedMv2Blocks[i], 16384 + i * 16384);
                 }
                 return fullData;
             }

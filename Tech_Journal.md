@@ -366,3 +366,17 @@
 - Refined VRAM Preview Mode: Disabled the rendering of the blue crop box and interactive UI overlays (drawUIOverlays) while in VRAM mode to provide a clean, unobstructed view of the final MSX-dithered output.
 - Corrected VRAM Preview rendering: Reverted from using 'ditheredRGB' to manually reconstructing the image using 'vramBytes' and 'paletteBytes' in JS. This correctly enforces and displays MSX hardware limitations (e.g., 2 colors per 8x1 block color clash) in the VRAM preview mode, which 'ditheredRGB' bypassed.
 - Fixed VRAM preview issue where dragging the canvas or seek slider while paused would leave the 'Source' frame permanently visible on screen. Added 'renderPreview()' calls on 'mouseup' and 'touchend' events to force the VRAM worker to re-process and redraw the dithered frame once dragging stops.
+
+## 2026-03-26: Bug Fixes for Sound and UI Regressions
+- **Sound Restoration**: Fixed a block offset error in `encoder.html` and implemented missing frame-by-frame muxing logic in `hq_encoder.html` to ensure MP3 audio is correctly embedded in the output `.mv2` file.
+- **UI Restoration**: Fixed regressions where `encoding-actions` (Snapshot/Interim Save) and `final-actions` (Send to Player/Save MV2) were hidden or not properly restored after encoding.
+- **Stability**: Fixed a missing `bps` variable error in `hq_encoder.html` by using the correct 16000 bytes/sec constant for 128kbps audio.
+- **Cleanup**: Further refined `hq_encoder.html` by removing redundant state variables and ensuring consistent `renderPreview` usage.
+
+## 2026-03-26: Color Picker UI/Logic Enhancement
+- Implemented a "Pick" toggle button for the VRAM Color Picker in both `encoder.html` and `hq_encoder.html`.
+- Color picking is now disabled by default and can only be activated when in "VRAM Preview" mode.
+- The "Pick" button is disabled in "Source Preview" mode and automatically deactivates if the user switches modes.
+- Bypassed canvas cropping/panning interactions when Color Picker is active to prevent accidental layout changes while sampling colors.
+- Cleaned up extensive git merge markers and duplicate code in `hq_encoder.html`.
+- Unified VRAM rendering logic to use `vramRGBA` from the worker for better performance and consistency.
