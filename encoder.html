@@ -898,11 +898,19 @@
             const previewPlayBtn = document.getElementById('previewPlayBtn');
             const iconPlay = document.getElementById('icon-play');
             const iconPause = document.getElementById('icon-pause');
+            const btnTestFrame = document.getElementById('btnTestFrame');
+
+            window.monitorTempCanvas = document.createElement('canvas');
+            window.monitorTempCanvas.width = 256; window.monitorTempCanvas.height = 192;
+            window.vramTempCanvas = document.createElement('canvas');
+            window.vramTempCanvas.width = 256; window.vramTempCanvas.height = 192;
 
             const TARGET_FPS = 15.0;
             const TARGET_SAMPLE_RATE = 44100;
             let isEncoding = false;
             let shouldStopEncoding = false;
+            let isVramPreviewMode = false;
+            let isVramProcessing = false;
             let currentMode = 'preview';
             let videoDuration = 0;
             let startTime = 0;
@@ -1152,6 +1160,21 @@
                 if (Math.abs(sourceVideo.currentTime - currentTime) > 0.01) sourceVideo.currentTime = currentTime;
                 else renderPreview();
             }
+
+            btnTestFrame.onclick = async () => {
+                if (isEncoding) return;
+                isVramPreviewMode = !isVramPreviewMode;
+                if (isVramPreviewMode) {
+                    btnTestFrame.innerText = "🎬 Mode: VRAM Preview";
+                    btnTestFrame.style.background = "#007acc";
+                    previewContainer.classList.add('vram-mode');
+                } else {
+                    btnTestFrame.innerText = "🎬 Mode: Source Preview";
+                    btnTestFrame.style.background = "#28a745";
+                    previewContainer.classList.remove('vram-mode');
+                }
+                drawPreviewCanvas();
+            };
 
             let isDraggingCanvas = false;
             let hasDraggedCanvas = false;
@@ -1417,26 +1440,9 @@
                     requestVramFrameFromWorker(rgbaBytes, config, gamma).then(payload => {
                         if (isDraggingCanvas || isDraggingMarker || !isVramPreviewMode) return;
 
-                        const { vramBytes, paletteBytes } = payload;
-                        ctx.filter = 'none'; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-                        canvas.style.filter = 'none';
-                        
-                        const vImg = ctx.createImageData(256, 192);
-                        const vData32 = new Uint32Array(vImg.data.buffer);
-                        const pal32 = new Uint32Array(16);
-                        for (let i = 0; i < 16; i++) {
-                            pal32[i] = (255 << 24) | (paletteBytes[i * 3 + 2] << 16) | (paletteBytes[i * 3 + 1] << 8) | paletteBytes[i * 3 + 0];
-                        }
-
-                        for (let y = 0; y < 192; y++) {
-                            const y8 = Math.floor(y / 8), yMod8 = y % 8, rowOffset = y * 256;
-                            for (let x = 0; x < 256; x++) {
-                                const vram_off = (y8 * 32 + Math.floor(x / 8)) * 8 + yMod8;
-                                const bit = (vramBytes[vram_off] >> (7 - (x % 8))) & 1, ct = vramBytes[6144 + vram_off];
-                                vData32[rowOffset + x] = pal32[bit ? (ct >> 4) : (ct & 0xF)];
-                            }
-                        }
+                        const vImg = new ImageData(new Uint8ClampedArray(payload.vramRGBA), 256, 192);
                         ctx.putImageData(vImg, 0, 0);
+                        drawUIOverlays(box);
                     }).catch(err => {
                         console.error(err);
                         ctx.filter = 'none'; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1691,12 +1697,12 @@
                         const mp3ChunkSize = Math.floor((frameIdx + 1) * (16000 / TARGET_FPS)) - globalMp3Offset;
                         const mp3Chunk = fullMp3.slice(globalMp3Offset, globalMp3Offset + mp3ChunkSize);
                         globalMp3Offset += mp3ChunkSize;
-                        const pcmSlice = pcmInt16.subarray(frameIdx * (TARGET_SAMPLE_RATE / TARGET_FPS), (frameIdx + 1) * (TARGET_SAMPLE_RATE / TARGET_FPS));
+                        const pcmSlice = pcmInt16.slice(frameIdx * (TARGET_SAMPLE_RATE / TARGET_FPS), (frameIdx + 1) * (TARGET_SAMPLE_RATE / TARGET_FPS));
 
                         await new Promise((resolve, reject) => {
                             worker.onmessage = (e) => {
                                 if (e.data.type === 'FRAME_DONE') {
-                                    const { vramBytes, paletteBytes, ditheredRGB } = e.data.payload;
+                                    const { vramBytes, paletteBytes, ditheredRGBA, vramRGBA } = e.data.payload;
                                     const frameBlock = new Uint8Array(16384);
                                     frameBlock.set(vramBytes, 0);
                                     const msxPal = new Uint8Array(30);
@@ -1707,8 +1713,7 @@
                                     frameBlock.set(msxPal, 12288);
                                     if (mp3Chunk.length > 0) {
                                         const blocks = Math.ceil(mp3Chunk.length / 32);
-                                        frameBlock[12800] = blocks;
-                                        frameBlock.set(mp3Chunk, 12801);
+                                        frameBlock[12800] = blocks; frameBlock.set(mp3Chunk, 12801);
                                     }
                                     accumulatedMv2Blocks.push(frameBlock);
                                     
@@ -1717,47 +1722,17 @@
                                         window.monitorTempCanvas = document.createElement('canvas');
                                         window.monitorTempCanvas.width = 256; window.monitorTempCanvas.height = 192;
                                     }
-                                    const tCtx = window.monitorTempCanvas.getContext('2d');
-                                    const tImg = tCtx.createImageData(256, 192);
-                                    for (let i = 0, j = 0; i < ditheredRGB.length; i += 3, j += 4) {
-                                        tImg.data[j] = ditheredRGB[i]; tImg.data[j + 1] = ditheredRGB[i + 1];
-                                        tImg.data[j + 2] = ditheredRGB[i + 2]; tImg.data[j + 3] = 255;
-                                    }
-                                    tCtx.putImageData(tImg, 0, 0);
+                                    window.monitorTempCanvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(ditheredRGBA), 256, 192), 0, 0);
 
                                     // 2. VRAM Packed Frame
                                     if (!window.vramTempCanvas) {
                                         window.vramTempCanvas = document.createElement('canvas');
                                         window.vramTempCanvas.width = 256; window.vramTempCanvas.height = 192;
                                     }
-                                    const vCtx = window.vramTempCanvas.getContext('2d');
-                                    const vImg = vCtx.createImageData(256, 192);
-
-                                    // Screen 4 VRAM Decode (PGT + CT) - Optimized Loop
-                                    const vData32 = new Uint32Array(vImg.data.buffer);
-                                    const pal32 = new Uint32Array(16);
-                                    for (let i = 0; i < 16; i++) {
-                                        pal32[i] = (255 << 24) | (paletteBytes[i * 3 + 2] << 16) | (paletteBytes[i * 3 + 1] << 8) | paletteBytes[i * 3 + 0];
-                                    }
-                                    for (let y = 0; y < 192; y++) {
-                                        const y8 = Math.floor(y / 8);
-                                        const yMod8 = y % 8;
-                                        const rowOffset = y * 256;
-                                        for (let x = 0; x < 256; x++) {
-                                            const vram_off = (y8 * 32 + Math.floor(x / 8)) * 8 + yMod8;
-                                            const pgt_byte = vramBytes[vram_off];
-                                            const ct_byte = vramBytes[6144 + vram_off];
-                                            const bit = (pgt_byte >> (7 - (x % 8))) & 1;
-                                            const color_idx = bit ? (ct_byte >> 4) : (ct_byte & 0x0F);
-                                            vData32[rowOffset + x] = pal32[color_idx];
-                                        }
-                                    }
-                                    vCtx.putImageData(vImg, 0, 0);
+                                    window.vramTempCanvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(vramRGBA), 256, 192), 0, 0);
 
                                     // Monitor split view (tri-state)
-                                    const s1 = Math.floor(256 * monitorLeftSplit);
-                                    const s2 = Math.floor(256 * monitorRightSplit);
-
+                                    const s1 = Math.floor(256 * monitorLeftSplit), s2 = Math.floor(256 * monitorRightSplit);
                                     ctx.save();
                                     ctx.beginPath(); ctx.rect(0, 0, s1, 192); ctx.clip();
                                     ctx.drawImage(offscreenCanvas, 0, 0);
@@ -1794,7 +1769,8 @@
                             }
                             if (e.data.type === 'ERROR') reject(e.data.payload);
                         };
-                        worker.postMessage({ type: 'FINISH', payload: { remainingMp3: fullMp3.slice(globalMp3Offset) } });
+                        const finalMp3 = shouldStopEncoding ? new Uint8Array(0) : fullMp3.slice(globalMp3Offset);
+                        worker.postMessage({ type: 'FINISH', payload: { remainingMp3: finalMp3 } });
                     });
                     statusText.innerText = "Encoding Complete! 🎉";
                     document.getElementById('final-actions').style.display = 'flex';

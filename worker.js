@@ -69,49 +69,57 @@ self.onmessage = async (e) => {
             self.postMessage({ type: 'INIT_DONE' });
         }
 
-        else if (type === 'ENCODE_FRAME') {
-            const { rgbaBytes, origW, origH, mp3Chunk, pcmSlice, frameIdx, gamma } = payload;
-
-            if (!encoder) throw new Error("Encoder not initialized. Send INIT first.");
-
-            // Apply Gamma correction in the worker (GPU-friendly LUT)
+        else if (type === 'ENCODE_FRAME' || type === 'TEST_FRAME') {
+            const { rgbaBytes, origW, origH, gamma, mp3Chunk, pcmSlice, frameIdx, config } = payload;
             if (gamma) applyGamma(rgbaBytes, gamma);
 
-            // 🚀 매우 무거운 WASM 연산
-            encoder.add_frame(rgbaBytes, origW, origH, 4, mp3Chunk, pcmSlice);
+            let activeEncoder = encoder;
+            let isTemp = false;
+            if (type === 'TEST_FRAME') {
+                if (!config) throw new Error("Config required for TEST_FRAME");
+                activeEncoder = new Mv2Encoder(config);
+                isTemp = true;
+            } else if (!activeEncoder) {
+                throw new Error("Encoder not initialized.");
+            }
 
-            const ditheredRGB = encoder.get_last_dithered_frame().slice();
-            const vramBytes = encoder.get_last_vram().slice();
-            const paletteBytes = encoder.get_last_palette().slice();
+            activeEncoder.add_frame(rgbaBytes, origW, origH, 4, mp3Chunk, pcmSlice);
 
-            // 연산 완료 후 메인 스레드로 결과 전송 (Zero-Copy)
-            self.postMessage({
-                type: 'FRAME_DONE',
-                payload: { frameIdx, ditheredRGB, vramBytes, paletteBytes, mp3Chunk }
-            }, [ditheredRGB.buffer, vramBytes.buffer, paletteBytes.buffer, mp3Chunk.buffer]);
-        }
+            const dRGB = activeEncoder.get_last_dithered_frame();
+            const vBytes = activeEncoder.get_last_vram();
+            const pBytes = activeEncoder.get_last_palette();
 
-        else if (type === 'TEST_FRAME') {
-            const { rgbaBytes, origW, origH, config, gamma } = payload;
-            
-            // Apply Gamma correction in the worker
-            if (gamma) applyGamma(rgbaBytes, gamma);
+            // Offload decoding to worker
+            const ditheredRGBA = new Uint8ClampedArray(256 * 192 * 4);
+            for (let i = 0, j = 0; i < dRGB.length; i += 3, j += 4) {
+                ditheredRGBA[j] = dRGB[i]; ditheredRGBA[j + 1] = dRGB[i + 1];
+                ditheredRGBA[j + 2] = dRGB[i + 2]; ditheredRGBA[j + 3] = 255;
+            }
 
-            // Create a temporary encoder for a single frame preview as WASM lacks update_config
-            // This allows previewing settings changes without affecting the main encoding stream
-            const tempEncoder = new Mv2Encoder(config);
-            tempEncoder.add_frame(rgbaBytes, origW, origH, 4);
+            const vramRGBA = new Uint8ClampedArray(256 * 192 * 4);
+            const vData32 = new Uint32Array(vramRGBA.buffer);
+            const pal32 = new Uint32Array(16);
+            for (let i = 0; i < 16; i++) {
+                pal32[i] = (255 << 24) | (pBytes[i * 3 + 2] << 16) | (pBytes[i * 3 + 1] << 8) | pBytes[i * 3 + 0];
+            }
+            for (let y = 0; y < 192; y++) {
+                const y8 = Math.floor(y / 8), yMod8 = y % 8, rowOffset = y * 256;
+                for (let x = 0; x < 256; x++) {
+                    const vram_off = (y8 * 32 + Math.floor(x / 8)) * 8 + yMod8;
+                    const bit = (vBytes[vram_off] >> (7 - (x % 8))) & 1, ct = vBytes[6144 + vram_off];
+                    vData32[rowOffset + x] = pal32[bit ? (ct >> 4) : (ct & 0x0F)];
+                }
+            }
 
-            const ditheredRGB = tempEncoder.get_last_dithered_frame().slice();
-            const vramBytes = tempEncoder.get_last_vram().slice();
-            const paletteBytes = tempEncoder.get_last_palette().slice();
-            
-            tempEncoder.free();
+            const response = {
+                type: type === 'ENCODE_FRAME' ? 'FRAME_DONE' : 'TEST_FRAME_DONE',
+                payload: { frameIdx, ditheredRGBA, vramRGBA, vramBytes: vBytes.slice(), paletteBytes: pBytes.slice() }
+            };
+            const transferables = [ditheredRGBA.buffer, vramRGBA.buffer, response.payload.vramBytes.buffer, response.payload.paletteBytes.buffer];
+            if (mp3Chunk) { response.payload.mp3Chunk = mp3Chunk; transferables.push(mp3Chunk.buffer); }
 
-            self.postMessage({
-                type: 'TEST_FRAME_DONE',
-                payload: { ditheredRGB, vramBytes, paletteBytes }
-            }, [ditheredRGB.buffer, vramBytes.buffer, paletteBytes.buffer]);
+            self.postMessage(response, transferables);
+            if (isTemp) activeEncoder.free();
         }
 
         else if (type === 'FINISH') {
