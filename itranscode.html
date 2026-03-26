@@ -146,50 +146,48 @@
         });
 
         function rgb333_to_888(r, g, b) {
-            return [Math.floor(r * 255 / 7), Math.floor(g * 255 / 7), Math.floor(b * 255 / 7)];
+            return [Math.round(r * 255 / 7), Math.round(g * 255 / 7), Math.round(b * 255 / 7)];
         }
 
         async function demuxMV2(arrayBuffer) {
             const data = new Uint8Array(arrayBuffer);
             const blockSize = 16384;
-            /* let remainingBytes = data.length - 512; */
-            /* let numBlocks = remainingBytes >= 15872 ? 1 + Math.floor((remainingBytes - 15872) / 16384) : 0; */
+            
+            // Skip 16KB header
             let remainingBytes = data.length - blockSize;
-            let numBlocks = 1 + Math.floor(remainingBytes / 16384);
+            let numBlocks = Math.floor(remainingBytes / blockSize);
 
             const videoBuffer = new Uint8Array(numBlocks * 256 * 192 * 3);
             let videoOffset = 0;
             let audioChunks = [];
             let palette = Array(16).fill([0, 0, 0]);
 
-            let pos = 16384;
+            let pos = blockSize;
             let count = 0;
 
-            while (pos < data.length) {
-                /* let currentBlockSize = (count === 0) ? 15872 : 16384; */
-                let currentBlockSize = 16384;
-                if (pos + currentBlockSize > data.length) break;
+            while (pos + blockSize <= data.length) {
+                let block = data.subarray(pos, pos + blockSize);
+                pos += blockSize;
 
-                let block = data.subarray(pos, pos + currentBlockSize);
-                pos += currentBlockSize;
-
-                if (block.length < 12318) break;
-
+                // 🎨 MSX Palette extraction (15 colors, starting from index 1)
+                // MSX format: [RB][0G] -> Byte 0: R(bits 4-6), B(bits 0-2); Byte 1: G(bits 0-2)
                 for (let i = 0; i < 15; i++) {
                     let b1 = block[12288 + i * 2], b2 = block[12288 + i * 2 + 1];
                     let r = (b1 >> 4) & 0x07, b = b1 & 0x07, g = b2 & 0x07;
                     palette[i + 1] = rgb333_to_888(r, g, b);
                 }
 
+                // 🎬 Screen 4 Video decoding
                 for (let y = 0; y < 192; y++) {
+                    const y8 = Math.floor(y / 8), yMod8 = y % 8;
                     for (let x = 0; x < 256; x++) {
-                        let b_idx = Math.floor(y / 8) * 32 + Math.floor(x / 8);
-                        let off = b_idx * 8 + (y % 8);
-                        let p_byte = block[off], c_byte = block[6144 + off];
-                        let fg = c_byte >> 4, bg = c_byte & 0x0F;
+                        const vram_off = (y8 * 32 + Math.floor(x / 8)) * 8 + yMod8;
+                        const p_byte = block[vram_off];
+                        const c_byte = block[6144 + vram_off];
                         
-                        let isFg = (p_byte & (1 << (7 - (x % 8)))) !== 0;
-                        let color = isFg ? palette[fg] : palette[bg];
+                        const isFg = (p_byte & (1 << (7 - (x % 8)))) !== 0;
+                        const colorIdx = isFg ? (c_byte >> 4) : (c_byte & 0x0F);
+                        const color = palette[colorIdx];
 
                         videoBuffer[videoOffset++] = color[0];
                         videoBuffer[videoOffset++] = color[1];
@@ -197,13 +195,12 @@
                     }
                 }
 
+                // 🔊 Audio extraction
                 if (block.length > 12800) {
-                    let sizeIndicator = block[12800];
-                    if (sizeIndicator > 0 && sizeIndicator <= 128) {
-                        let chunkSize = sizeIndicator * 32;
-                        if (12801 + chunkSize <= block.length) {
-                            audioChunks.push(block.slice(12801, 12801 + chunkSize));
-                        }
+                    let sz_blocks = block[12800];
+                    if (sz_blocks > 0 && sz_blocks <= 111) {
+                        let chunkSize = sz_blocks * 32;
+                        audioChunks.push(block.slice(12801, 12801 + chunkSize));
                     }
                 }
                 if (count % 100 === 0) log(`프레임 파싱 중... ${count}/${numBlocks}`);

@@ -595,6 +595,7 @@
                         <button id="btnPickColor" class="action-btn" style="background: #5bc0de; padding: 4px 8px;" title="Toggle Color Picker (Available in VRAM Preview mode)" disabled>Pick</button>
                         <button id="btnClearAnchors" class="action-btn" style="background: #777; padding: 4px 8px;" title="Clear Anchors">Clear</button>
                     </div>
+                    <div id="anchorSlots" style="display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; min-height: 18px;"></div>
                     <div class="help-overlay">
                         <h4>Anchor Colors <span class="tip">(고정 색상)</span></h4>
                         자동 추출 대신, 영상에 반드시 포함시켜야 할 핵심 색상들을 강제로 고정(Anchor)합니다. 색상 밝기 고정은 _를 앞에 붙입니다.<br><br>
@@ -1625,6 +1626,45 @@
                 }
             }
 
+            const anchorSlots = document.getElementById('anchorSlots');
+            const anchorInput = document.getElementById('cfg_anchors');
+
+            const shorthandColors = {
+                'K': '#000000', 'W': '#FFFFFF', 'R': '#FF0000', 'G': '#00FF00', 'B': '#0000FF',
+                'C': '#00FFFF', 'M': '#FF00FF', 'Y': '#FFFF00', 'A': '#888888',
+                'k': '#000000', 'w': '#AAAAAA', 'r': '#880000', 'g': '#008800', 'b': '#000088',
+                'c': '#008888', 'm': '#880088', 'y': '#888800', 'a': '#444444'
+            };
+
+            function updateAnchorSlots() {
+                anchorSlots.innerHTML = '';
+                const val = anchorInput.value;
+                // Parse hex codes (#RRGGBB) or shorthand chars
+                const regex = /(#[0-9A-F]{6}|[KWRGBYMCAkwrgbymca])/g;
+                let match;
+                const seen = new Set();
+
+                while ((match = regex.exec(val)) !== null) {
+                    const code = match[0];
+                    if (seen.has(code)) continue;
+                    seen.add(code);
+
+                    const color = shorthandColors[code] || code;
+                    const slot = document.createElement('div');
+                    slot.style.width = '16px';
+                    slot.style.height = '16px';
+                    slot.style.backgroundColor = color;
+                    slot.style.border = '1px solid #555';
+                    slot.style.borderRadius = '2px';
+                    slot.title = code;
+                    anchorSlots.appendChild(slot);
+                }
+            }
+
+            anchorInput.addEventListener('input', updateAnchorSlots);
+            // Initial update
+            updateAnchorSlots();
+
             // 🎨 Color Picker from VRAM Preview
             canvas.addEventListener('click', (e) => {
                 if (!isVramPreviewMode || !isColorPickerActive || isEncoding || !currentFile) return;
@@ -1633,22 +1673,21 @@
                 const x = ((e.clientX - rect.left) / rect.width) * 256;
                 const y = ((e.clientY - rect.top) / rect.height) * 192;
                 
-                // global vramTempCanvas context should be available
                 const tempCtx = window.vramTempCanvas.getContext('2d');
                 const pixel = tempCtx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
                 const hex = "#" + ((1 << 24) | (pixel[0] << 16) | (pixel[1] << 8) | pixel[2]).toString(16).slice(1).toUpperCase();
                 
-                const anchorInput = document.getElementById('cfg_anchors');
                 let current = anchorInput.value.trim();
-                // Append if not already there or if just K_W
                 if (!current.includes(hex)) {
                     anchorInput.value = current ? `${current}_${hex}` : hex;
-                    renderPreview(); // Instantly update preview with locked color
+                    updateAnchorSlots();
+                    renderPreview();
                 }
             });
 
             document.getElementById('btnClearAnchors').onclick = () => {
-                document.getElementById('cfg_anchors').value = "K_W";
+                anchorInput.value = "K_W";
+                updateAnchorSlots();
                 if (isVramPreviewMode) renderPreview();
             };
 
@@ -1756,7 +1795,16 @@
                         offCtx.drawImage(sourceVideo, (box.x - box.drawX) * scaleX, (box.y - box.drawY) * scaleY, box.w * scaleX, box.h * scaleY, 0, 0, 256, 192);
                         offCtx.filter = 'none';
                         const rgbaBytes = new Uint8Array(offCtx.getImageData(0, 0, 256, 192).data.buffer);
-                        const mp3ChunkSize = Math.floor((frameIdx + 1) * (16000 / TARGET_FPS)) - globalMp3Offset;
+                        
+                        // 🔊 MP3 Alignment Fix: Ensure chunks are multiples of 32 bytes to avoid padding noise
+                        let nextTarget = Math.floor((frameIdx + 1) * (16000 / TARGET_FPS));
+                        let mp3ChunkSize = Math.floor((nextTarget - globalMp3Offset) / 32) * 32;
+                        
+                        // Last frame takes all remaining bytes
+                        if (frameIdx === totalFrames - 1) {
+                            mp3ChunkSize = fullMp3.length - globalMp3Offset;
+                        }
+                        
                         const mp3Chunk = fullMp3.slice(globalMp3Offset, globalMp3Offset + mp3ChunkSize);
                         globalMp3Offset += mp3ChunkSize;
                         const pcmSlice = pcmInt16.slice(frameIdx * (TARGET_SAMPLE_RATE / TARGET_FPS), (frameIdx + 1) * (TARGET_SAMPLE_RATE / TARGET_FPS));
@@ -1764,7 +1812,7 @@
                         const workerPromise = new Promise((resolve, reject) => {
                             worker.onmessage = (e) => {
                                 if (e.data.type === 'FRAME_DONE') {
-                                    const { vramBytes, paletteBytes, ditheredRGBA, vramRGBA } = e.data.payload;
+                                    const { vramBytes, paletteBytes, ditheredRGBA, vramRGBA, mp3Chunk: returnedMp3Chunk } = e.data.payload;
                                     const frameBlock = new Uint8Array(16384);
                                     frameBlock.set(vramBytes, 0);
                                     const msxPal = new Uint8Array(30);
@@ -1773,9 +1821,9 @@
                                         msxPal[(i - 1) * 2] = (r << 4) | b; msxPal[(i - 1) * 2 + 1] = g;
                                     }
                                     frameBlock.set(msxPal, 12288);
-                                    if (mp3Chunk.length > 0) {
-                                        const blocks = Math.ceil(mp3Chunk.length / 32);
-                                        frameBlock[12800] = blocks; frameBlock.set(mp3Chunk, 12801);
+                                    if (returnedMp3Chunk && returnedMp3Chunk.length > 0) {
+                                        const blocks = Math.ceil(returnedMp3Chunk.length / 32);
+                                        frameBlock[12800] = blocks; frameBlock.set(returnedMp3Chunk, 12801);
                                     }
                                     accumulatedMv2Blocks.push(frameBlock);
                                     
@@ -1824,20 +1872,17 @@
                             if (e.data.type === 'FINISHED') {
                                 const { mv2Bytes } = e.data.payload;
                                 let finalResult;
-                                if (shouldStopEncoding) {
-                                    // STOPPED: Use manual assembly but update metadata first
-                                    recipeMeta.total_frames = accumulatedMv2Blocks.length;
-                                    const actualDuration = accumulatedMv2Blocks.length / TARGET_FPS;
-                                    const m = Math.floor(actualDuration / 60), s = Math.floor(actualDuration % 60), ms = Math.floor((actualDuration % 1) * 100);
-                                    recipeMeta.play_time = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
-                                    const metaStr = JSON.stringify(recipeMeta);
-                                    for (let i = 256; i < 16384; i++) interimHeader[i] = 0;
-                                    for (let i = 0; i < metaStr.length; i++) interimHeader[256 + i] = metaStr.charCodeAt(i);
-                                    finalResult = assembleInterimMv2();
-                                } else {
-                                    // COMPLETE: Use worker's muxed result
-                                    finalResult = mv2Bytes;
-                                }
+                                
+                                // Always use manual assembly to guarantee sound output (ensures mp3Chunks are correctly embedded)
+                                recipeMeta.total_frames = accumulatedMv2Blocks.length;
+                                const actualDuration = accumulatedMv2Blocks.length / TARGET_FPS;
+                                const m = Math.floor(actualDuration / 60), s = Math.floor(actualDuration % 60), ms = Math.floor((actualDuration % 1) * 100);
+                                recipeMeta.play_time = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+                                const metaStr = JSON.stringify(recipeMeta);
+                                for (let i = 256; i < 16384; i++) interimHeader[i] = 0;
+                                for (let i = 0; i < metaStr.length; i++) interimHeader[256 + i] = metaStr.charCodeAt(i);
+                                finalResult = assembleInterimMv2();
+                                
                                 if (document.getElementById('cfg_auto_download').checked) {
                                     downloadFile(finalResult, "output.mv2", "application/octet-stream");
                                 }

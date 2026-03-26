@@ -380,3 +380,12 @@
 - Bypassed canvas cropping/panning interactions when Color Picker is active to prevent accidental layout changes while sampling colors.
 - Cleaned up extensive git merge markers and duplicate code in `hq_encoder.html`.
 - Unified VRAM rendering logic to use `vramRGBA` from the worker for better performance and consistency.
+
+## 2026-03-26 14:30:00 - Audio Muxing & "No Sound" Critical Fix
+- **The Issue:** Users reported "no sound" in encoded `.mv2` files and snapshots, despite audio extraction and MP3 encoding appearing to work in the logs.
+- **Root Cause (Buffer Detachment):** Identified a critical JS scoping issue in `encoder.html`, `hq_encoder.html`, and `encoder-dev.html`. The `mp3Chunk` (Uint8Array) was being transferred to the WebWorker via `postMessage`. In the main thread's `onmessage` closure, the original `mp3Chunk` variable became "detached" (length 0), causing the manual JS-side muxer to embed empty audio blocks into the final file and snapshots.
+- **The Fix (Payload Extraction):** Modified the `onmessage` handler in all three encoders to extract the `mp3Chunk` directly from the worker's response payload (`e.data.payload.mp3Chunk`). Since the worker returns the processed chunk, this ensures the muxer always has valid data.
+- **Guaranteed Audio Muxing:** 
+    - Standardized the `FINISHED` handler to always use the manual assembly logic (`assembleInterimMv2()`) for the final `.mv2` download. This guarantees that the frame-by-frame audio chunks collected during the loop are correctly interleaved.
+    - Added explicit metadata updates (total frames and duration) to the header before the final assembly to ensure player compatibility even if encoding was stopped early.
+- **Result:** High-fidelity 128kbps mono audio is now reliably present in all output files, snapshots, and interim saves across all encoder variants.
