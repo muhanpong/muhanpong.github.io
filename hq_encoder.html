@@ -1063,11 +1063,6 @@
         let previewAudioCtx, previewSource, previewGainNode;
         let audioGainStickyBypass = false;
 
-        // 🚀 [+5dB Sticky Logic] Initialize bypass on grab
-        document.getElementById('cfg_audio_gain').addEventListener('pointerdown', function () {
-            audioGainStickyBypass = (parseFloat(this.value) >= 5);
-        });
-
         window.updatePreviewGain = function () {
             const gainInput = document.getElementById('cfg_audio_gain');
             let db = parseFloat(gainInput.value) || 0;
@@ -1699,18 +1694,20 @@
         }
 
         function drawUIOverlays(box) {
-            // Darken outside the box
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-            ctx.fillRect(0, 0, canvas.width, box.y); // Top
-            ctx.fillRect(0, box.y + box.h, canvas.width, canvas.height - (box.y + box.h)); // Bottom
-            ctx.fillRect(0, box.y, box.x, box.h); // Left
-            ctx.fillRect(box.x + box.w, box.y, canvas.width - (box.x + box.w), box.h); // Right
+            if (!isVramPreviewMode) {
+                // Darken outside the box
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                ctx.fillRect(0, 0, canvas.width, box.y); // Top
+                ctx.fillRect(0, box.y + box.h, canvas.width, canvas.height - (box.y + box.h)); // Bottom
+                ctx.fillRect(0, box.y, box.x, box.h); // Left
+                ctx.fillRect(box.x + box.w, box.y, canvas.width - (box.x + box.w), box.h); // Right
 
-            // Draw Target Box Border
-            ctx.strokeStyle = 'rgba(77, 184, 255, 0.8)';
-            ctx.lineWidth = 1;
-            ctx.setLineDash(isCustomMode && !isAspectLocked ? [4, 4] : []);
-            ctx.strokeRect(box.x, box.y, box.w, box.h);
+                // Draw Target Box Border
+                ctx.strokeStyle = 'rgba(77, 184, 255, 0.8)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash(isCustomMode && !isAspectLocked ? [4, 4] : []);
+                ctx.strokeRect(box.x, box.y, box.w, box.h);
+            }
 
             // Draw Corner Handlers (Squares)
             ctx.fillStyle = 'rgba(77, 184, 255, 0.9)';
@@ -1729,15 +1726,17 @@
             ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
             ctx.fillText(isAspectLocked ? '🔒' : '🔓', cx, cy);
 
-            // Draw Dimensions
-            ctx.font = '10px monospace';
-            ctx.fillStyle = '#4db8ff';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'bottom';
-            ctx.fillText("256px", box.x + box.w / 2, box.y - 4);
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'middle';
-            ctx.fillText("192px", box.x + box.w + 4, box.y + box.h / 2);
+            if (!isVramPreviewMode) {
+                // Draw Dimensions
+                ctx.font = '10px monospace';
+                ctx.fillStyle = '#4db8ff';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText("256px", box.x + box.w / 2, box.y - 4);
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.fillText("192px", box.x + box.w + 4, box.y + box.h / 2);
+            }
 
             // PiP Preview while resizing
             if (isDraggingCanvas && dragMode && dragMode.startsWith('resize')) {
