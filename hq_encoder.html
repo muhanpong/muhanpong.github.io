@@ -434,7 +434,36 @@
         .btn-snapshot { background: #4CAF50; }
         .btn-interim-save { background: #f0ad4e; }
         .btn-send-player { background: #4CAF50; }
-        .btn-save-final { background: #007acc; }
+        .btn-save-final { background: var(--accent); }
+
+        /* === Anchor Slots === */
+        .anchor-slot {
+            position: relative;
+            width: 18px;
+            height: 18px;
+            border: 1px solid #555;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.2s;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+        .anchor-slot:hover {
+            transform: scale(1.1);
+            z-index: 10;
+        }
+        .anchor-slot.disabled::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: -10%;
+            width: 120%;
+            height: 2px;
+            background: #ff0000;
+            transform: translateY(-50%) rotate(45deg);
+            pointer-events: none;
+            box-shadow: 0 0 2px rgba(0,0,0,0.5);
+        }
 
         /* === Overlay Manual System === */
         .help-section {
@@ -911,6 +940,9 @@
         // VRAM Preview States
         let isVramPreviewMode = false;
         let isVramProcessing = false;
+        let vramRedrawPending = false;
+        let lastFrameTime = 0;
+        let fps = 0;
         let isColorPickerActive = false;
         const btnPickColor = document.getElementById('btnPickColor');
 
@@ -1109,18 +1141,16 @@
                 }
                 sourceVideo.muted = false;
                 sourceVideo.play();
-                previewContainer.classList.remove('paused');
-                previewContainer.classList.add('playing');
-                iconPlay.style.display = 'none';
-                iconPause.style.display = 'block';
+                previewContainer.classList.remove('paused'); previewContainer.classList.add('playing');
+                iconPlay.style.display = 'none'; iconPause.style.display = 'block';
+                lastFrameTime = 0; fps = 0; // Reset FPS tracking
                 playbackLoop();
             } else {
                 sourceVideo.pause();
-                previewContainer.classList.add('paused');
-                previewContainer.classList.remove('playing');
-                iconPlay.style.display = 'block';
-                iconPause.style.display = 'none';
+                previewContainer.classList.add('paused'); previewContainer.classList.remove('playing');
+                iconPlay.style.display = 'block'; iconPause.style.display = 'none';
                 cancelAnimationFrame(playbackAnimFrame);
+                drawPreviewCanvas();
             }
         }
 
@@ -1579,13 +1609,14 @@
         }
 
         function getUIConfig() {
+            const activeAnchors = anchorColors.filter(a => a.active).map(a => a.code).join('_');
             const config = {
                 width: 256, height: 192,
                 quantizer: document.getElementById('cfg_quantizer').value,
                 dither: document.getElementById('cfg_dither_mode').value,
                 dither_strength: parseInt(document.getElementById('cfg_dither').value),
                 vram_dither: parseFloat(document.getElementById('cfg_vram_dither').value),
-                anchor_colors: document.getElementById('cfg_anchors').value,
+                anchor_colors: activeAnchors,
                 max_extra_colors: parseInt(document.getElementById('cfg_colors').value),
                 quant_iters_initial: parseInt(document.getElementById('cfg_iter_init').value),
                 quant_iters_subsequent: parseInt(document.getElementById('cfg_iter_sub').value),
@@ -1622,6 +1653,7 @@
 
         async function drawPreviewCanvas() {
             if (currentMode === 'monitor' || isEncoding) return;
+
             const targetRatioStr = document.querySelector('input[name="cfg_target_ratio"]:checked').value;
             canvas.style.aspectRatio = targetRatioStr === '5:3' ? '5 / 3' : '4 / 3';
             if (!currentFile || !sourceVideo.videoWidth) {
@@ -1648,6 +1680,18 @@
                 applyVideoFilters(ctx); ctx.drawImage(sourceVideo, box.drawX, box.drawY, box.drawW, box.drawH);
                 ctx.filter = 'none';
                 canvas.style.filter = 'none'; 
+
+                // Throughput FPS: Update on actual Source draw
+                const now = performance.now();
+                if (lastFrameTime > 0) {
+                    const delta = now - lastFrameTime;
+                    if (delta > 0) {
+                        const instantFps = 1000 / delta;
+                        fps = fps === 0 ? instantFps : fps * 0.8 + instantFps * 0.2;
+                    }
+                }
+                lastFrameTime = now;
+
                 drawUIOverlays(box);
             } else {
                 // [VRAM Preview Mode]
@@ -1657,6 +1701,9 @@
                         applyVideoFilters(ctx); ctx.drawImage(sourceVideo, box.drawX, box.drawY, box.drawW, box.drawH);
                         ctx.filter = 'none';
                         drawUIOverlays(box);
+                    } else {
+                        drawUIOverlays(box);
+                        if (sourceVideo.paused) vramRedrawPending = true;
                     }
                     return;
                 }
@@ -1681,6 +1728,17 @@
                     canvas.style.filter = 'none'; 
                     ctx.drawImage(window.vramTempCanvas, 0, 0);
                     
+                    // Throughput FPS: Update only when worker returns a processed frame
+                    const now = performance.now();
+                    if (lastFrameTime > 0) {
+                        const delta = now - lastFrameTime;
+                        if (delta > 0) {
+                            const instantFps = 1000 / delta;
+                            fps = fps === 0 ? instantFps : fps * 0.8 + instantFps * 0.2;
+                        }
+                    }
+                    lastFrameTime = now;
+
                     drawUIOverlays(box);
                 } catch (err) {
                     console.error(err);
@@ -1689,11 +1747,32 @@
                     ctx.filter = 'none';
                 } finally {
                     isVramProcessing = false;
+                    if (vramRedrawPending && !isDraggingCanvas && !isDraggingMarker && sourceVideo.paused) {
+                        vramRedrawPending = false;
+                        drawPreviewCanvas();
+                    }
                 }
             }
         }
+        }
 
         function drawUIOverlays(box) {
+            if (!box) return;
+
+            // Draw FPS Overlay (Drawn first so it's always visible)
+            if (currentFile && !isEncoding) {
+                ctx.font = '10px monospace';
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'top';
+                ctx.fillText(`${Math.round(fps)} FPS`, 252, 4);
+            }
+
+            // In VRAM Preview mode, we hide ALL handlers for a clean WYSIWYG view
+            if (isVramPreviewMode && !isDraggingCanvas && !isDraggingMarker) {
+                return;
+            }
+
             if (!isVramPreviewMode) {
                 // Darken outside the box
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
@@ -1794,28 +1873,71 @@
             'c': '#008888', 'm': '#880088', 'y': '#888800', 'a': '#444444'
         };
 
-        function updateAnchorSlots() {
-            anchorSlots.innerHTML = '';
+        let anchorColors = []; // { code: 'K', hex: '#000000', active: true }
+        function parseAnchorInput() {
             const val = anchorInput.value;
-            const regex = /(#[0-9A-F]{6}|[KWRGBYMCAkwrgbymca])/g;
+            const regex = /(#[0-9A-F]{6}|[KWRGBYMCAkwrgbymca])/gi;
             let match;
+            const newAnchors = [];
             const seen = new Set();
             while ((match = regex.exec(val)) !== null) {
-                const code = match[0];
+                const code = match[0].toUpperCase().startsWith('#') ? match[0].toUpperCase() : match[0];
                 if (seen.has(code)) continue;
                 seen.add(code);
-                const color = shorthandColors[code] || code;
-                const slot = document.createElement('div');
-                slot.style.width = '16px'; slot.style.height = '16px';
-                slot.style.backgroundColor = color;
-                slot.style.border = '1px solid #555';
-                slot.style.borderRadius = '2px';
-                slot.title = code;
-                anchorSlots.appendChild(slot);
+                // preserve active state if it already existed
+                const existing = anchorColors.find(a => a.code === code);
+                const hex = shorthandColors[code] || code;
+                newAnchors.push({ code, hex, active: existing ? existing.active : true });
             }
+            anchorColors = newAnchors;
+            renderAnchorSlots();
         }
-        anchorInput.addEventListener('input', updateAnchorSlots);
-        updateAnchorSlots();
+
+        function renderAnchorSlots() {
+            anchorSlots.innerHTML = '';
+            anchorColors.forEach((anchor, idx) => {
+                const slot = document.createElement('div');
+                slot.className = `anchor-slot ${anchor.active ? '' : 'disabled'}`;
+                slot.style.backgroundColor = anchor.hex;
+                slot.title = anchor.code + (anchor.active ? ' (Active)' : ' (Disabled)');
+                
+                let startX, startY, isDragging = false;
+                slot.addEventListener('mousedown', (e) => {
+                    startX = e.clientX; startY = e.clientY; isDragging = false;
+                    const onMove = (me) => {
+                        const dist = Math.sqrt(Math.pow(me.clientX - startX, 2) + Math.pow(me.clientY - startY, 2));
+                        if (dist > 5) {
+                            isDragging = true; slot.style.transform = `translate(${me.clientX - startX}px, ${me.clientY - startY}px)`; slot.style.zIndex = 100;
+                        }
+                    };
+                    const onUp = (ue) => {
+                        document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp);
+                        slot.style.transform = 'none'; slot.style.zIndex = '';
+                        if (isDragging) {
+                            const dist = Math.sqrt(Math.pow(ue.clientX - startX, 2) + Math.pow(ue.clientY - startY, 2));
+                            if (dist > 40) { // Dragged out -> Remove
+                                anchorColors.splice(idx, 1); syncAnchorInput(); if(isVramPreviewMode) renderPreview();
+                            }
+                        } else {
+                            // Clicked -> Toggle
+                            anchor.active = !anchor.active;
+                            renderAnchorSlots();
+                            if (isVramPreviewMode) renderPreview();
+                        }
+                    };
+                    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+                });
+                anchorSlots.appendChild(slot);
+            });
+        }
+
+        function syncAnchorInput() {
+            anchorInput.value = anchorColors.map(a => a.code).join('_');
+            renderAnchorSlots();
+        }
+
+        anchorInput.addEventListener('input', parseAnchorInput);
+        parseAnchorInput(); // Init
 
         // 🎨 Color Picker from VRAM Preview
         canvas.addEventListener('click', (e) => {
@@ -1840,7 +1962,7 @@
 
         document.getElementById('btnClearAnchors').onclick = () => {
             anchorInput.value = "K_W";
-            updateAnchorSlots();
+            parseAnchorInput();
             if (isVramPreviewMode) renderPreview();
         };
 
@@ -1978,6 +2100,7 @@
                 const m = Math.floor(playTimeDuration / 60), s = Math.floor(playTimeDuration % 60), ms = Math.floor((playTimeDuration % 1) * 100);
                 const playTime = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
 
+                const activeAnchors = anchorColors.filter(a => a.active).map(a => a.code).join('_');
                 const recipeMeta = {
                     encoder: "MV2 Web Encoder (HQ)", source: file.name, date: new Date().toISOString(),
                     duration_sec: video.duration, play_time: playTime, total_frames: totalFrames,
@@ -1986,7 +2109,7 @@
                         dither: document.getElementById('cfg_dither_mode').value,
                         dither_strength: parseInt(document.getElementById('cfg_dither').value),
                         vram_dither: parseFloat(document.getElementById('cfg_vram_dither').value),
-                        anchors: document.getElementById('cfg_anchors').value.length, anchor_colors: document.getElementById('cfg_anchors').value,
+                        anchors: activeAnchors.length, anchor_colors: activeAnchors,
                         extra_colors: parseInt(document.getElementById('cfg_colors').value), aspect: document.getElementById('cfg_aspect').value,
                         metric: document.getElementById('cfg_metric').value, nv: false
                     }
@@ -2002,7 +2125,7 @@
                     dither: document.getElementById('cfg_dither_mode').value,
                     dither_strength: parseInt(document.getElementById('cfg_dither').value),
                     vram_dither: parseFloat(document.getElementById('cfg_vram_dither').value),
-                    anchor_colors: document.getElementById('cfg_anchors').value,
+                    anchor_colors: activeAnchors,
                     max_extra_colors: parseInt(document.getElementById('cfg_colors').value),
                     quant_iters_initial: parseInt(document.getElementById('cfg_iter_init').value),
                     quant_iters_subsequent: parseInt(document.getElementById('cfg_iter_sub').value),

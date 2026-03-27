@@ -4,6 +4,10 @@ let Mv2Encoder = null;
 let encoder = null;
 let isBusy = false;
 
+// Persistent preview encoder to avoid re-init overhead
+let previewEncoder = null;
+let lastPreviewConfig = null;
+
 // Gamma LUT state
 let gammaLUT = new Uint8Array(256);
 let currentGamma = 1.0;
@@ -80,11 +84,15 @@ self.onmessage = async (e) => {
             if (gamma) applyGamma(rgbaBytes, gamma);
 
             let activeEncoder = encoder;
-            let isTemp = false;
             if (type === 'TEST_FRAME') {
                 if (!config) throw new Error("Config required for TEST_FRAME");
-                activeEncoder = new Mv2Encoder(config);
-                isTemp = true;
+                // Optimization: Reuse preview encoder if settings are identical
+                if (!previewEncoder || lastPreviewConfig !== config) {
+                    if (previewEncoder) { try { previewEncoder.free(); } catch(e) {} }
+                    previewEncoder = new Mv2Encoder(config);
+                    lastPreviewConfig = config;
+                }
+                activeEncoder = previewEncoder;
             } else if (!activeEncoder) {
                 throw new Error("Encoder not initialized.");
             }
@@ -142,14 +150,15 @@ self.onmessage = async (e) => {
             }, [mv2Bytes.buffer, rgbBytes.buffer]);
             
             // Cleanup
-            encoder.free();
-            encoder = null;
+            if (encoder) { try { encoder.free(); } catch(e) {} encoder = null; }
+            if (previewEncoder) { try { previewEncoder.free(); } catch(e) {} previewEncoder = null; lastPreviewConfig = null; }
         }
     } catch (err) {
         console.error("[Worker] Error handling message:", type, err);
         self.postMessage({ type: 'ERROR', payload: err.message });
         // Error state recovery
         if (encoder) { try { encoder.free(); } catch(e) {} encoder = null; }
+        if (previewEncoder) { try { previewEncoder.free(); } catch(e) {} previewEncoder = null; lastPreviewConfig = null; }
     } finally {
         isBusy = false;
     }
