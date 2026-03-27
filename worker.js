@@ -8,6 +8,10 @@ let isBusy = false;
 let previewEncoder = null;
 let lastPreviewConfig = null;
 
+// Reusable buffers for monitor/preview to reduce GC pressure
+let monitorDitheredRGBA = null;
+let monitorVramRGBA = null;
+
 // Gamma LUT state
 let gammaLUT = new Uint8Array(256);
 let currentGamma = 1.0;
@@ -80,13 +84,12 @@ self.onmessage = async (e) => {
         }
 
         else if (type === 'ENCODE_FRAME' || type === 'TEST_FRAME') {
-            const { rgbaBytes, origW, origH, gamma, mp3Chunk, pcmSlice, frameIdx, config } = payload;
+            const { rgbaBytes, origW, origH, gamma, mp3Chunk, pcmSlice, frameIdx, config, needsMonitor } = payload;
             if (gamma) applyGamma(rgbaBytes, gamma);
 
             let activeEncoder = encoder;
             if (type === 'TEST_FRAME') {
                 if (!config) throw new Error("Config required for TEST_FRAME");
-                // Optimization: Reuse preview encoder if settings are identical
                 if (!previewEncoder || lastPreviewConfig !== config) {
                     if (previewEncoder) { try { previewEncoder.free(); } catch(e) {} }
                     previewEncoder = new Mv2Encoder(config);
@@ -99,41 +102,48 @@ self.onmessage = async (e) => {
 
             activeEncoder.add_frame(rgbaBytes, origW, origH, 4, mp3Chunk, pcmSlice);
 
-            const dRGB = activeEncoder.get_last_dithered_frame();
             const vBytes = activeEncoder.get_last_vram();
             const pBytes = activeEncoder.get_last_palette();
 
-            // Offload decoding to worker
-            const ditheredRGBA = new Uint8ClampedArray(256 * 192 * 4);
-            const vramRGBA = new Uint8ClampedArray(256 * 192 * 4);
-            const vData32 = new Uint32Array(vramRGBA.buffer);
-            const pal32 = new Uint32Array(16);
-
-            for (let i = 0, j = 0; i < dRGB.length; i += 3, j += 4) {
-                ditheredRGBA[j] = dRGB[i]; ditheredRGBA[j + 1] = dRGB[i + 1];
-                ditheredRGBA[j + 2] = dRGB[i + 2]; ditheredRGBA[j + 3] = 255;
-            }
-            for (let i = 0; i < 16; i++) {
-                pal32[i] = (255 << 24) | (pBytes[i * 3 + 2] << 16) | (pBytes[i * 3 + 1] << 8) | pBytes[i * 3 + 0];
-            }
-            for (let y = 0; y < 192; y++) {
-                const y8 = Math.floor(y / 8), yMod8 = y % 8, rowOffset = y * 256;
-                for (let x = 0; x < 256; x++) {
-                    const vram_off = (y8 * 32 + Math.floor(x / 8)) * 8 + yMod8;
-                    const bit = (vBytes[vram_off] >> (7 - (x % 8))) & 1, ct = vBytes[6144 + vram_off];
-                    vData32[rowOffset + x] = pal32[bit ? (ct >> 4) : (ct & 0x0F)];
-                }
-            }
-
             const response = {
                 type: type === 'ENCODE_FRAME' ? 'FRAME_DONE' : 'TEST_FRAME_DONE',
-                payload: { frameIdx, ditheredRGBA, vramRGBA, vramBytes: vBytes.slice(), paletteBytes: pBytes.slice() }
+                payload: { frameIdx, vramBytes: vBytes.slice(), paletteBytes: pBytes.slice() }
             };
-            const transferables = [ditheredRGBA.buffer, vramRGBA.buffer, response.payload.vramBytes.buffer, response.payload.paletteBytes.buffer];
+            const transferables = [response.payload.vramBytes.buffer, response.payload.paletteBytes.buffer];
             if (mp3Chunk) { response.payload.mp3Chunk = mp3Chunk; transferables.push(mp3Chunk.buffer); }
 
+            // Only perform expensive reconstruction if it's a TEST_FRAME (preview) or specifically requested for the monitor
+            if (type === 'TEST_FRAME' || needsMonitor) {
+                const dRGB = activeEncoder.get_last_dithered_frame();
+                
+                // Buffer Management (Allocation bypass)
+                // Note: We MUST create fresh buffers if we want to transfer them
+                const ditheredRGBA = new Uint8ClampedArray(256 * 192 * 4);
+                const vramRGBA = new Uint8ClampedArray(256 * 192 * 4);
+                const vData32 = new Uint32Array(vramRGBA.buffer);
+                const pal32 = new Uint32Array(16);
+
+                for (let i = 0, j = 0; i < dRGB.length; i += 3, j += 4) {
+                    ditheredRGBA[j] = dRGB[i]; ditheredRGBA[j + 1] = dRGB[i + 1];
+                    ditheredRGBA[j + 2] = dRGB[i + 2]; ditheredRGBA[j + 3] = 255;
+                }
+                for (let i = 0; i < 16; i++) {
+                    pal32[i] = (255 << 24) | (pBytes[i * 3 + 2] << 16) | (pBytes[i * 3 + 1] << 8) | pBytes[i * 3 + 0];
+                }
+                for (let y = 0; y < 192; y++) {
+                    const y8 = Math.floor(y / 8), yMod8 = y % 8, rowOffset = y * 256;
+                    for (let x = 0; x < 256; x++) {
+                        const vram_off = (y8 * 32 + Math.floor(x / 8)) * 8 + yMod8;
+                        const bit = (vBytes[vram_off] >> (7 - (x % 8))) & 1, ct = vBytes[6144 + vram_off];
+                        vData32[rowOffset + x] = pal32[bit ? (ct >> 4) : (ct & 0x0F)];
+                    }
+                }
+                response.payload.ditheredRGBA = ditheredRGBA;
+                response.payload.vramRGBA = vramRGBA;
+                transferables.push(ditheredRGBA.buffer, vramRGBA.buffer);
+            }
+
             self.postMessage(response, transferables);
-            if (isTemp) activeEncoder.free();
         }
 
         else if (type === 'FINISH') {

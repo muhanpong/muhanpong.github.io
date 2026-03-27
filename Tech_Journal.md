@@ -298,7 +298,7 @@
 - Fixed a bug in hq_encoder.html where the seek slider remained locked after encoding due to the unlocking logic being placed outside the event listener.
 - Robustified wasm_encoder.html by moving UI unlocking logic into the finally block of the encoding handler.
 ## 2026-03-21 06:30:00: Rollback to Stable Single-Threaded Architecture
-- **The Decision:** The experimental multi-threaded WASM implementation proved inherently unstable due to browser restrictions on memory cloning and Service Worker conflicts, causing frequent `DataCloneError` and `unreachable executed` crashes.
+- **The Decision:** The experimental multi-threaded WASM implementation proved inherently ultrasonic due to browser restrictions on memory cloning and Service Worker conflicts, causing frequent `DataCloneError` and `unreachable executed` crashes.
 - **The Rollback:** Preserved the multi-threading logic in a `wasm-unstable` branch, then completely stripped all `Rayon` thread pool initializations, manual memory injections, and linker hacks from the main branch.
 - **Current Status:** The encoder is now **100% stable** and crash-free. Performance remains excellent because the high-performance **512x512 LUT** and **SIMD (128-bit vectorization)** optimizations were preserved.
 ## 2026-03-13 22:00 - Encoder Feature: Real-time Snapshot & Interim Save
@@ -386,7 +386,7 @@
 - **Root Cause (Buffer Detachment):** Identified a critical JS scoping issue in `encoder.html`, `hq_encoder.html`, and `encoder-dev.html`. The `mp3Chunk` (Uint8Array) was being transferred to the WebWorker via `postMessage`. In the main thread's `onmessage` closure, the original `mp3Chunk` variable became "detached" (length 0), causing the manual JS-side muxer to embed empty audio blocks into the final file and snapshots.
 - **The Fix (Payload Extraction):** Modified the `onmessage` handler in all three encoders to extract the `mp3Chunk` directly from the worker's response payload (`e.data.payload.mp3Chunk`). Since the worker returns the processed chunk, this ensures the muxer always has valid data.
 - **Guaranteed Audio Muxing:** 
-    - Standardized the `FINISHED` handler to always use the manual assembly logic (`assembleInterimMv2()`) for the final `.mv2 download. This guarantees that the frame-by-frame audio chunks collected during the loop are correctly interleaved.
+    - Standardized the `FINISHED` handler to always use the manual assembly logic (`assembleInterimMv2()`) for the final `.mv2` download. This guarantees that the frame-by-frame audio chunks collected during the loop are correctly interleaved.
     - Added explicit metadata updates (total frames and duration) to the header before the final assembly to ensure player compatibility even if encoding was stopped early.
 - **Result:** High-fidelity 128kbps mono audio is now reliably present in all output files, snapshots, and interim saves across all encoder variants.
 
@@ -507,3 +507,8 @@
 - **Click Cycle**: `Enabled` -> `Locked` -> `Disabled` -> `Enabled`.
 - **Clear Button Logic**: Modified to only remove anchors in the `Enabled` or `Disabled` states, effectively preserving user-defined `Locked` anchors while cleaning up temporary or experimental colors.
 - **WYSIWYG Integration**: State changes instantly trigger a VRAM preview redraw, providing immediate feedback on how locking or disabling specific anchors affects the quantization result.
+
+## 2026-03-26 21:00:00 - Worker Stability & Initialization Fixes
+- **ReferenceError Fix**: Resolved a `ReferenceError: isTemp is not defined` in `worker.js` caused by leftover variable references after the `previewEncoder` reuse optimization.
+- **Robust Cleanup**: Standardized the `FINISHED` and `ERROR` handlers in the worker to ensure both the main `encoder` and `previewEncoder` are properly freed and nullified, preventing memory leaks and initialization deadlocks.
+- **Error Recovery**: Fixed a logic error where a crashed worker could leave the `isBusy` flag permanently set, blocking all future frame requests. Consistently clearing state in `finally` blocks ensures the worker remains responsive.

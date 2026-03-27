@@ -1957,6 +1957,8 @@
                             worker.onmessage = (e) => {
                                 if (e.data.type === 'FRAME_DONE') {
                                     const { vramBytes, paletteBytes, ditheredRGBA, vramRGBA, mp3Chunk: returnedMp3Chunk } = e.data.payload;
+                                    
+                                    // Always accumulate the raw hardware bytes for the final .mv2 file
                                     const frameBlock = new Uint8Array(16384);
                                     frameBlock.set(vramBytes, 0);
                                     const msxPal = new Uint8Array(30);
@@ -1971,32 +1973,34 @@
                                     }
                                     accumulatedMv2Blocks.push(frameBlock);
                                     
-                                    // 1. Dithered Frame
-                                    if (!window.monitorTempCanvas) {
-                                        window.monitorTempCanvas = document.createElement('canvas');
-                                        window.monitorTempCanvas.width = 256; window.monitorTempCanvas.height = 192;
-                                    }
-                                    window.monitorTempCanvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(ditheredRGBA), 256, 192), 0, 0);
+                                    // Monitor UI Update (Only if requested and data exists)
+                                    if (ditheredRGBA && vramRGBA) {
+                                        if (!window.monitorTempCanvas) {
+                                            window.monitorTempCanvas = document.createElement('canvas');
+                                            window.monitorTempCanvas.width = 256; window.monitorTempCanvas.height = 192;
+                                        }
+                                        window.monitorTempCanvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(ditheredRGBA), 256, 192), 0, 0);
 
-                                    // 2. VRAM Packed Frame
-                                    if (!window.vramTempCanvas) {
-                                        window.vramTempCanvas = document.createElement('canvas');
-                                        window.vramTempCanvas.width = 256; window.vramTempCanvas.height = 192;
-                                    }
-                                    window.vramTempCanvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(vramRGBA), 256, 192), 0, 0);
+                                        if (!window.vramTempCanvas) {
+                                            window.vramTempCanvas = document.createElement('canvas');
+                                            window.vramTempCanvas.width = 256; window.vramTempCanvas.height = 192;
+                                        }
+                                        window.vramTempCanvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(vramRGBA), 256, 192), 0, 0);
 
-                                    // Monitor split view (tri-state) - Optimized: No clipping
-                                    const s1 = Math.floor(256 * monitorLeftSplit), s2 = Math.floor(256 * monitorRightSplit);
-                                    if (s1 > 0) ctx.drawImage(offscreenCanvas, 0, 0, s1, 192, 0, 0, s1, 192);
-                                    if (s2 > s1) ctx.drawImage(window.monitorTempCanvas, s1, 0, s2 - s1, 192, s1, 0, s2 - s1, 192);
-                                    if (256 > s2) ctx.drawImage(window.vramTempCanvas, s2, 0, 256 - s2, 192, s2, 0, 256 - s2, 192);
+                                        const s1 = Math.floor(256 * monitorLeftSplit), s2 = Math.floor(256 * monitorRightSplit);
+                                        if (s1 > 0) ctx.drawImage(offscreenCanvas, 0, 0, s1, 192, 0, 0, s1, 192);
+                                        if (s2 > s1) ctx.drawImage(window.monitorTempCanvas, s1, 0, s2 - s1, 192, s1, 0, s2 - s1, 192);
+                                        if (256 > s2) ctx.drawImage(window.vramTempCanvas, s2, 0, 256 - s2, 192, s2, 0, 256 - s2, 192);
+                                    }
 
                                     resolve();
                                 }
                                 if (e.data.type === 'ERROR') reject(e.data.payload);
                             };
                             const gamma = parseFloat(document.getElementById('cfg_gamma').value) || 1.0;
-                            worker.postMessage({ type: 'ENCODE_FRAME', payload: { rgbaBytes, origW: 256, origH: 192, mp3Chunk, pcmSlice, frameIdx, gamma } }, [rgbaBytes.buffer, mp3Chunk.buffer, pcmSlice.buffer]);
+                            // Optimization: Only request expensive RGBA reconstruction if monitor is active
+                            const needsMonitor = (currentMode === 'monitor');
+                            worker.postMessage({ type: 'ENCODE_FRAME', payload: { rgbaBytes, origW: 256, origH: 192, mp3Chunk, pcmSlice, frameIdx, gamma, needsMonitor } }, [rgbaBytes.buffer, mp3Chunk.buffer, pcmSlice.buffer]);
                         });
                         // 3. Initiate Seek for Next Frame (Background)
                         let nextSeekPromise = null;
