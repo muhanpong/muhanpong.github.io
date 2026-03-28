@@ -1445,10 +1445,16 @@
                 const s = parseFloat(document.getElementById('cfg_saturation').value) + 100;
                 const h = parseFloat(document.getElementById('cfg_hue').value);
                 const gamma = parseFloat(document.getElementById('cfg_gamma').value) || 1.0;
+                
+                if (b === 100 && c === 100 && s === 100 && h === 0) {
+                    context.filter = 'none';
+                } else {
+                    context.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) hue-rotate(${h}deg)`;
+                }
+                
                 document.getElementById('gammaR').setAttribute('exponent', 1 / gamma);
                 document.getElementById('gammaG').setAttribute('exponent', 1 / gamma);
                 document.getElementById('gammaB').setAttribute('exponent', 1 / gamma);
-                context.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) hue-rotate(${h}deg)`;
                 if (context === ctx) canvas.style.filter = `url(#gamma-filter)`;
             }
 
@@ -1903,12 +1909,22 @@
                     }
                     const mp3Encoder = new lamejs.Mp3Encoder(1, TARGET_SAMPLE_RATE, 128);
                     const mp3Data = [];
+                    statusText.innerText = "Encoding Audio... (0%)";
                     for (let i = 0; i < pcmInt16.length; i += 11520) {
+                        if (shouldStopEncoding) break;
                         const mp3buf = mp3Encoder.encodeBuffer(pcmInt16.subarray(i, i + 11520));
                         if (mp3buf.length > 0) mp3Data.push(new Uint8Array(mp3buf));
+                        
+                        // Yield to UI to prevent freezing and allow stopping
+                        if (i % (11520 * 10) === 0) {
+                            statusText.innerText = `Encoding Audio... (${Math.round((i / pcmInt16.length) * 100)}%)`;
+                            await new Promise(r => setTimeout(r, 0));
+                        }
                     }
                     const leftover = mp3Encoder.flush();
                     if (leftover.length > 0) mp3Data.push(new Uint8Array(leftover));
+
+                    if (shouldStopEncoding) throw new Error("Encoding stopped by user.");
 
                     const totalMp3Len = mp3Data.reduce((acc, curr) => acc + curr.length, 0);
                     const fullMp3 = new Uint8Array(totalMp3Len);
