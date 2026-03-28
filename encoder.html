@@ -1538,12 +1538,15 @@
 
                         drawUIOverlays(box);
                     }).catch(err => {
-                        console.error(err);
-                        ctx.filter = 'none'; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        console.warn("[VRAM Preview]", err.message);
+                        if (err.message !== "BUSY") {
+                            ctx.filter = 'none'; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        }
                         applyVideoFilters(ctx); ctx.drawImage(sourceVideo, box.drawX, box.drawY, box.drawW, box.drawH);
                         ctx.filter = 'none';
                         drawUIOverlays(box);
-                    }).finally(() => { 
+                    }).finally(() => {
+ 
                         isVramProcessing = false; 
                         if (vramRedrawPending && !isDraggingCanvas && !isDraggingMarker && sourceVideo.paused) {
                             vramRedrawPending = false;
@@ -1872,9 +1875,10 @@
                 };
                 interimHeader = new Uint8Array(16384);
                 const sig = "MMCSD_MV", ver = "v2.00", metaStr = JSON.stringify(recipeMeta);
-                for (let i = 0; i < sig.length; i++) interimHeader[i] = sig.charCodeAt(i);
-                for (let i = 0; i < ver.length; i++) interimHeader[16 + i] = ver.charCodeAt(i);
-                for (let i = 0; i < metaStr.length; i++) interimHeader[256 + i] = metaStr.charCodeAt(i);
+                interimHeader.set(new TextEncoder().encode(sig), 0);
+                interimHeader.set(new TextEncoder().encode(ver), 16);
+                const encodedInitialMeta = new TextEncoder().encode(metaStr);
+                interimHeader.set(encodedInitialMeta, 256);
                 accumulatedMv2Blocks = [];
 
                 sourceVideo.pause(); sourceVideo.muted = true;
@@ -1940,11 +1944,16 @@
                     let globalMp3Offset = 0;
 
                     // 🛠️ Pipelining: Pre-seek first frame
-                    sourceVideo.currentTime = startTime;
-                    await new Promise(r => sourceVideo.onseeked = r);
+                    if (Math.abs(sourceVideo.currentTime - startTime) > 0.001) {
+                        sourceVideo.currentTime = startTime;
+                        await new Promise(r => {
+                            let timeout = setTimeout(r, 5000); // 5s timeout to prevent infinite hang
+                            sourceVideo.addEventListener('seeked', () => { clearTimeout(timeout); r(); }, { once: true });
+                        });
+                    }
 
                     for (let frameIdx = 0; frameIdx < totalFrames; frameIdx++) {
-                        if (shouldStopEncoding) break;
+                        if (shouldStopEncoding) throw new Error("Encoding stopped by user.");
                         statusText.innerText = `Encoding Frame ${frameIdx + 1} / ${totalFrames}...`;
                         progressBar.value = frameIdx + 1;
 
@@ -2039,8 +2048,16 @@
                         // 3. Initiate Seek for Next Frame (Background)
                         let nextSeekPromise = null;
                         if (frameIdx + 1 < totalFrames) {
-                            sourceVideo.currentTime = startTime + ((frameIdx + 1) / TARGET_FPS);
-                            nextSeekPromise = new Promise(r => sourceVideo.onseeked = r);
+                            const targetTime = startTime + ((frameIdx + 1) / TARGET_FPS);
+                            if (Math.abs(sourceVideo.currentTime - targetTime) > 0.001) {
+                                sourceVideo.currentTime = targetTime;
+                                nextSeekPromise = new Promise(r => {
+                                    let timeout = setTimeout(r, 5000); // 5s timeout max for local seeks to prevent black frames
+                                    sourceVideo.addEventListener('seeked', () => { clearTimeout(timeout); r(); }, { once: true });
+                                });
+                            } else {
+                                nextSeekPromise = Promise.resolve();
+                            }
                         }
 
                         // 4. Synchronize
@@ -2066,13 +2083,12 @@
                                 
                                 // Inject final metadata (offset 256)
                                 for (let i = 256; i < 16384; i++) interimHeader[i] = 0;
-                                for (let i = 0; i < finalMetaStr.length; i++) {
-                                    interimHeader[256 + i] = finalMetaStr.charCodeAt(i);
-                                }
+                                const encodedFinalMeta = new TextEncoder().encode(finalMetaStr);
+                                interimHeader.set(encodedFinalMeta, 256);
                                 
                                 // Use the professional WASM-packed file with injected metadata
                                 mv2Bytes.set(interimHeader, 0);
-                                finalResult = mv2Bytes;
+                                const finalResult = mv2Bytes;
                                 
                                 if (document.getElementById('cfg_auto_download').checked) {
                                     downloadFile(finalResult, "output.mv2", "application/octet-stream");
