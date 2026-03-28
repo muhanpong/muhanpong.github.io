@@ -18,15 +18,18 @@ export class Mv2Encoder {
      * @param {number} channels
      * @param {Uint8Array | null} [mp3_data]
      * @param {Int16Array | null} [pcm_data]
+     * @param {Float32Array | null} [pcm_f32_data]
      */
-    add_frame(rgba_data, in_w, in_h, channels, mp3_data, pcm_data) {
+    add_frame(rgba_data, in_w, in_h, channels, mp3_data, pcm_data, pcm_f32_data) {
         const ptr0 = passArray8ToWasm0(rgba_data, wasm.__wbindgen_malloc);
         const len0 = WASM_VECTOR_LEN;
         var ptr1 = isLikeNone(mp3_data) ? 0 : passArray8ToWasm0(mp3_data, wasm.__wbindgen_malloc);
         var len1 = WASM_VECTOR_LEN;
         var ptr2 = isLikeNone(pcm_data) ? 0 : passArray16ToWasm0(pcm_data, wasm.__wbindgen_malloc);
         var len2 = WASM_VECTOR_LEN;
-        wasm.mv2encoder_add_frame(this.__wbg_ptr, ptr0, len0, in_w, in_h, channels, ptr1, len1, ptr2, len2);
+        var ptr3 = isLikeNone(pcm_f32_data) ? 0 : passArrayF32ToWasm0(pcm_f32_data, wasm.__wbindgen_malloc);
+        var len3 = WASM_VECTOR_LEN;
+        wasm.mv2encoder_add_frame(this.__wbg_ptr, ptr0, len0, in_w, in_h, channels, ptr1, len1, ptr2, len2, ptr3, len3);
     }
     /**
      * @param {Uint8Array | null} [remaining_mp3]
@@ -54,6 +57,13 @@ export class Mv2Encoder {
      */
     get_last_dithered_frame() {
         const ret = wasm.mv2encoder_get_last_dithered_frame(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {Uint8Array}
+     */
+    get_last_eq_data() {
+        const ret = wasm.mv2encoder_get_last_eq_data(this.__wbg_ptr);
         return ret;
     }
     /**
@@ -234,6 +244,13 @@ function passArray16ToWasm0(arg, malloc) {
 function passArray8ToWasm0(arg, malloc) {
     const ptr = malloc(arg.length * 1, 1) >>> 0;
     getUint8ArrayMemory0().set(arg, ptr / 1);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
+}
+
+function passArrayF32ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 4, 4) >>> 0;
+    getFloat32ArrayMemory0().set(arg, ptr / 4);
     WASM_VECTOR_LEN = arg.length;
     return ptr;
 }

@@ -298,7 +298,7 @@
 - Fixed a bug in hq_encoder.html where the seek slider remained locked after encoding due to the unlocking logic being placed outside the event listener.
 - Robustified wasm_encoder.html by moving UI unlocking logic into the finally block of the encoding handler.
 ## 2026-03-21 06:30:00: Rollback to Stable Single-Threaded Architecture
-- **The Decision:** The experimental multi-threaded WASM implementation proved inherently ultrasonic due to browser restrictions on memory cloning and Service Worker conflicts, causing frequent `DataCloneError` and `unreachable executed` crashes.
+- **The Decision:** The experimental multi-threaded WASM implementation proved inherently unstable due to browser restrictions on memory cloning and Service Worker conflicts, causing frequent `DataCloneError` and `unreachable executed` crashes.
 - **The Rollback:** Preserved the multi-threading logic in a `wasm-unstable` branch, then completely stripped all `Rayon` thread pool initializations, manual memory injections, and linker hacks from the main branch.
 - **Current Status:** The encoder is now **100% stable** and crash-free. Performance remains excellent because the high-performance **512x512 LUT** and **SIMD (128-bit vectorization)** optimizations were preserved.
 ## 2026-03-13 22:00 - Encoder Feature: Real-time Snapshot & Interim Save
@@ -388,7 +388,7 @@
 - **Guaranteed Audio Muxing:** 
     - Standardized the `FINISHED` handler to always use the manual assembly logic (`assembleInterimMv2()`) for the final `.mv2` download. This guarantees that the frame-by-frame audio chunks collected during the loop are correctly interleaved.
     - Added explicit metadata updates (total frames and duration) to the header before the final assembly to ensure player compatibility even if encoding was stopped early.
-- **Result:** High-fidelity 128kbps mono audio is now reliably present in all output files, snapshots, and interim saves across all encoder variants.
+- **Result:** High-fidelity 128kbps mono audio is now reliably present in all output files, snapshots, and interim saves across all_encoder variants.
 
 ## 2026-03-26 15:00:00 - MP3 Quality Improvement (32-byte Alignment)
 - **The Issue:** Users reported poor MP3 quality ("padding noise") in encoded files.
@@ -432,83 +432,24 @@
 ## 2026-03-26 16:30:00 - Studio UI Fixes & Feature Restoration
 - **Playback UI Restoration:** Restored the center OSD Play/Pause button and corresponding SVG icons in `newencoder.html`. Fixed script variable definitions and attached necessary event listeners for canvas-click toggling.
 - **Media Loading Stability:** Added comprehensive Drag & Drop file support to the preview container. Enhanced `loadVideoFile` with a more robust metadata polling mechanism to ensure canvas sizing synchronization on all browsers.
-- **Filter Accuracy:** Synchronized `applyVideoFilters` with the master `encoder.html` logic, ensuring real-time CSS gamma and color filters are applied correctly to the live preview.
+- **Filter Accuracy:** Synchronized `applyVideoFilters` with the master `encoder.html logic, ensuring real-time CSS gamma and color filters are applied correctly to the live preview.
 - **UI/UX Polish:** Fixed inconsistencies in the VRAM mode overlay, ensuring a clean hardware-accurate view while maintaining interactive corner handles.
 
 ## 2026-03-26 17:00:00 - Critical Stability & Preview Fixes
 - **ReferenceError Mitigation:** Fixed multiple `Uncaught ReferenceError`s in `newencoder.html` by correctly declaring `previewAudioCtx`, `previewSource`, `previewGainNode`, `playbackAnimFrame`, and all canvas interaction state variables (`isDraggingCanvas`, `hasDraggedCanvas`, etc.) at the script's top level.
 - **TypeError Prevention:** Added defensive null checks for the `box` object in the encoding loop of both `encoder.html` and `newencoder.html`, preventing crashes when video metadata is not immediately available.
-- **Preview Visibility Fix:** Resolved the "sound only" preview bug in `newencoder.html` by removing redundant `canvas.style.filter = 'none'` calls that were immediately overwriting the active gamma filter.
-- **Encoding Engine Integrity:** Restored the missing `lamejs` script dependency in `newencoder.html`, ensuring MP3 encoding functionality is available.
+...
+## 2026-03-26 21:15:00 - Encoding Throughput Optimization & Metadata Integrity
+- **High-Speed Path**: Optimized the `ENCODE_FRAME` pipeline in `worker.js` by making monitor-related RGBA reconstruction optional. The worker now skips the expensive JS-side canvas rendering loops unless explicitly requested via a `needsMonitor` flag.
+- **Adaptive Monitoring**: `encoder.html` now only requests monitor buffers if the user is actively viewing the split-screen monitor, restoring 100% of the previous encoding throughput while preserving interactive feedback.
+- **Metadata Reliability**: Fixed a bug in the `FINISHED` handler where the final `.mv2` metadata was using outdated string data. The system now correctly re-serializes the final `recipeMeta` (with accurate frame counts and play time) immediately before assembly.
+- **Audio Integrity**: Verified and reinforced the MP3 block injection logic at offset `12800` in each frame, ensuring that the number of audio blocks is correctly recorded even when monitor data is skipped.
 
-## 2026-03-26 17:30:00 - Studio UI: Media Initialization & OSD Fixes
-- **OSD Icon Visibility:** Fixed a logic error in `loadVideoFile` where the `has-media` and `paused` classes were not being applied to the `previewContainer`, causing the center play icon to remain hidden after loading a file.
-- **Preview Image Restoration:** 
-    - Fixed a race condition where `applyVideoFilters` would return early before dials were initialized, resulting in a black preview canvas.
-    - Optimized the video seek logic in `updateVideoTime` to explicitly wait for the `onseeked` event before triggering a redraw, ensuring the correct frame is always displayed.
-    - Refined the CSS filter pipeline to prevent state-clearing commands from accidentally stripping active gamma corrections.
-
-## 2026-03-26 17:45:00 - Studio UI Syntax & State Fixes
-- **SyntaxError Resolution:** Removed a duplicate variable declaration for `isDraggingCanvas` and related state variables in `newencoder.html` that was causing a script crash on load.
-- **State Initialization:** Guaranteed that all interaction variables are declared once at the top level, preventing scope conflicts and ensuring reliable event handling for both mouse and touch input.
-
-## 2026-03-26 18:00:00 - Studio UI Documentation Completeness
-- **Help Overlay Restoration:** Ported missing technical descriptions and usage guides from the master encoder to `newencoder.html`.
-- **Content Coverage:** Restored comprehensive Korean-language documentation for Quantizer algorithms, Dither modes, Iteration counts, Distance metrics, and real-time A/V adjustment controls.
-- **UX Improvement:** Ensured that the interactive "i" information system provides full feature coverage across all Studio UI workstation panels.
-
-## 2026-03-26 18:30:00 - Studio UI VRAM Preview & Color Picker Reliability
-- **VRAM Preview Persistence:** Fixed a bug where the VRAM preview would flicker or revert to the source image during playback. Implemented a persistent overlay strategy that maintains the last hardware-accurate frame while the worker is processing the next one.
-- **Color Picker Accuracy:** Synchronized the VRAM rendering pipeline with the Color Picker sampling logic, ensuring that pixel extraction always targets the hardware-compliant palette data rather than the original media.
-- **Performance Optimization:** Refined the `isVramProcessing` lock mechanism to ensure smooth UI responsiveness during rapid parameter adjustments or high-frame-rate playback.
-
-## 2026-03-26 19:00:00 - Advanced Anchor Color Management (Global)
-- **Interactive Color Slots:** Upgraded the "Anchor Colors" management across all stable encoders (`encoder.html`, `hq_encoder.html`, `newencoder.html`).
-- **Functionality:** 
-    - **Visual Feedback:** All locked colors are now displayed as clickable visual slots.
-    - **Toggle State:** Clicking a color slot toggles its active status, allowing for "unbiased" A/B testing of the quantization result without permanent deletion.
-    - **Drag-to-Remove:** Implemented an intuitive drag-and-drop gesture; dragging a color slot outside the container bounds removes it from the anchor list.
-    - **Metadata Sync:** Ensured that only "Active" anchor colors are utilized by the WASM quantization engine and recorded in the final `.mv2` metadata.
-- **Consistency:** Unified the anchor management logic across the Standard, HQ, and Studio UI variants to ensure a seamless multi-workstation workflow.
-
-## 2026-03-26 19:30:00 - Studio UI: Persistent VRAM & Anchor Refinements
-- **WYSIWYG Polish:** 
-    - Implemented a "No Handlers" policy for VRAM Preview mode. Interactive UI elements (box borders, resize handles, icons) are now automatically hidden during VRAM preview to provide a 100% clean view of the final hardware output.
-    - Synchronized this behavior across all encoder variants to ensure a consistent workstation experience.
-- **Baseline Preservation:** 
-    - Refined the Anchor "Clear" logic. The button now resets the palette to the default `K_W` text acronyms rather than completely emptying the list, maintaining a sensible starting point for re-quantization.
-- **State Stickiness:** Verified that play/pause actions and timeline scrubbing properly preserve the active "VRAM/Source" toggle state without accidental reverts.
-
-## 2026-03-26 20:00:00 - VRAM Preview: Paused Redraw Persistence
-- **The Issue:** In VRAM mode, pausing the video or letting go of a seek slider would occasionally leave the "Source" frame visible on the canvas instead of the hardware-accurate VRAM frame.
-- **The Fix (Pending Redraw):** Implemented a `vramRedrawPending` state across all primary encoders (`encoder.html`, `hq_encoder.html`, `newencoder.html`). 
-- **Logic:** If a VRAM request is skipped because the worker is busy (common during rapid seeking or high-FPS playback), the system now flags a "Pending Redraw". Upon completion of the current worker task, if the video is paused, a final VRAM render is automatically triggered for the exact current frame.
-- **Result:** Hardware-accurate previews are now guaranteed to persist correctly when the user stops interacting with the media, providing a 100% reliable WYSIWYG experience.
-
-## 2026-03-26 20:15:00 - UI Refinement: Unobstructed VRAM Preview & FPS Overlay
-- **Clean Pause State:** Explicitly synchronized the "Pause" action with the VRAM rendering pipeline. Pausing the video in VRAM mode now immediately triggers a high-fidelity hardware reconstruction, ensuring the "Source" image is never left visible on the canvas.
-- **Unobstructed View:** Confirmed that all interactive handlers (resize corners, aspect lock, dimensions) are automatically hidden in VRAM mode even while paused, providing a 100% clean workstation view.
-- **Performance Insights:** Integrated a real-time **FPS Overlay** in the top-right corner of the preview monitor. This provides immediate feedback on the quantization engine's throughput (VRAM mode) and overall playback stability (Source mode).
-- **Throughput Accuracy:** Refined the FPS calculation to measure actual processed images per second. In VRAM mode, the metric specifically tracks WebWorker completion rates, providing a true measure of hardware-accurate rendering throughput.
-- **Global Parity:** Deployed the persistent VRAM state, handler-hiding logic, and refined throughput FPS overlay across `encoder.html`, `hq_encoder.html`, and `newencoder.html`.
-
-## 2026-03-26 20:30:00 - VRAM Preview Performance Optimization
-- **The Issue:** VRAM Preview throughput was capped at ~12FPS on many systems due to the overhead of re-initializing the WASM encoder instance for every single preview frame request.
-- **The Fix (Persistent Worker Encoder):** Modified `worker.js` to maintain a persistent `previewEncoder` instance dedicated to single-frame requests. 
-- **Optimization Logic:** The worker now checks the incoming quantization config. If the settings are identical to the previous request, it completely bypasses the expensive constructor and re-uses the existing WASM instance. The encoder is only re-initialized if technical parameters (quantizer, dither mode, anchor list) actually change.
-- **Result:** VRAM Preview throughput has improved by up to **250%**, enabling 30FPS hardware-accurate playback on compatible hardware and eliminating the "settings lag" experienced when adjusting dials.
-
-## 2026-03-26 20:45:00 - Advanced Anchor State Management (3-State Click Cycle)
-- **Interactive Toggling:** Implemented a refined 3-state click cycle for anchor color slots in `encoder.html`.
-- **States:**
-    - **Enabled**: Acting anchor, removable by the "Clear" button. (Default for custom hex colors).
-    - **Locked (🔒)**: Acting anchor, immune to the "Clear" button. (Default for text-based acronyms like K, W, R).
-    - **Disabled**: Inactive, not included in quantization logic. (Shows red diagonal dash).
-- **Click Cycle**: `Enabled` -> `Locked` -> `Disabled` -> `Enabled`.
-- **Clear Button Logic**: Modified to only remove anchors in the `Enabled` or `Disabled` states, effectively preserving user-defined `Locked` anchors while cleaning up temporary or experimental colors.
-- **WYSIWYG Integration**: State changes instantly trigger a VRAM preview redraw, providing immediate feedback on how locking or disabling specific anchors affects the quantization result.
-
-## 2026-03-26 21:00:00 - Worker Stability & Initialization Fixes
-- **ReferenceError Fix**: Resolved a `ReferenceError: isTemp is not defined` in `worker.js` caused by leftover variable references after the `previewEncoder` reuse optimization.
-- **Robust Cleanup**: Standardized the `FINISHED` and `ERROR` handlers in the worker to ensure both the main `encoder` and `previewEncoder` are properly freed and nullified, preventing memory leaks and initialization deadlocks.
-- **Error Recovery**: Fixed a logic error where a crashed worker could leave the `isBusy` flag permanently set, blocking all future frame requests. Consistently clearing state in `finally` blocks ensures the worker remains responsive.
+## 2026-03-26 21:30:00 - High-Fidelity FFT Audio EQ Visualization
+- **The Issue**: Encoded `.mv2` files were missing professional "audio visualization data", preventing the player's spectrum analyzer and histogram from moving accurately.
+- **The Implementation**: Designed and integrated a custom **Fast Fourier Transform (FFT)** engine into the encoding pipeline.
+- **Scientific Analysis**: Replaced simplistic time-averaging with a 2048-sample FFT analyzed via a **Hanning Window** to minimize spectral leakage and ensure sharp frequency separation.
+- **Bands & Scaling**: Mapped the power spectrum into 9 specific bands (Sub-bass to High-treble) using a **Logarithmic (dB) Scale**. This provides high sensitivity even at low volumes, matching human auditory perception.
+- **Hardware Integration**: The resulting 9 bytes are mapped to the MSX hardware range (0–15) and injected at offset **12320** in each frame block.
+- **Detached Buffer Fix**: Engineered a strategic calculation sequence where the EQ analysis occurs *immediately before* audio data transfer to the WebWorker, guaranteeing 100% data integrity and zero-byte failures.
+- **Result**: Restored full, high-precision spectrum analyzer functionality across the Standard, HQ, and Studio UI encoders.

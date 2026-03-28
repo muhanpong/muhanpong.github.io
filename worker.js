@@ -43,16 +43,17 @@ function applyGamma(rgbaBytes, gamma) {
 async function ensureWasm() {
     if (Mv2Encoder) return; // Already initialized
 
-    console.log("[Worker] Loading WASM module...");
+    console.log("[Worker] Loading WASM module with cache buster...");
     try {
-        const module = await import('./pkg/mv2_wasm.js');
+        // Use timestamp to bypass service worker / browser cache for the glue code
+        const v = Date.now();
+        const module = await import(`./pkg/mv2_wasm.js?v=${v}`);
         init = module.default;
         Mv2Encoder = module.Mv2Encoder;
 
-        // Initialize WASM
-        await init();
+        // Initialize WASM with cache-busted path for the .wasm file itself
+        await init(`./pkg/mv2_wasm_bg.wasm?v=${v}`);
 
-        // Optional: Initialize panic hook
         if (module.init_panic_hook) module.init_panic_hook();
         console.log("[Worker] WASM loaded and initialized.");
     } catch (err) {
@@ -65,6 +66,7 @@ async function ensureWasm() {
 self.onmessage = async (e) => {
     if (isBusy) {
         console.warn("[Worker] Busy handling another message. Skipping:", e.data.type);
+        self.postMessage({ type: 'ERROR', payload: 'BUSY' });
         return;
     }
     const { type, payload } = e.data;
@@ -84,7 +86,7 @@ self.onmessage = async (e) => {
         }
 
         else if (type === 'ENCODE_FRAME' || type === 'TEST_FRAME') {
-            const { rgbaBytes, origW, origH, gamma, mp3Chunk, pcmSlice, frameIdx, config, needsMonitor } = payload;
+            const { rgbaBytes, origW, origH, gamma, mp3Chunk, pcmSlice, pcmF32Slice, frameIdx, config, needsMonitor } = payload;
             if (gamma) applyGamma(rgbaBytes, gamma);
 
             let activeEncoder = encoder;
@@ -100,16 +102,17 @@ self.onmessage = async (e) => {
                 throw new Error("Encoder not initialized.");
             }
 
-            activeEncoder.add_frame(rgbaBytes, origW, origH, 4, mp3Chunk, pcmSlice);
+            activeEncoder.add_frame(rgbaBytes, origW, origH, 4, mp3Chunk, pcmSlice, pcmF32Slice);
 
             const vBytes = activeEncoder.get_last_vram();
             const pBytes = activeEncoder.get_last_palette();
+            const eqBytes = activeEncoder.get_last_eq_data();
 
             const response = {
                 type: type === 'ENCODE_FRAME' ? 'FRAME_DONE' : 'TEST_FRAME_DONE',
-                payload: { frameIdx, vramBytes: vBytes.slice(), paletteBytes: pBytes.slice() }
+                payload: { frameIdx, vramBytes: vBytes.slice(), paletteBytes: pBytes.slice(), eqBytes: eqBytes.slice() }
             };
-            const transferables = [response.payload.vramBytes.buffer, response.payload.paletteBytes.buffer];
+            const transferables = [response.payload.vramBytes.buffer, response.payload.paletteBytes.buffer, response.payload.eqBytes.buffer];
             if (mp3Chunk) { response.payload.mp3Chunk = mp3Chunk; transferables.push(mp3Chunk.buffer); }
 
             // Only perform expensive reconstruction if it's a TEST_FRAME (preview) or specifically requested for the monitor

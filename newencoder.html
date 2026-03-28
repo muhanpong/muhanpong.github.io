@@ -1356,8 +1356,61 @@
                     let mp3ChunkSize = Math.floor((nextTarget - globalMp3Offset) / 32) * 32;
                     if (frameIdx === totalFrames - 1) mp3ChunkSize = fullMp3.length - globalMp3Offset;
                     
-                    const mp3Chunk = fullMp3.slice(globalMp3Offset, globalMp3Offset + mp3ChunkSize); globalMp3Offset += mp3ChunkSize;
+                    const mp3Chunk = fullMp3.slice(globalMp3Offset, globalMp3Offset + mp3ChunkSize);
+                    globalMp3Offset += mp3ChunkSize;
                     const pcmSlice = pcmInt16.slice(frameIdx * (TARGET_SAMPLE_RATE / TARGET_FPS), (frameIdx + 1) * (TARGET_SAMPLE_RATE / TARGET_FPS));
+
+                    // 📊 Audio EQ Visualization Data (Real FFT Analysis)
+                    const eqData = new Uint8Array(9);
+                    if (pcmSlice && pcmSlice.length > 0) {
+                        const fftSize = 2048; 
+                        const real = new Float32Array(fftSize);
+                        const imag = new Float32Array(fftSize);
+                        for (let i = 0; i < fftSize; i++) {
+                            if (i < pcmSlice.length) {
+                                const window = 0.5 * (1 - Math.cos(2 * Math.PI * i / (pcmSlice.length - 1)));
+                                real[i] = (pcmSlice[i] / 32768) * window;
+                            } else real[i] = 0;
+                            imag[i] = 0;
+                        }
+                        function computeFFT(re, im) {
+                            const n = re.length;
+                            for (let i = 1, j = 0; i < n; i++) {
+                                let bit = n >> 1;
+                                for (; j & bit; bit >>= 1) j ^= bit;
+                                j ^= bit;
+                                if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+                            }
+                            for (let len = 2; len <= n; len <<= 1) {
+                                const ang = 2 * Math.PI / len;
+                                const wlen_re = Math.cos(ang), wlen_im = -Math.sin(ang);
+                                for (let i = 0; i < n; i += len) {
+                                    let w_re = 1, w_im = 0;
+                                    for (let j = 0; j < len / 2; j++) {
+                                        const u_re = re[i + j], u_im = im[i + j];
+                                        const v_re = re[i + j + len / 2] * w_re - im[i + j + len / 2] * w_im;
+                                        const v_im = re[i + j + len / 2] * w_im + im[i + j + len / 2] * w_re;
+                                        re[i + j] = u_re + v_re; im[i + j] = u_im + v_im;
+                                        re[i + j + len / 2] = u_re - v_re; im[i + j + len / 2] = u_im - v_im;
+                                        const tmp_re = w_re * wlen_re - w_im * wlen_im;
+                                        w_im = w_re * wlen_im + w_im * wlen_re; w_re = tmp_re;
+                                    }
+                                }
+                            }
+                        }
+                        computeFFT(real, imag);
+                        const bandEdges = [2, 8, 15, 30, 50, 140, 280, 560, 750, 1024];
+                        for (let b = 0; b < 9; b++) {
+                            let maxMag = 0;
+                            for (let i = bandEdges[b]; i < bandEdges[b+1]; i++) {
+                                const mag = Math.sqrt(real[i]*real[i] + imag[i]*imag[i]);
+                                if (mag > maxMag) maxMag = mag;
+                            }
+                            const db = 20 * Math.log10(Math.max(maxMag, 0.001));
+                            const scaled = Math.max(0, Math.min(15, Math.floor((db + 60) / 60 * 15)));
+                            eqData[b] = 15 - scaled;
+                        }
+                    } else eqData.fill(15);
 
                     const workerPromise = new Promise((resolve, reject) => {
                         worker.onmessage = (e) => {
@@ -1370,23 +1423,28 @@
                                     msxPal[(i - 1) * 2] = (r << 4) | b; msxPal[(i - 1) * 2 + 1] = g;
                                 }
                                 frameBlock.set(msxPal, 12288);
+                                frameBlock.set(eqData, 12320); // Use the pre-calculated EQ data
+
                                 if (returnedMp3Chunk && returnedMp3Chunk.length > 0) {
                                     frameBlock[12800] = Math.ceil(returnedMp3Chunk.length / 32); frameBlock.set(returnedMp3Chunk, 12801);
                                 }
                                 accumulatedMv2Blocks.push(frameBlock);
                                 
-                                window.monitorTempCanvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(ditheredRGBA), 256, 192), 0, 0);
-                                window.vramTempCanvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(vramRGBA), 256, 192), 0, 0);
+                                // Monitor UI Update (Only if requested and data exists)
+                                if (ditheredRGBA && vramRGBA) {
+                                    window.monitorTempCanvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(ditheredRGBA), 256, 192), 0, 0);
+                                    window.vramTempCanvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(vramRGBA), 256, 192), 0, 0);
 
-                                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                                const s1 = Math.floor(256 * monitorLeftSplit), s2 = Math.floor(256 * monitorRightSplit);
-                                if (s1 > 0) { ctx.save(); ctx.beginPath(); ctx.rect(0,0,s1,192); ctx.clip(); ctx.drawImage(offscreenCanvas,0,0); ctx.restore(); }
-                                if (s2 > s1) { ctx.save(); ctx.beginPath(); ctx.rect(s1,0,s2-s1,192); ctx.clip(); ctx.drawImage(window.monitorTempCanvas,0,0); ctx.restore(); }
-                                if (256 > s2) { ctx.save(); ctx.beginPath(); ctx.rect(s2,0,256-s2,192); ctx.clip(); ctx.drawImage(window.vramTempCanvas,0,0); ctx.restore(); }
+                                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                                    const s1 = Math.floor(256 * monitorLeftSplit), s2 = Math.floor(256 * monitorRightSplit);
+                                    if (s1 > 0) { ctx.save(); ctx.beginPath(); ctx.rect(0,0,s1,192); ctx.clip(); ctx.drawImage(offscreenCanvas,0,0); ctx.restore(); }
+                                    if (s2 > s1) { ctx.save(); ctx.beginPath(); ctx.rect(s1,0,s2-s1,192); ctx.clip(); ctx.drawImage(window.monitorTempCanvas,0,0); ctx.restore(); }
+                                    if (256 > s2) { ctx.save(); ctx.beginPath(); ctx.rect(s2,0,256-s2,192); ctx.clip(); ctx.drawImage(window.vramTempCanvas,0,0); ctx.restore(); }
 
-                                ctx.lineWidth = 1;
-                                if (s1 > 0 && s1 < 256) { ctx.strokeStyle = '#4CAF50'; ctx.beginPath(); ctx.moveTo(s1, 0); ctx.lineTo(s1, 192); ctx.stroke(); }
-                                if (s2 > s1 && s2 < 256) { ctx.strokeStyle = '#ff9800'; ctx.beginPath(); ctx.moveTo(s2, 0); ctx.lineTo(s2, 192); ctx.stroke(); }
+                                    ctx.lineWidth = 1;
+                                    if (s1 > 0 && s1 < 256) { ctx.strokeStyle = '#4CAF50'; ctx.beginPath(); ctx.moveTo(s1, 0); ctx.lineTo(s1, 192); ctx.stroke(); }
+                                    if (s2 > s1 && s2 < 256) { ctx.strokeStyle = '#ff9800'; ctx.beginPath(); ctx.moveTo(s2, 0); ctx.lineTo(s2, 192); ctx.stroke(); }
+                                }
                                 
                                 if (window.showGrid) {
                                     ctx.fillStyle = 'rgba(255, 255, 255, 0.25)'; for (let x = 0; x < 256; x += 8) ctx.fillRect(x, 0, 1, 192); for (let y = 0; y < 192; y += 8) ctx.fillRect(0, y, 256, 1);
@@ -1397,7 +1455,8 @@
                             if (e.data.type === 'ERROR') reject(e.data.payload);
                         };
                         const gamma = parseFloat(dials['gamma'] ? dials['gamma'].getValue() : 1.0) || 1.0;
-                        worker.postMessage({ type: 'ENCODE_FRAME', payload: { rgbaBytes, origW: 256, origH: 192, mp3Chunk, pcmSlice, frameIdx, gamma } }, [rgbaBytes.buffer, mp3Chunk.buffer, pcmSlice.buffer]);
+                        const needsMonitor = (currentMode === 'monitor');
+                        worker.postMessage({ type: 'ENCODE_FRAME', payload: { rgbaBytes, origW: 256, origH: 192, mp3Chunk, pcmSlice, frameIdx, gamma, needsMonitor } }, [rgbaBytes.buffer, mp3Chunk.buffer, pcmSlice.buffer]);
                     });
                     let nextSeekPromise = null;
                     if (frameIdx + 1 < totalFrames) { sourceVideo.currentTime = startTime + ((frameIdx + 1) / TARGET_FPS); nextSeekPromise = new Promise(r => sourceVideo.onseeked = r); }

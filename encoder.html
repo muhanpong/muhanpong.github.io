@@ -1914,13 +1914,14 @@
                     const fullMp3 = new Uint8Array(totalMp3Len);
                     let offset = 0;
                     for (const chunk of mp3Data) { fullMp3.set(chunk, offset); offset += chunk.length; }
-
+                    
                     // 🚀 화질 뭉개짐을 최소화하기 위해 최고 품질의 리사이징 필터 적용
                     offCtx.imageSmoothingEnabled = true;
                     offCtx.imageSmoothingQuality = 'high';
 
                     progressBar.max = totalFrames;
-                    let globalMp3Offset = 0, encodedFramesCount = 0;
+                    let encodedFramesCount = 0;
+                    let globalMp3Offset = 0;
 
                     // 🛠️ Pipelining: Pre-seek first frame
                     sourceVideo.currentTime = startTime;
@@ -1940,23 +1941,26 @@
                         offCtx.filter = 'none';
                         const rgbaBytes = new Uint8Array(offCtx.getImageData(0, 0, 256, 192).data.buffer);
                         
-                        // 🔊 MP3 Alignment Fix: Ensure chunks are multiples of 32 bytes to avoid padding noise
+                        // Extract F32 slice for high-fidelity WASM FFT
+                        const samplesPerFrame = Math.floor(TARGET_SAMPLE_RATE / TARGET_FPS);
+                        const frameStartSample = Math.floor(frameIdx * samplesPerFrame);
+                        const frameEndSample = Math.floor((frameIdx + 1) * samplesPerFrame);
+                        // Apply gain directly to the F32 slice for FFT analysis
+                        const pcmF32Slice = new Float32Array(slicedFloat32.subarray(frameStartSample, frameEndSample));
+                        for(let i=0; i<pcmF32Slice.length; i++) pcmF32Slice[i] *= gain;
+
+                        // 🔊 MP3 Chunk Extraction
                         let nextTarget = Math.floor((frameIdx + 1) * (16000 / TARGET_FPS));
                         let mp3ChunkSize = Math.floor((nextTarget - globalMp3Offset) / 32) * 32;
-                        
-                        // Last frame takes all remaining bytes
-                        if (frameIdx === totalFrames - 1) {
-                            mp3ChunkSize = fullMp3.length - globalMp3Offset;
-                        }
+                        if (frameIdx === totalFrames - 1) mp3ChunkSize = fullMp3.length - globalMp3Offset;
                         
                         const mp3Chunk = fullMp3.slice(globalMp3Offset, globalMp3Offset + mp3ChunkSize);
                         globalMp3Offset += mp3ChunkSize;
-                        const pcmSlice = pcmInt16.slice(frameIdx * (TARGET_SAMPLE_RATE / TARGET_FPS), (frameIdx + 1) * (TARGET_SAMPLE_RATE / TARGET_FPS));
 
                         const workerPromise = new Promise((resolve, reject) => {
                             worker.onmessage = (e) => {
                                 if (e.data.type === 'FRAME_DONE') {
-                                    const { vramBytes, paletteBytes, ditheredRGBA, vramRGBA, mp3Chunk: returnedMp3Chunk } = e.data.payload;
+                                    const { vramBytes, paletteBytes, eqBytes, ditheredRGBA, vramRGBA, mp3Chunk: returnedMp3Chunk } = e.data.payload;
                                     
                                     // Always accumulate the raw hardware bytes for the final .mv2 file
                                     const frameBlock = new Uint8Array(16384);
@@ -1967,6 +1971,14 @@
                                         msxPal[(i - 1) * 2] = (r << 4) | b; msxPal[(i - 1) * 2 + 1] = g;
                                     }
                                     frameBlock.set(msxPal, 12288);
+                                    
+                                    // 📊 Use the high-fidelity EQ data from WASM AudioAnalyzer
+                                    if (eqBytes) {
+                                        frameBlock.set(eqBytes.subarray(0, 9), 12320);
+                                    } else {
+                                        frameBlock.set(new Uint8Array(9).fill(15), 12320);
+                                    }
+
                                     if (returnedMp3Chunk && returnedMp3Chunk.length > 0) {
                                         const blocks = Math.ceil(returnedMp3Chunk.length / 32);
                                         frameBlock[12800] = blocks; frameBlock.set(returnedMp3Chunk, 12801);
@@ -2000,7 +2012,13 @@
                             const gamma = parseFloat(document.getElementById('cfg_gamma').value) || 1.0;
                             // Optimization: Only request expensive RGBA reconstruction if monitor is active
                             const needsMonitor = (currentMode === 'monitor');
-                            worker.postMessage({ type: 'ENCODE_FRAME', payload: { rgbaBytes, origW: 256, origH: 192, mp3Chunk, pcmSlice, frameIdx, gamma, needsMonitor } }, [rgbaBytes.buffer, mp3Chunk.buffer, pcmSlice.buffer]);
+                            worker.postMessage({ 
+                                type: 'ENCODE_FRAME', 
+                                payload: { 
+                                    rgbaBytes, origW: 256, origH: 192, 
+                                    mp3Chunk, pcmF32Slice, frameIdx, gamma, needsMonitor 
+                                } 
+                            }, [rgbaBytes.buffer, mp3Chunk.buffer, pcmF32Slice.buffer]);
                         });
                         // 3. Initiate Seek for Next Frame (Background)
                         let nextSeekPromise = null;
@@ -2019,17 +2037,26 @@
                         worker.onmessage = (e) => {
                             if (e.data.type === 'FINISHED') {
                                 const { mv2Bytes } = e.data.payload;
-                                let finalResult;
                                 
-                                // Always use manual assembly to guarantee sound output (ensures mp3Chunks are correctly embedded)
+                                // Inject final metadata into the WASM-generated file header
                                 recipeMeta.total_frames = accumulatedMv2Blocks.length;
                                 const actualDuration = accumulatedMv2Blocks.length / TARGET_FPS;
                                 const m = Math.floor(actualDuration / 60), s = Math.floor(actualDuration % 60), ms = Math.floor((actualDuration % 1) * 100);
                                 recipeMeta.play_time = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
-                                const metaStr = JSON.stringify(recipeMeta);
+                                
+                                const finalMetaStr = JSON.stringify(recipeMeta);
+                                interimHeader = new Uint8Array(16384);
+                                interimHeader.set(mv2Bytes.subarray(0, 16384)); // Start with WASM header
+                                
+                                // Inject final metadata (offset 256)
                                 for (let i = 256; i < 16384; i++) interimHeader[i] = 0;
-                                for (let i = 0; i < metaStr.length; i++) interimHeader[256 + i] = metaStr.charCodeAt(i);
-                                finalResult = assembleInterimMv2();
+                                for (let i = 0; i < finalMetaStr.length; i++) {
+                                    interimHeader[256 + i] = finalMetaStr.charCodeAt(i);
+                                }
+                                
+                                // Use the professional WASM-packed file with injected metadata
+                                mv2Bytes.set(interimHeader, 0);
+                                finalResult = mv2Bytes;
                                 
                                 if (document.getElementById('cfg_auto_download').checked) {
                                     downloadFile(finalResult, "output.mv2", "application/octet-stream");
@@ -2038,9 +2065,11 @@
                             }
                             if (e.data.type === 'ERROR') reject(e.data.payload);
                         };
+                        
                         let finalMp3 = shouldStopEncoding ? new Uint8Array(0) : fullMp3.slice(globalMp3Offset);
                         // 🛠️ Stability: Clamp tail audio to avoid WASM panic if too large
                         if (finalMp3.length > 8192) finalMp3 = finalMp3.slice(0, 8192);
+                        
                         worker.postMessage({ type: 'FINISH', payload: { remainingMp3: finalMp3 } });
                     });
                     statusText.innerText = "Encoding Complete! 🎉";
@@ -2069,6 +2098,14 @@
 
             function assembleInterimMv2() {
                 if (!interimHeader || accumulatedMv2Blocks.length === 0) return null;
+                
+                // Set frame count (offset 24, 4-byte LE)
+                const count = accumulatedMv2Blocks.length;
+                interimHeader[24] = count & 0xFF;
+                interimHeader[25] = (count >> 8) & 0xFF;
+                interimHeader[26] = (count >> 16) & 0xFF;
+                interimHeader[27] = (count >> 24) & 0xFF;
+
                 const fullData = new Uint8Array(16384 + accumulatedMv2Blocks.length * 16384);
                 fullData.set(interimHeader, 0);
                 for (let i = 0; i < accumulatedMv2Blocks.length; i++) {
