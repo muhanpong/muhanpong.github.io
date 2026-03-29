@@ -586,6 +586,7 @@
                     <label>Dither Mode</label>
                     <select id="cfg_dither_mode">
                         <option value="fs" selected>Floyd-Steinberg (FS)</option>
+                        <option value="sierra_lite">Sierra Lite</option>
                         <option value="dizzy">Dizzy (Error Diffusion)</option>
                         <option value="bluenoise">Blue Noise Void & Cluster</option>
                         <option value="bayer4">Bayer (4x4)</option>
@@ -595,6 +596,7 @@
                     <div class="help-overlay">
                         <h4>Dither Mode <span class="tip">(디더링 모드)</span></h4>
                         <span class="hl">FS</span>: 표준적인 플로이드-스타인버그 오차 확산입니다. 선명합니다.<br>
+                        <span class="hl">Sierra Lite</span>: FS보다 빠르고 가벼우며 대비가 강한 디더링 패턴입니다.<br>
                         <span class="hl">Dizzy</span>: 픽셀을 무작위로 방문하여 오차를 확산해 규칙적인 패턴을 없앱니다.<br>
                         <span class="hl">Blue Noise Void & Cluster</span>: 사전 계산된 마스크를 사용하여 타일링이 전혀 없는 고급 블루 노이즈를 렌더링합니다.<br>
                         <span class="hl">Bayer 4x4 / 8x8</span>: 레트로한 격자무늬(크로스해치) 패턴을 생성합니다.<br>
