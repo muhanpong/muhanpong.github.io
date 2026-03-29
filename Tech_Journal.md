@@ -453,3 +453,16 @@
 - **Hardware Integration**: The resulting 9 bytes are mapped to the MSX hardware range (0–15) and injected at offset **12320** in each frame block.
 - **Detached Buffer Fix**: Engineered a strategic calculation sequence where the EQ analysis occurs *immediately before* audio data transfer to the WebWorker, guaranteeing 100% data integrity and zero-byte failures.
 - **Result**: Restored full, high-precision spectrum analyzer functionality across the Standard, HQ, and Studio UI encoders.
+
+## 2026-03-29 12:30:00 - VRAM Preview Pipeline Analysis & WASM-side Decode
+
+- **Bottleneck Analysis**: Profiled the VRAM preview pipeline across `encoder.html`, `worker.js`, and `lib.rs`. Identified 5 key bottlenecks:
+    1. `get_last_dithered_frame()` called on every preview frame but unused for VRAM display (147KB wasted copy).
+    2. RGB→RGBA conversion loop (~49K iterations) in JS.
+    3. VRAM decode loop (~49K iterations with bit-level ops) in JS.
+    4. Fresh `Uint8ClampedArray(196608)` allocations every frame causing GC pressure.
+    5. `isBusy` guard silently dropping frames instead of queuing the latest.
+- **WASM-side VRAM Decode (`lib.rs`)**: Added `get_last_vram_rgba()` method to `Mv2Encoder` that performs the full VRAM pattern table + color table → RGBA reconstruction entirely in compiled Rust. This replaces ~100K JS loop iterations per preview frame with a single WASM call. The decode logic mirrors the JS version: reads pattern byte → extracts bit → looks up color table → resolves palette → writes RGBA.
+- **Ditherer Bugfix (`ditherer.rs`)**: Fixed typo `p 6as i32` → `p as i32` in the dizzy dither `work_img` initialization (line 130) that would have caused a compilation failure.
+- **Encoder Refactoring**: User performed a full refactor of both `encoder.html` (standard UI) and `advencoder.html` (studio UI with dial controls), consolidating the codebase and aligning both encoders with the latest worker protocol and preview pipeline.
+- **Status**: `get_last_vram_rgba()` is built and available in the WASM package for future use. The JS-side decode remains the active path in `worker.js` for now.

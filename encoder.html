@@ -588,14 +588,16 @@
                         <option value="fs" selected>Floyd-Steinberg (FS)</option>
                         <option value="dizzy">Dizzy (Error Diffusion)</option>
                         <option value="bluenoise">Blue Noise Void & Cluster</option>
+                        <option value="bayer4">Bayer (4x4)</option>
+                        <option value="bayer8">Bayer (8x8)</option>
                         <option value="none">None (Posterized)</option>
                     </select>
                     <div class="help-overlay">
                         <h4>Dither Mode <span class="tip">(디더링 모드)</span></h4>
                         <span class="hl">FS</span>: 표준적인 플로이드-스타인버그 오차 확산입니다. 선명합니다.<br>
                         <span class="hl">Dizzy</span>: 픽셀을 무작위로 방문하여 오차를 확산해 규칙적인 패턴을 없앱니다.<br>
-                        <span class="hl">Blue Noise Void & Cluster</span>: 사전 계산된 마스크를 사용하여 타일링이 전혀 없는 고급 블루 노이즈를
-                        렌더링합니다.<br>
+                        <span class="hl">Blue Noise Void & Cluster</span>: 사전 계산된 마스크를 사용하여 타일링이 전혀 없는 고급 블루 노이즈를 렌더링합니다.<br>
+                        <span class="hl">Bayer 4x4 / 8x8</span>: 레트로한 격자무늬(크로스해치) 패턴을 생성합니다.<br>
                         <span class="hl">None</span>: 디더링을 완전히 끕니다. (등고선 현상 발생)
                     </div>
                 </div>
@@ -666,17 +668,24 @@
                 </div>
                 <div class="help-section">
                     <label>Distance Metric</label>
-                    <select id="cfg_metric">
-                        <option value="redmean">Redmean (Skin/Natural Video)</option>
-                        <option value="euclidean">Euclidean (Test Patterns/Anime)</option>
-                    </select>
+                    <div style="display: flex; gap: 10px; align-items: center; margin-top: 4px;">
+                        <select id="cfg_metric" style="flex: 1; margin-top: 0;">
+                            <option value="redmean">Redmean (Skin/Natural)</option>
+                            <option value="euclidean">Euclidean (Anime)</option>
+                        </select>
+                        <label style="display: flex; align-items: center; gap: 5px; font-size: 13px; color: #ccc; margin-top: 0; white-space: nowrap;"
+                            title="Force 64-color posterization pre-filter (AVGEN mode)">
+                            <input type="checkbox" id="cfg_avgen64c" style="margin-top: 0; width: auto;"> AVGEN 64C
+                        </label>
+                    </div>
                     <div class="help-overlay">
                         <h4>Distance Metric <span class="tip">(색상 거리 계산 공식)</span></h4>
                         유사한 색상을 판별할 때 사용하는 수학적 접근법입니다.<br><br>
                         <span class="hl">Redmean</span>: 인간의 눈동자가 붉은색에 민감한 점을 반영합니다. 인물 사진, 피부톤, 일반적인 자연 실사 영상에서 훨씬 보기
                         좋은
                         결과를 냅니다.<br>
-                        <span class="hl">Euclidean</span>: 순수한 수학적 입체 거리입니다. 명확한 원색 중심의 픽셀아트나 애니메이션에 유리합니다.
+                        <span class="hl">Euclidean</span>: 순수한 수학적 입체 거리입니다. 명확한 원색 중심의 픽셀아트나 애니메이션에 유리합니다.<br><br>
+                        <span class="hl">AVGEN 64C Filter</span>: 분석 전 이미지를 강제로 64색(AVGEN 레트로 팔레트)으로 압축하여 굵직한 픽셀 아트 느낌을 살립니다.
                     </div>
                 </div>
                 <div class="help-section">
@@ -1397,7 +1406,7 @@
             }
 
             function getUIConfig() {
-                const activeAnchors = anchorColors.filter(a => a.state !== "disabled").map(a => a.code).join('_');
+                const activeAnchors = anchorColors.filter(a => a.state !== "disabled").map(a => a.code).join('');
                 const config = {
                     width: 256, height: 192,
                     quantizer: document.getElementById('cfg_quantizer').value,
@@ -1410,7 +1419,8 @@
                     quant_iters_subsequent: parseInt(document.getElementById('cfg_iter_sub').value),
                     aspect_mode: "force", crop_left: 0, crop_up: 0,
                     sample_rate: TARGET_SAMPLE_RATE, fps: TARGET_FPS,
-                    metric: document.getElementById('cfg_metric').value
+                    metric: document.getElementById('cfg_metric').value,
+                    avgen64c: document.getElementById('cfg_avgen64c') ? document.getElementById('cfg_avgen64c').checked : false
                 };
                 config.metadata = JSON.stringify({ encoder: "MV2 Preview", settings: config });
                 return config;
@@ -1743,12 +1753,16 @@
                 'K': '#000000', 'W': '#FFFFFF', 'R': '#FF0000', 'G': '#00FF00', 'B': '#0000FF',
                 'C': '#00FFFF', 'M': '#FF00FF', 'Y': '#FFFF00', 'A': '#888888',
                 'k': '#000000', 'w': '#AAAAAA', 'r': '#880000', 'g': '#008800', 'b': '#000088',
-                'c': '#008888', 'm': '#880088', 'y': '#888800', 'a': '#444444'
+                'c': '#008888', 'm': '#880088', 'y': '#888800', 'a': '#444444',
+                '_K': '#000000', '_W': '#FFFFFF', '_R': '#FF0000', '_G': '#00FF00', '_B': '#0000FF',
+                '_C': '#00FFFF', '_M': '#FF00FF', '_Y': '#FFFF00', '_A': '#888888',
+                '_k': '#000000', '_w': '#AAAAAA', '_r': '#880000', '_g': '#008800', '_b': '#000088',
+                '_c': '#008888', '_m': '#880088', '_y': '#888800', '_a': '#444444'
             };
 
             function parseAnchorInput() {
                 const val = anchorInput.value;
-                const regex = /(#[0-9A-F]{6}|[KWRGBYMCAkwrgbymca])/gi;
+                const regex = /(#[0-9A-F]{6}|_[KWRGBYMCAkwrgbymca]|[KWRGBYMCAkwrgbymca])/gi;
                 let match;
                 const newAnchors = [];
                 const seen = new Set();
@@ -1758,8 +1772,8 @@
                     seen.add(code);
                     const existing = anchorColors.find(a => a.code === code);
                     const hex = shorthandColors[code] || code;
-                    // Default to 'locked' for text anchors, 'enabled' for hex
-                    let defaultState = (code.length === 1) ? "locked" : "enabled";
+                    // Default to 'locked' for shorthand anchors (1 or 2 char), 'enabled' for hex
+                    let defaultState = (code.length <= 2) ? "locked" : "enabled";
                     newAnchors.push({ code, hex, state: existing ? existing.state : defaultState });
                 }
                 anchorColors = newAnchors;
@@ -1808,7 +1822,7 @@
             }
 
             function syncAnchorInput() {
-                anchorInput.value = anchorColors.map(a => a.code).join('_');
+                anchorInput.value = anchorColors.map(a => a.code).join('');
                 renderAnchorSlots();
             }
 
@@ -1842,6 +1856,20 @@
                 if (isVramPreviewMode) renderPreview();
             };
 
+            document.getElementById('cfg_avgen64c').addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    ['c', 'y', 'm', 'r'].forEach(code => {
+                        if (!anchorColors.some(a => a.code === code)) {
+                            anchorColors.push({ code: code, hex: shorthandColors[code] || code, state: "locked" });
+                        }
+                    });
+                } else {
+                    anchorColors = anchorColors.filter(a => !['c', 'y', 'm', 'r'].includes(a.code));
+                }
+                syncAnchorInput();
+                if (isVramPreviewMode) renderPreview();
+            });
+
             timeStartInput.addEventListener('change', () => {
                 startTime = Math.max(0, Math.min(parseTimeInput(timeStartInput.value), endTime));
                 timeStartInput.value = formatTimeInput(startTime); updateSliderVisuals(); updateVideoTime();
@@ -1859,7 +1887,7 @@
                 const playTimeDuration = endTime - startTime;
                 const m = Math.floor(playTimeDuration / 60), s = Math.floor(playTimeDuration % 60), ms = Math.floor((playTimeDuration % 1) * 100);
                 const playTime = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
-                const activeAnchors = anchorColors.filter(a => a.state !== "disabled").map(a => a.code).join('_');
+                const activeAnchors = anchorColors.filter(a => a.state !== "disabled").map(a => a.code).join('');
                 const recipeMeta = {
                     encoder: "MV2 Web Encoder (WASM)", source: file.name, date: new Date().toISOString(),
                     duration_sec: sourceVideo.duration, play_time: playTime, total_frames: totalFrames,
@@ -1870,7 +1898,8 @@
                         vram_dither: parseFloat(document.getElementById('cfg_vram_dither').value),
                         anchor_colors: activeAnchors,
                         extra_colors: parseInt(document.getElementById('cfg_colors').value),
-                        metric: document.getElementById('cfg_metric').value
+                        metric: document.getElementById('cfg_metric').value,
+                        avgen64c: document.getElementById('cfg_avgen64c') ? document.getElementById('cfg_avgen64c').checked : false
                     }
                 };
                 interimHeader = new Uint8Array(16384);

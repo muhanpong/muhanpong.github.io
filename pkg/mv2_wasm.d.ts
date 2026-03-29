@@ -11,12 +11,17 @@ export class Mv2Encoder {
     get_last_eq_data(): Uint8Array;
     get_last_palette(): Uint8Array;
     get_last_vram(): Uint8Array;
+    /**
+     * Decode VRAM pattern+color tables into RGBA (256x192x4) entirely in WASM.
+     * This replaces the expensive per-pixel JS loop in worker.js.
+     */
+    get_last_vram_rgba(): Uint8Array;
     constructor(config_json: string);
 }
 
 export function init_panic_hook(): void;
 
-export function test_anchor_resolution(shorthand: string, peak_val: number): Float32Array;
+export function test_anchor_resolution(shorthand: string, peak_val: number, avg_lum: number): Float32Array;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
@@ -30,8 +35,9 @@ export interface InitOutput {
     readonly mv2encoder_get_last_eq_data: (a: number) => any;
     readonly mv2encoder_get_last_palette: (a: number) => any;
     readonly mv2encoder_get_last_vram: (a: number) => any;
+    readonly mv2encoder_get_last_vram_rgba: (a: number) => any;
     readonly mv2encoder_new: (a: number, b: number) => [number, number, number];
-    readonly test_anchor_resolution: (a: number, b: number, c: number) => any;
+    readonly test_anchor_resolution: (a: number, b: number, c: number, d: number) => any;
     readonly init_panic_hook: () => void;
     readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;

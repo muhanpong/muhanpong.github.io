@@ -81,6 +81,15 @@ export class Mv2Encoder {
         return ret;
     }
     /**
+     * Decode VRAM pattern+color tables into RGBA (256x192x4) entirely in WASM.
+     * This replaces the expensive per-pixel JS loop in worker.js.
+     * @returns {Uint8Array}
+     */
+    get_last_vram_rgba() {
+        const ret = wasm.mv2encoder_get_last_vram_rgba(this.__wbg_ptr);
+        return ret;
+    }
+    /**
      * @param {string} config_json
      */
     constructor(config_json) {
@@ -104,12 +113,13 @@ export function init_panic_hook() {
 /**
  * @param {string} shorthand
  * @param {number} peak_val
+ * @param {number} avg_lum
  * @returns {Float32Array}
  */
-export function test_anchor_resolution(shorthand, peak_val) {
+export function test_anchor_resolution(shorthand, peak_val, avg_lum) {
     const ptr0 = passStringToWasm0(shorthand, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.test_anchor_resolution(ptr0, len0, peak_val);
+    const ret = wasm.test_anchor_resolution(ptr0, len0, peak_val, avg_lum);
     return ret;
 }
 
