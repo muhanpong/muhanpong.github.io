@@ -533,9 +533,9 @@
 
 <body>
     <svg width="0" height="0" style="position:absolute;z-index:-1;">
-        <filter id="gamma-filter">
+        <filter id="av-filter" color-interpolation-filters="sRGB">
+            <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0" id="colorMatrix" />
             <feComponentTransfer>
-                <!-- SVG Gamma exponent is 1/gamma. We will update this via JS -->
                 <feFuncR type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaR" />
                 <feFuncG type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaG" />
                 <feFuncB type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaB" />
@@ -795,13 +795,59 @@
                             oninput="document.getElementById('val_audio_gain').innerText = this.value; updatePreviewGain();">
                     </div>
                 </div>
+                <div style="display: flex; gap: 10px; margin-top: 10px; border-top: 1px dashed #444; padding-top: 8px;">
+                    <div style="flex: 1;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <label style="margin:0; color:#ff8888;">Red Gain: <span id="val_gain_r">0</span>%</label>
+                            <span style="cursor:pointer; font-size:12px;" onclick="resetAV('gain_r', 0)">↺</span>
+                        </div>
+                        <input type="range" id="cfg_gain_r" value="0" min="-100" max="200" step="1">
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <label style="margin:0; color:#88ff88;">Green Gain: <span id="val_gain_g">0</span>%</label>
+                            <span style="cursor:pointer; font-size:12px;" onclick="resetAV('gain_g', 0)">↺</span>
+                        </div>
+                        <input type="range" id="cfg_gain_g" value="0" min="-100" max="200" step="1">
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <label style="margin:0; color:#8888ff;">Blue Gain: <span id="val_gain_b">0</span>%</label>
+                            <span style="cursor:pointer; font-size:12px;" onclick="resetAV('gain_b', 0)">↺</span>
+                        </div>
+                        <input type="range" id="cfg_gain_b" value="0" min="-100" max="200" step="1">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 5px;">
+                    <div style="flex: 1;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <label style="margin:0; color:#88ffff;">Cyan Gain: <span id="val_gain_c">0</span>%</label>
+                            <span style="cursor:pointer; font-size:12px;" onclick="resetAV('gain_c', 0)">↺</span>
+                        </div>
+                        <input type="range" id="cfg_gain_c" value="0" min="-100" max="200" step="1">
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <label style="margin:0; color:#ff88ff;">Magenta Gain: <span id="val_gain_m">0</span>%</label>
+                            <span style="cursor:pointer; font-size:12px;" onclick="resetAV('gain_m', 0)">↺</span>
+                        </div>
+                        <input type="range" id="cfg_gain_m" value="0" min="-100" max="200" step="1">
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <label style="margin:0; color:#ffff88;">Yellow Gain: <span id="val_gain_y">0</span>%</label>
+                            <span style="cursor:pointer; font-size:12px;" onclick="resetAV('gain_y', 0)">↺</span>
+                        </div>
+                        <input type="range" id="cfg_gain_y" value="0" min="-100" max="200" step="1">
+                    </div>
+                </div>
                 <div class="help-overlay">
                     <h4>A/V Adjustments <span class="tip">(화면/소리 실시간 보정)</span></h4>
                     원본 동영상의 색감과 소리 크기를 인코딩 전에 실시간으로 보정합니다.<br><br>
                     <span class="hl">Brightness/Contrast/Saturation</span>: 밝기, 대비, 채도를 보정합니다.<br>
-                    <span class="hl">Hue</span>: 전체적인 색상 톤(색조)을 회전시킵니다.<br>
-                    <span class="hl">Gamma</span>: 화면의 중간 톤 밝기를 커브로 조절합니다. (어두운 곳을 밝게 혹은 그 반대)<br>
-                    <span class="hl">Audio Gain</span>: 영상의 소리가 너무 작거나 클 때 데시벨(dB) 단위로 볼륨을 증폭/감소시킵니다.
+                    <span class="hl">Hue/Gamma</span>: 색조와 감마(중간톤 명암)를 조절합니다.<br>
+                    <span class="hl">Color Gains</span>: RGB(적/녹/청)와 CMY(청록/자홍/노랑) 채널별 강도를 개별 조절합니다. Cyan은 Red의 반전 색상입니다.<br>
+                    <span class="hl">Audio Gain</span>: 데시벨(dB) 단위로 볼륨을 증폭/감소시킵니다.
                 </div>
             </div>
         </div>
@@ -948,11 +994,7 @@
         let isColorPickerActive = false;
         const btnPickColor = document.getElementById('btnPickColor');
 
-        // Global Offscreen Canvas for Preprocessing (Fixed 256x192)
-        const offscreenCanvas = document.createElement('canvas');
-        offscreenCanvas.width = 256;
-        offscreenCanvas.height = 192;
-        const offCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
+        // (Redundant offscreenCanvas declaration removed)
 
         // VRAM Preview Toggle
         const btnTestFrame = document.getElementById('btnTestFrame');
@@ -1523,8 +1565,15 @@
             canvas.style.aspectRatio = e.target.value === '5:3' ? '5 / 3' : '4 / 3';
             drawPreviewCanvas();
         }));
-        ['cfg_brightness', 'cfg_contrast', 'cfg_saturation', 'cfg_hue', 'cfg_gamma'].forEach(id => {
-            document.getElementById(id).addEventListener('input', drawPreviewCanvas);
+        ['cfg_brightness', 'cfg_contrast', 'cfg_saturation', 'cfg_hue', 'cfg_gamma',
+         'cfg_gain_r', 'cfg_gain_g', 'cfg_gain_b', 'cfg_gain_c', 'cfg_gain_m', 'cfg_gain_y'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', (e) => {
+                const valId = id.replace('cfg_', 'val_');
+                const valEl = document.getElementById(valId);
+                if (valEl) valEl.innerText = e.target.value;
+                drawPreviewCanvas();
+            });
         });
 
         window.resetAV = function (id, defaultVal) {
@@ -1544,12 +1593,10 @@
         }
 
         window.resetAllAV = function () {
-            window.resetAV('brightness', 0);
-            window.resetAV('contrast', 0);
-            window.resetAV('saturation', 0);
-            window.resetAV('hue', 0);
-            window.resetAV('gamma', '1.0');
-            window.resetAV('audio_gain', 0);
+            window.resetAV('brightness', 0); window.resetAV('contrast', 0); window.resetAV('saturation', 0);
+            window.resetAV('hue', 0); window.resetAV('gamma', '1.0'); window.resetAV('audio_gain', 0);
+            window.resetAV('gain_r', 0); window.resetAV('gain_g', 0); window.resetAV('gain_b', 0);
+            window.resetAV('gain_c', 0); window.resetAV('gain_m', 0); window.resetAV('gain_y', 0);
         }
 
         function getUIConfig() {
@@ -1597,17 +1644,34 @@
             const h = parseFloat(document.getElementById('cfg_hue').value);
             const gamma = parseFloat(document.getElementById('cfg_gamma').value) || 1.0;
 
+            // Color Gains Math
+            const gr = parseFloat(document.getElementById('cfg_gain_r').value) || 0;
+            const gg = parseFloat(document.getElementById('cfg_gain_g').value) || 0;
+            const gb = parseFloat(document.getElementById('cfg_gain_b').value) || 0;
+            const gc = parseFloat(document.getElementById('cfg_gain_c').value) || 0;
+            const gm = parseFloat(document.getElementById('cfg_gain_m').value) || 0;
+            const gy = parseFloat(document.getElementById('cfg_gain_y').value) || 0;
+
+            const rScale = Math.max(0, Math.min(5, 1.0 + (gr / 100.0) - (gc / 100.0)));
+            const gScale = Math.max(0, Math.min(5, 1.0 + (gg / 100.0) - (gm / 100.0)));
+            const bScale = Math.max(0, Math.min(5, 1.0 + (gb / 100.0) - (gy / 100.0)));
+
+            const colorMatrix = document.getElementById('colorMatrix');
+            if (colorMatrix) {
+                colorMatrix.setAttribute('values', `${rScale} 0 0 0 0  0 ${gScale} 0 0 0  0 0 ${bScale} 0 0  0 0 0 1 0`);
+            }
+
             document.getElementById('gammaR').setAttribute('exponent', 1 / gamma);
             document.getElementById('gammaG').setAttribute('exponent', 1 / gamma);
             document.getElementById('gammaB').setAttribute('exponent', 1 / gamma);
 
-            context.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) hue-rotate(${h}deg)`;
-
-            // Fix for Chrome: Inline SVG filters in ctx.filter cause drawImage to fail silently or be completely ignored.
-            // We apply the SVG gamma filter directly to the canvas DOM element instead for the live preview.
-            if (context === ctx || context === window.ctxDisplay) {
-                canvas.style.filter = `url(#gamma-filter)`;
+            if (b === 100 && c === 100 && s === 100 && h === 0 && rScale === 1 && gScale === 1 && bScale === 1) {
+                context.filter = 'none';
+            } else {
+                context.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) hue-rotate(${h}deg)`;
             }
+
+            if (context === ctx) canvas.style.filter = `url(#av-filter)`;
         }
 
         function getUIConfig() {
@@ -1755,7 +1819,6 @@
                     }
                 }
             }
-        }
         }
 
         function drawUIOverlays(box) {
