@@ -9,6 +9,7 @@ export const mv2encoder_get_last_dithered_frame: (a: number) => any;
 export const mv2encoder_get_last_eq_data: (a: number) => any;
 export const mv2encoder_get_last_palette: (a: number) => any;
 export const mv2encoder_get_last_vram: (a: number) => any;
+export const mv2encoder_get_last_vram_rgba: (a: number) => any;
 export const mv2encoder_new: (a: number, b: number) => [number, number, number];
 export const test_anchor_resolution: (a: number, b: number, c: number) => any;
 export const init_panic_hook: () => void;

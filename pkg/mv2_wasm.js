@@ -81,6 +81,15 @@ export class Mv2Encoder {
         return ret;
     }
     /**
+     * Decode VRAM pattern+color tables into RGBA (256x192x4) entirely in WASM.
+     * This replaces the expensive per-pixel JS loop in worker.js.
+     * @returns {Uint8Array}
+     */
+    get_last_vram_rgba() {
+        const ret = wasm.mv2encoder_get_last_vram_rgba(this.__wbg_ptr);
+        return ret;
+    }
+    /**
      * @param {string} config_json
      */
     constructor(config_json) {
