@@ -1939,19 +1939,22 @@
                 if (isVramPreviewMode) renderPreview();
             };
 
-            document.getElementById('cfg_avgen64c').addEventListener('change', (e) => {
-                if (e.target.checked) {
-                    ['c', 'y', 'm', 'r'].forEach(code => {
-                        if (!anchorColors.some(a => a.code === code)) {
-                            anchorColors.push({ code: code, hex: shorthandColors[code] || code, state: "locked" });
-                        }
-                    });
-                } else {
-                    anchorColors = anchorColors.filter(a => !['c', 'y', 'm', 'r'].includes(a.code));
-                }
-                syncAnchorInput();
-                if (isVramPreviewMode) renderPreview();
-            });
+            const avgenEl = document.getElementById('cfg_avgen64c');
+            if (avgenEl) {
+                avgenEl.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        ['c', 'y', 'm', 'r'].forEach(code => {
+                            if (!anchorColors.some(a => a.code === code)) {
+                                anchorColors.push({ code: code, hex: shorthandColors[code] || code, state: "locked" });
+                            }
+                        });
+                    } else {
+                        anchorColors = anchorColors.filter(a => !['c', 'y', 'm', 'r'].includes(a.code));
+                    }
+                    syncAnchorInput();
+                    if (isVramPreviewMode) renderPreview();
+                });
+            }
 
             timeStartInput.addEventListener('change', () => {
                 startTime = Math.max(0, Math.min(parseTimeInput(timeStartInput.value), endTime));
