@@ -466,3 +466,11 @@
 - **Ditherer Bugfix (`ditherer.rs`)**: Fixed typo `p 6as i32` → `p as i32` in the dizzy dither `work_img` initialization (line 130) that would have caused a compilation failure.
 - **Encoder Refactoring**: User performed a full refactor of both `encoder.html` (standard UI) and `advencoder.html` (studio UI with dial controls), consolidating the codebase and aligning both encoders with the latest worker protocol and preview pipeline.
 - **Status**: `get_last_vram_rgba()` is built and available in the WASM package for future use. The JS-side decode remains the active path in `worker.js` for now.
+
+### 2026-03-29: AVGEN 64C Color Space Restored (Vivid Dithering Fix)
+* **The Problem:** The `avgen64c` mode in the WASM encoder was producing flat, washed-out images compared to the original Python encoder (`new_encoder.py`), despite both strictly outputting 64 colors.
+* **The Discovery:** In Python, the dithering engine was fed the *smooth, true-color* image, and fallback palette seeds were injected with extreme, vivid 64C colors (Red, Green, Blue, Cyan, etc.) to guarantee 16 colors. In Rust, the fallback seeds were dull greys (`[145,145,145]`, `[72,72,72]`), and anchors were slightly off-grid (`72` vs `73`).
+* **The Fix:** 
+  1. Updated `lib.rs` to mathematically snap all parsed anchors directly onto the strict AVGEN 64-color grid (`[0, 73, 146, 255]`) before quantization.
+  2. Replaced the dull grayscale fallback seeds with vivid primary and secondary 64C colors (`[255,0,0]`, `[0,255,255]`, etc.).
+* **Result:** The WASM encoder now strictly enforces the 64-color subset (0 extraneous colors) while providing the dithering engine with the full gamut of primary mixing colors. This completely restores the rich, vivid "Python aesthetic" for low-color/dark scenes.
