@@ -713,6 +713,7 @@
                         <option value="crop">Crop (Pan & Scan)</option>
                         <option value="pad">Pad (Letterbox)</option>
                         <option value="force">Force (Stretch)</option>
+                        <option value="custom" style="display:none;" disabled>Free Form (Custom Crop)</option>
                     </select>
                     <div class="help-overlay">
                         <h4>Aspect Mode <span class="tip">(화면비 맞춤 방식)</span></h4>
@@ -722,14 +723,21 @@
                         <span class="hl">Force</span>: 원본을 256x192 크기에 맞춰 강제로 찌그러뜨립니다.
                     </div>
                 </div>
-                <div style="grid-column: span 2; display: flex; gap: 10px;" class="help-section">
-                    <div style="flex: 1;">
-                        <label>Crop Left Offset (%)</label>
-                        <input type="number" id="cfg_crop_left" value="0" min="-100" max="100">
+                <div style="grid-column: span 2;" class="help-section">
+                    <div id="crop_standard_ui" style="display: flex; gap: 10px;">
+                        <div style="flex: 1;">
+                            <label>Crop Left Offset (%)</label>
+                            <input type="number" id="cfg_crop_left" value="0" min="-100" max="100">
+                        </div>
+                        <div style="flex: 1;">
+                            <label>Crop Up Offset (%)</label>
+                            <input type="number" id="cfg_crop_up" value="0" min="-100" max="100">
+                        </div>
                     </div>
-                    <div style="flex: 1;">
-                        <label>Crop Up Offset (%)</label>
-                        <input type="number" id="cfg_crop_up" value="0" min="-100" max="100">
+                    <div id="crop_custom_ui" style="display: none; background: #222; padding: 10px; border-radius: 4px; border: 1px dashed #4db8ff; color: #4db8ff; font-family: monospace; align-items: center; justify-content: space-around;">
+                        <span><span style="color:#888;">Offset:</span> <span id="cc_offset">0,0</span></span>
+                        <span><span style="color:#888;">Size:</span> <span id="cc_size">0x0</span></span>
+                        <span><span style="color:#888;">Ratio:</span> <span id="cc_ratio">1.0</span></span>
                     </div>
                     <div class="help-overlay">
                         <h4>Crop Offset <span class="tip">(화면 미세 이동)</span></h4>
@@ -1325,7 +1333,7 @@
                 else if (Math.abs(mouseX - box.x) < r && Math.abs(mouseY - (box.y + box.h)) < r) dragMode = 'resize_bl';
                 else if (Math.abs(mouseX - (box.x + box.w)) < r && Math.abs(mouseY - (box.y + box.h)) < r) dragMode = 'resize_br';
                 else if (mouseX > box.x && mouseX < box.x + box.w && mouseY > box.y && mouseY < box.y + box.h) dragMode = 'pan';
-                else return;
+                else dragMode = 'pan'; // clicked outside the box triggers panning
 
                 if (e.type === 'touchstart' && dragMode.startsWith('resize')) e.preventDefault();
                 isDraggingCanvas = true; hasDraggedCanvas = true;
@@ -1397,15 +1405,26 @@
                 else {
                     const targetRatio = (document.querySelector('input[name="cfg_target_ratio"]:checked') || {value: '5:3'}).value === '5:3' ? (5 / 3) : (4 / 3);
                     let targetW = dragStartBox.w, targetH = dragStartBox.h;
-                    if (dragMode === 'resize_br') { targetW += dx; targetH += dy; }
-                    else if (dragMode === 'resize_bl') { targetW -= dx; targetH += dy; }
-                    else if (dragMode === 'resize_tr') { targetW += dx; targetH -= dy; }
-                    else if (dragMode === 'resize_tl') { targetW -= dx; targetH -= dy; }
 
                     if (isAspectLocked) {
-                        if (Math.abs(dx) > Math.abs(dy)) targetH = targetW / targetRatio;
-                        else targetW = targetH * targetRatio;
+                        let currentRatio = dragStartBox.w / dragStartBox.h;
+                        let correctedStartW = dragStartBox.w;
+                        let correctedStartH = dragStartBox.h;
+                        
+                        if (dragMode === 'resize_br') { targetW = correctedStartW + dx; targetH = correctedStartH + dy; }
+                        else if (dragMode === 'resize_bl') { targetW = correctedStartW - dx; targetH = correctedStartH + dy; }
+                        else if (dragMode === 'resize_tr') { targetW = correctedStartW + dx; targetH = correctedStartH - dy; }
+                        else if (dragMode === 'resize_tl') { targetW = correctedStartW - dx; targetH = correctedStartH - dy; }
+
+                        if (Math.abs(dx) > Math.abs(dy)) targetH = targetW / currentRatio;
+                        else targetW = targetH * currentRatio;
+                    } else {
+                        if (dragMode === 'resize_br') { targetW += dx; targetH += dy; }
+                        else if (dragMode === 'resize_bl') { targetW -= dx; targetH += dy; }
+                        else if (dragMode === 'resize_tr') { targetW += dx; targetH -= dy; }
+                        else if (dragMode === 'resize_tl') { targetW -= dx; targetH -= dy; }
                     }
+
                     if (targetW < 20) { targetW = 20; if (isAspectLocked) targetH = 20 / targetRatio; }
                     if (targetH < 20) { targetH = 20; if (isAspectLocked) targetW = 20 * targetRatio; }
                     newW = targetW; newH = targetH;
@@ -1562,6 +1581,24 @@
                 }
                 let box = customBox || getCalculatedBox(); if (!box) return;
 
+                if (isCustomMode) {
+                    document.getElementById('cfg_aspect').value = 'custom';
+                    document.getElementById('crop_standard_ui').style.display = 'none';
+                    document.getElementById('crop_custom_ui').style.display = 'flex';
+                    
+                    const pvw = sourceVideo.videoWidth, pvh = sourceVideo.videoHeight;
+                    if (pvw > 0 && pvh > 0 && box.drawW > 0 && box.drawH > 0) {
+                        const scaleVidX = pvw / box.drawW, scaleVidY = pvh / box.drawH;
+                        document.getElementById('cc_offset').innerText = `+${Math.round((box.x - box.drawX) * scaleVidX)}, +${Math.round((box.y - box.drawY) * scaleVidY)}`;
+                        const w = Math.round(box.w * scaleVidX), h = Math.round(box.h * scaleVidY);
+                        document.getElementById('cc_size').innerText = `${w}x${h}`;
+                        document.getElementById('cc_ratio').innerText = `${(w/h).toFixed(2)}`;
+                    }
+                } else {
+                    document.getElementById('crop_standard_ui').style.display = 'flex';
+                    document.getElementById('crop_custom_ui').style.display = 'none';
+                }
+
                 // 1. Common Preprocessing on offscreenCanvas (always 256x192)
                 offCtx.filter = 'none'; offCtx.fillStyle = '#000'; offCtx.fillRect(0, 0, 256, 192);
                 applyVideoFilters(offCtx);
@@ -1682,21 +1719,30 @@
                 }
 
                 // Draw Corner Handlers (Squares)
-                ctx.fillStyle = 'rgba(77, 184, 255, 0.9)';
-                const s = 10;
-                ctx.fillRect(box.x, box.y, s, s); // TL
-                ctx.fillRect(box.x + box.w - s, box.y, s, s); // TR
-                ctx.fillRect(box.x, box.y + box.h - s, s, s); // BL
-                ctx.fillRect(box.x + box.w - s, box.y + box.h - s, s, s); // BR
+                let s = 10;
+                if (box.w < 60 || box.h < 60) s = 6;
+                if (box.w < 30 || box.h < 30) s = 0; // Hide completely if very small
+
+                if (s > 0) {
+                    ctx.fillStyle = 'rgba(77, 184, 255, 0.9)';
+                    ctx.fillRect(box.x, box.y, s, s); // TL
+                    ctx.fillRect(box.x + box.w - s, box.y, s, s); // TR
+                    ctx.fillRect(box.x, box.y + box.h - s, s, s); // BL
+                    ctx.fillRect(box.x + box.w - s, box.y + box.h - s, s, s); // BR
+                }
 
                 // Draw Lock/Unlock Icon
-                const cx = box.x + box.w / 2;
-                const cy = box.y + 14;
-                ctx.font = '14px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-                ctx.fillText(isAspectLocked ? '🔒' : '🔓', cx, cy);
+                if (box.w >= 30 && box.h >= 30) {
+                    const cx = box.x + box.w / 2;
+                    let cy = box.y + 14;
+                    if (box.h < 40) cy = box.y + box.h / 2; // Center vertically if box is a bit squashed
+                    
+                    ctx.font = (box.w < 60 || box.h < 60) ? '10px sans-serif' : '14px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    ctx.fillText(isAspectLocked ? '🔒' : '🔓', cx, cy);
+                }
 
                 if (!isVramPreviewMode) {
                     // Draw Dimensions
@@ -1718,6 +1764,14 @@
                     else if (dragMode === 'resize_bl') { pipX = box.x + box.w - pipW; pipY = box.y; }
                     else if (dragMode === 'resize_tr') { pipX = box.x; pipY = box.y + box.h - pipH; }
                     else if (dragMode === 'resize_tl') { pipX = box.x + box.w - pipW; pipY = box.y + box.h - pipH; }
+
+                    if (box.w < pipW || box.h < pipH) {
+                        const centerX = box.x + box.w / 2;
+                        const centerY = box.y + box.h / 2;
+                        pipX = (centerX < canvas.width / 2) ? canvas.width - pipW - 5 : 5;
+                        pipY = (centerY < canvas.height / 2) ? canvas.height - pipH - 5 : 5;
+                    }
+
                     pipX = Math.max(5, Math.min(canvas.width - pipW - 5, pipX));
                     pipY = Math.max(5, Math.min(canvas.height - pipH - 5, pipY));
 
