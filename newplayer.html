@@ -2131,6 +2131,10 @@
 
             // WebCodecs 네이티브 하드웨어 인코더 유지 (속도 최상)
             async exportMP4() {
+                if (typeof VideoEncoder === 'undefined') {
+                    alert("⚠️ MP4 내보내기 기능을 사용할 수 없습니다.\n\n이 기능은 '보안 연결(HTTPS)' 또는 'localhost'에서만 작동합니다.\n현재 IP 주소로 접속 중이라면 브라우저 보안 정책에 의해 차단된 상태입니다.\n\n해결 방법:\n1. localhost:8080 등으로 접속하세요.\n2. chrome://flags/#unsafely-treat-insecure-origin-as-secure 에서 현재 주소를 추가하세요.");
+                    return;
+                }
                 if (!this.frames || this.totalFrames === 0) { alert("먼저 추출할 파일을 열어주세요."); return; }
                 const btn = document.getElementById('btn-osd-save'), status = document.getElementById('status');
                 btn.disabled = true; status.innerText = "내보내기 준비 중...";
@@ -2148,7 +2152,13 @@
                         target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: 768, height: 576 },
                         audio: (codecChoice !== 'none') ? { codec: codecChoice, sampleRate: targetSampleRate, numberOfChannels: 1 } : undefined, fastStart: 'in-memory'
                     });
-                    const videoEncoder = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: e => console.error(e) });
+
+                    let videoEncoder;
+                    try {
+                        videoEncoder = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: e => console.error(e) });
+                    } catch (e) {
+                        throw new Error("브라우저에서 VideoEncoder를 초기화할 수 없습니다. (HTTPS/localhost 전용 기능)");
+                    }
                     videoEncoder.configure({ codec: 'avc1.42001f', width: 768, height: 576, bitrate: 5_000_000, framerate: this.fps });
                     let audioEncoder = null;
                     if (codecChoice !== 'none' && codecChoice !== 'mp3') {

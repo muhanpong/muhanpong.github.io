@@ -2,6 +2,39 @@
 let init = null;
 let Mv2Encoder = null;
 let encoder = null;
+let isBusy = false;
+
+// Persistent preview encoder to avoid re-init overhead
+let previewEncoder = null;
+let lastPreviewConfig = null;
+
+// Reusable buffers for monitor/preview to reduce GC pressure
+let monitorDitheredRGBA = null;
+let monitorVramRGBA = null;
+
+// Gamma LUT state
+let gammaLUT = new Uint8Array(256);
+let currentGamma = 1.0;
+
+// Initialize Gamma LUT
+function updateGammaLUT(gamma) {
+    if (Math.abs(currentGamma - gamma) < 0.001 && gammaLUT[255] !== 0) return;
+    currentGamma = gamma;
+    for (let i = 0; i < 256; i++) {
+        gammaLUT[i] = Math.pow(i / 255, 1 / gamma) * 255;
+    }
+}
+
+// Apply Gamma LUT to RGBA buffer
+function applyGamma(rgbaBytes, gamma) {
+    if (Math.abs(gamma - 1.0) < 0.001) return; // Skip if gamma is 1.0
+    updateGammaLUT(gamma);
+    for (let i = 0; i < rgbaBytes.length; i += 4) {
+        rgbaBytes[i] = gammaLUT[rgbaBytes[i]];
+        rgbaBytes[i + 1] = gammaLUT[rgbaBytes[i + 1]];
+        rgbaBytes[i + 2] = gammaLUT[rgbaBytes[i + 2]];
+    }
+}
 
 /**
  * Ensures WASM module is loaded and initialized.
@@ -10,16 +43,17 @@ let encoder = null;
 async function ensureWasm() {
     if (Mv2Encoder) return; // Already initialized
 
-    console.log("[Worker] Loading WASM module...");
+    console.log("[Worker] Loading WASM module with cache buster...");
     try {
-        const module = await import('./pkg/mv2_wasm.js');
+        // Use timestamp to bypass service worker / browser cache for the glue code
+        const v = Date.now();
+        const module = await import(`./pkg/mv2_wasm.js?v=${v}`);
         init = module.default;
         Mv2Encoder = module.Mv2Encoder;
 
-        // Initialize WASM
-        await init();
+        // Initialize WASM with cache-busted path for the .wasm file itself
+        await init(`./pkg/mv2_wasm_bg.wasm?v=${v}`);
 
-        // Optional: Initialize panic hook
         if (module.init_panic_hook) module.init_panic_hook();
         console.log("[Worker] WASM loaded and initialized.");
     } catch (err) {
@@ -30,58 +64,89 @@ async function ensureWasm() {
 
 // 메인 스레드(HTML)로부터 메시지를 받을 때 실행됨
 self.onmessage = async (e) => {
+    if (isBusy) {
+        console.warn("[Worker] Busy handling another message. Skipping:", e.data.type);
+        self.postMessage({ type: 'ERROR', payload: 'BUSY' });
+        return;
+    }
     const { type, payload } = e.data;
 
     try {
+        isBusy = true;
         // Every command requires WASM to be loaded
         await ensureWasm();
 
         if (type === 'INIT') {
             console.log("[Worker] Initializing Main Encoder instance...");
             if (encoder) {
-                encoder.free();
+                try { encoder.free(); } catch(e) {}
             }
             encoder = new Mv2Encoder(payload.config);
             self.postMessage({ type: 'INIT_DONE' });
         }
 
-        else if (type === 'ENCODE_FRAME') {
-            const { rgbaBytes, origW, origH, mp3Chunk, pcmSlice, frameIdx } = payload;
+        else if (type === 'ENCODE_FRAME' || type === 'TEST_FRAME') {
+            const { rgbaBytes, origW, origH, gamma, mp3Chunk, pcmSlice, pcmF32Slice, frameIdx, config, needsMonitor } = payload;
+            if (gamma) applyGamma(rgbaBytes, gamma);
 
-            if (!encoder) throw new Error("Encoder not initialized. Send INIT first.");
+            let activeEncoder = encoder;
+            if (type === 'TEST_FRAME') {
+                if (!config) throw new Error("Config required for TEST_FRAME");
+                if (!previewEncoder || lastPreviewConfig !== config) {
+                    if (previewEncoder) { try { previewEncoder.free(); } catch(e) {} }
+                    previewEncoder = new Mv2Encoder(config);
+                    lastPreviewConfig = config;
+                }
+                activeEncoder = previewEncoder;
+            } else if (!activeEncoder) {
+                throw new Error("Encoder not initialized.");
+            }
 
-            // 🚀 매우 무거운 WASM 연산
-            encoder.add_frame(rgbaBytes, origW, origH, 4, mp3Chunk, pcmSlice);
+            activeEncoder.add_frame(rgbaBytes, origW, origH, 4, mp3Chunk, pcmSlice, pcmF32Slice);
 
-            const ditheredRGB = encoder.get_last_dithered_frame().slice();
-            const vramBytes = encoder.get_last_vram().slice();
-            const paletteBytes = encoder.get_last_palette().slice();
+            const vBytes = activeEncoder.get_last_vram();
+            const pBytes = activeEncoder.get_last_palette();
+            const eqBytes = activeEncoder.get_last_eq_data();
 
-            // 연산 완료 후 메인 스레드로 결과 전송 (Zero-Copy)
-            self.postMessage({
-                type: 'FRAME_DONE',
-                payload: { frameIdx, ditheredRGB, vramBytes, paletteBytes, mp3Chunk }
-            }, [ditheredRGB.buffer, vramBytes.buffer, paletteBytes.buffer, mp3Chunk.buffer]);
-        }
+            const response = {
+                type: type === 'ENCODE_FRAME' ? 'FRAME_DONE' : 'TEST_FRAME_DONE',
+                payload: { frameIdx, vramBytes: vBytes.slice(), paletteBytes: pBytes.slice(), eqBytes: eqBytes.slice() }
+            };
+            const transferables = [response.payload.vramBytes.buffer, response.payload.paletteBytes.buffer, response.payload.eqBytes.buffer];
+            if (mp3Chunk) { response.payload.mp3Chunk = mp3Chunk; transferables.push(mp3Chunk.buffer); }
 
-        else if (type === 'TEST_FRAME') {
-            const { rgbaBytes, origW, origH, config } = payload;
-            
-            // Create a temporary encoder for a single frame preview as WASM lacks update_config
-            // This allows previewing settings changes without affecting the main encoding stream
-            const tempEncoder = new Mv2Encoder(config);
-            tempEncoder.add_frame(rgbaBytes, origW, origH, 4);
+            // Only perform expensive reconstruction if it's a TEST_FRAME (preview) or specifically requested for the monitor
+            if (type === 'TEST_FRAME' || needsMonitor) {
+                const dRGB = activeEncoder.get_last_dithered_frame();
+                
+                // Buffer Management (Allocation bypass)
+                // Note: We MUST create fresh buffers if we want to transfer them
+                const ditheredRGBA = new Uint8ClampedArray(256 * 192 * 4);
+                const vramRGBA = new Uint8ClampedArray(256 * 192 * 4);
+                const vData32 = new Uint32Array(vramRGBA.buffer);
+                const pal32 = new Uint32Array(16);
 
-            const ditheredRGB = tempEncoder.get_last_dithered_frame().slice();
-            const vramBytes = tempEncoder.get_last_vram().slice();
-            const paletteBytes = tempEncoder.get_last_palette().slice();
-            
-            tempEncoder.free();
+                for (let i = 0, j = 0; i < dRGB.length; i += 3, j += 4) {
+                    ditheredRGBA[j] = dRGB[i]; ditheredRGBA[j + 1] = dRGB[i + 1];
+                    ditheredRGBA[j + 2] = dRGB[i + 2]; ditheredRGBA[j + 3] = 255;
+                }
+                for (let i = 0; i < 16; i++) {
+                    pal32[i] = (255 << 24) | (pBytes[i * 3 + 2] << 16) | (pBytes[i * 3 + 1] << 8) | pBytes[i * 3 + 0];
+                }
+                for (let y = 0; y < 192; y++) {
+                    const y8 = Math.floor(y / 8), yMod8 = y % 8, rowOffset = y * 256;
+                    for (let x = 0; x < 256; x++) {
+                        const vram_off = (y8 * 32 + Math.floor(x / 8)) * 8 + yMod8;
+                        const bit = (vBytes[vram_off] >> (7 - (x % 8))) & 1, ct = vBytes[6144 + vram_off];
+                        vData32[rowOffset + x] = pal32[bit ? (ct >> 4) : (ct & 0x0F)];
+                    }
+                }
+                response.payload.ditheredRGBA = ditheredRGBA;
+                response.payload.vramRGBA = vramRGBA;
+                transferables.push(ditheredRGBA.buffer, vramRGBA.buffer);
+            }
 
-            self.postMessage({
-                type: 'TEST_FRAME_DONE',
-                payload: { ditheredRGB, vramBytes, paletteBytes }
-            }, [ditheredRGB.buffer, vramBytes.buffer, paletteBytes.buffer]);
+            self.postMessage(response, transferables);
         }
 
         else if (type === 'FINISH') {
@@ -96,9 +161,18 @@ self.onmessage = async (e) => {
                 type: 'FINISHED',
                 payload: { mv2Bytes, rgbBytes }
             }, [mv2Bytes.buffer, rgbBytes.buffer]);
+            
+            // Cleanup
+            if (encoder) { try { encoder.free(); } catch(e) {} encoder = null; }
+            if (previewEncoder) { try { previewEncoder.free(); } catch(e) {} previewEncoder = null; lastPreviewConfig = null; }
         }
     } catch (err) {
         console.error("[Worker] Error handling message:", type, err);
         self.postMessage({ type: 'ERROR', payload: err.message });
+        // Error state recovery
+        if (encoder) { try { encoder.free(); } catch(e) {} encoder = null; }
+        if (previewEncoder) { try { previewEncoder.free(); } catch(e) {} previewEncoder = null; lastPreviewConfig = null; }
+    } finally {
+        isBusy = false;
     }
 };

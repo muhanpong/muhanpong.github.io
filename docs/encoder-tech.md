@@ -46,5 +46,38 @@ Because MSX 5:3 pixels are mathematically rectangular (non-square) when displaye
 
 ---
 
+## 📺 The Live VRAM Preview Pipeline (True WYSIWYG)
+
+The modern architecture enables a high-fidelity **VRAM Preview Mode** that allows users to see exactly how their video will look on actual MSX2 hardware before starting the long encoding process.
+
+### 1. Unified Data Source
+Because the spatial work (Crop/Pad/Scale) is already isolated in the `offscreenCanvas`, the preview pipeline uses the exact same 196.6 KB RGBA buffer that the encoder uses. This ensures that what you see in the preview is precisely what will be encoded into the `.mv2` file.
+
+### 2. Side-Channel Worker Processing
+To keep the main encoding state pure, the `worker.js` implements a `TEST_FRAME` command:
+- It instantiates a **temporary WASM encoder** using the current UI configuration.
+- It processes a single frame (K-Means Clustering + Dithering).
+- It returns the raw **VRAM bytes** (Pattern Generator Table + Color Table) and the **Palette**.
+- The main thread then decodes this hardware-packed data back into viewable pixels using a Screen 4 reconstruction loop.
+
+### 3. Screen 4 Hardware Emulation (JS Layer)
+The preview doesn't just show "dithered RGB"; it performs a full Screen 4 VRAM decode in JavaScript to ensure 100% accuracy:
+```javascript
+// Simplified reconstruction logic
+for (let y = 0; y < 192; y++) {
+    const vram_off = (Math.floor(y/8)*32 + Math.floor(x/8))*8 + (y%8);
+    const bit = (pgt[vram_off] >> (7-(x%8))) & 1;
+    const color_idx = bit ? (ct[vram_off] >> 4) : (ct[vram_off] & 0x0F);
+    // Draw pixel using palette[color_idx]
+}
+```
+
+### 4. Performance & UX Optimizations
+- **Automatic Pause:** Toggling VRAM mode pauses the video, as VRAM analysis is a "static" inspection task.
+- **Worker Lock:** `isVramProcessing` flag prevents the UI from choking if the user rapidly slides parameters (Brightness, Contrast, etc.).
+- **Responsive Scrubbing:** While the user is actively dragging the timeline or crop box, the pipeline automatically bypasses the worker and reverts to **Source Preview** (60FPS), only triggering a fresh VRAM conversion upon release.
+
+---
+
 ## 🚀 Performance Conclusion
 By forcing the browser ecosystem to perform the spatial work (resizing, cropping, padding) via the GPU-backed Canvas API, and reserving the WebAssembly module strictly for the spectral work (color quantization and custom MSX dithering), this architecture guarantees an encoding framerate increase by a factor of **5x to 10x** (depending on source video resolution), while simultaneously ensuring a minimal and highly stable memory footprint.

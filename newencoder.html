@@ -1,0 +1,1548 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <script src="coi-serviceworker.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSX2 MV2 Video Encoder (Studio UI)</title>
+    <style>
+        :root {
+            --accent: #007acc;
+            --accent-hover: #005f9e;
+            --success: #28a745;
+            --warning: #ff9800;
+            --danger: #d9534f;
+            --bg-main: #1e1e1e;
+            --bg-panel: #2a2a2a;
+            --bg-input: #333333;
+            --border-color: #555;
+            --text-main: #eee;
+            --text-muted: #aaa;
+            --highlight: #4db8ff;
+        }
+
+        body { font-family: sans-serif; background: var(--bg-main); color: var(--text-main); max-width: 800px; margin: 0 auto; padding: 20px; }
+        .panel { background: var(--bg-panel); padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        
+        label { font-size: 0.9em; color: var(--text-muted); display: flex; align-items: center; }
+        input[type="text"], input[type="number"], select { width: 100%; padding: 8px; margin-top: 4px; background: var(--bg-input); color: #fff; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; transition: all 0.2s; }
+        input[type="text"]:focus, input[type="number"]:focus, select:focus { border-color: var(--highlight); outline: none; }
+        input[type="radio"] { width: auto; margin-right: 5px; }
+        
+        button { width: 100%; padding: 12px; background: var(--accent); color: white; border: none; border-radius: 4px; font-size: 1.1em; cursor: pointer; transition: background 0.2s; margin-top: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+        button:hover { background: var(--accent-hover); }
+        button:disabled { background: #555 !important; cursor: not-allowed; opacity: 0.7; }
+        
+        .action-btn { margin: 0; padding: 4px 12px; font-size: 13px; width: auto; color: #fff; border: none; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: opacity 0.2s; }
+        .action-btn:hover { opacity: 0.9; }
+        .btn-snapshot { background: #4CAF50; }
+        .btn-interim-save { background: #f0ad4e; }
+        .btn-send-player { background: #4CAF50; }
+        .btn-save-final { background: var(--accent); }
+
+        .svg-icon { width: 16px; height: 16px; fill: currentColor; }
+        .svg-icon-sm { width: 12px; height: 12px; fill: currentColor; }
+        
+        .title-container { display: flex; align-items: center; justify-content: space-between; }
+        .info-icon { cursor: pointer; color: var(--highlight); margin-left: 10px; font-weight: bold; border: 1px solid var(--highlight); border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.9em; transition: all 0.2s; }
+        .info-icon:hover { background: rgba(77, 184, 255, 0.2); }
+        
+        .preview-container { position: relative; width: 100%; max-width: 768px; margin: 0 auto; }
+        canvas { background: #000; display: block; width: 100%; height: auto; aspect-ratio: 5 / 3; border: 2px solid var(--border-color); image-rendering: pixelated; image-rendering: crisp-edges; cursor: crosshair; }
+        
+        .drag-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(77, 184, 255, 0.2); border: 2px dashed var(--highlight); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2em; pointer-events: none; opacity: 0; transition: opacity 0.2s; z-index: 10; }
+        .preview-container.dragover .drag-overlay { opacity: 1; }
+
+        .split-handle { display: none; position: absolute; top: 0; bottom: 0; width: 20px; cursor: ew-resize; transform: translateX(-50%); z-index: 20; background: rgba(255,255,255,0.1); border-left: 2px solid; }
+        .split-handle::after { content: ''; position: absolute; top: 50%; left: -6px; transform: translateY(-50%); width: 10px; height: 30px; background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 4px; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2); background-image: radial-gradient(circle at center, white 1px, transparent 1px); background-size: 100% 6px; }
+        #splitLeft { border-color: #4CAF50; left: 33%; }
+        #splitRight { border-color: #ff9800; left: 66%; }
+        .monitor-mode .split-handle { display: block; }
+
+        .osd-center-play-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 0, 0, 0.6); border: 2px solid rgba(255, 255, 255, 0.3); border-radius: 50%; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 15; transition: opacity 0.2s, transform 0.1s; fill: white; opacity: 0; pointer-events: none; }
+        .osd-center-play-btn:hover { background: rgba(0, 0, 0, 0.8); }
+        .osd-center-play-btn:active { transform: translate(-50%, -50%) scale(0.9); }
+        .preview-container.has-media.paused .osd-center-play-btn { opacity: 1; pointer-events: auto; }
+        .preview-container.has-media.playing:hover .osd-center-play-btn { opacity: 1; pointer-events: auto; }
+        .preview-container.monitor-mode .osd-center-play-btn { display: none !important; }
+
+        /* Timeline & Slider */
+        .timeline-container { margin-top: 15px; }
+        .time-inputs { display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; margin-bottom: 5px; }
+        .time-input-group { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+        .time-input-group label { margin-bottom: 4px; font-size: 0.8em; text-align: center; }
+        .time-input-group input { font-family: monospace; text-align: center; padding: 6px 2px; font-size: 0.9em; }
+        .selection-info-box { flex: 0.8; text-align: center; color: var(--text-muted); font-size: 0.75em; background: #222; padding: 6px 4px; border-radius: 4px; border: 1px solid #444; display: flex; flex-direction: column; justify-content: center; height: 32px; white-space: nowrap; overflow: hidden; }
+        
+        .slider-wrapper { position: relative; height: 30px; margin-top: 10px; user-select: none; }
+        .slider-track { position: absolute; top: 10px; left: 0; right: 0; height: 10px; background: #444; border-radius: 5px; cursor: pointer; }
+        .slider-fill { position: absolute; top: 10px; height: 10px; background: var(--accent); border-radius: 5px; pointer-events: none; }
+        .marker { position: absolute; top: 0; width: 12px; height: 30px; background: #fff; border: 1px solid #000; border-radius: 3px; cursor: ew-resize; transform: translateX(-50%); z-index: 5; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
+        .marker::before { content: ''; position: absolute; top: 5px; left: 3px; right: 3px; bottom: 5px; border-left: 1px solid #999; border-right: 1px solid #999; pointer-events: none; }
+        .marker.start-marker { background: var(--highlight); transform: translateX(-100%); z-index: 5; }
+        .marker.end-marker { background: var(--danger); transform: translateX(0%); z-index: 7; }
+        .marker.playhead-marker { background: #ffeb3b; border-color: #f57f17; width: 14px; height: 34px; top: -2px; z-index: 6; border-radius: 50%; box-shadow: 0 0 8px rgba(0,0,0,0.8); cursor: pointer; transform: translateX(-50%); }
+        .marker.playhead-marker::before { display: none; }
+
+        #progress-container { display: none; margin-top: 15px; }
+        progress { width: 100%; height: 20px; margin-top: 5px; }
+        #statusText { font-weight: bold; color: var(--highlight); flex: 1; margin-right: 10px; }
+        .status-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; min-height: 32px; }
+
+        /* === Dial Custom Components === */
+        .av-header { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #444; margin-top: 5px; padding-top: 5px; }
+        .av-row { display: flex; gap: 15px; margin-top: 15px; flex-wrap: wrap; }
+        .av-control { flex: 1; min-width: 60px; display: flex; flex-direction: column; align-items: center; }
+        .av-control-header { display: flex; justify-content: space-between; width: 100%; align-items: center; margin-bottom: 8px; }
+        .av-control-header label { margin: 0; font-size: 0.75em; }
+        .av-actions { display: flex; gap: 6px; }
+        .av-actions .icon-btn { background: transparent; border: none; padding: 0; color: var(--text-muted); cursor: pointer; display: flex; transition: color 0.2s; }
+        .av-actions .icon-btn:hover { color: #fff; }
+        .av-actions .icon-btn.locked { color: var(--danger); }
+
+        .dial-container { position: relative; width: 44px; height: 44px; }
+        .dial { width: 100%; height: 100%; border-radius: 50%; background: radial-gradient(circle at 30% 30%, #555, #222); box-shadow: 0 4px 6px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.2); position: relative; cursor: ns-resize; transform: rotate(-135deg); transition: filter 0.2s; }
+        .dial.disabled { filter: grayscale(100%) opacity(0.5); cursor: not-allowed; }
+        .dial-indicator { position: absolute; top: 2px; left: 21px; width: 2px; height: 14px; background: var(--highlight); transform-origin: 1px 20px; box-shadow: 0 0 4px var(--highlight); pointer-events: none; }
+        .dial-val-display { margin-top: 6px; font-family: monospace; font-size: 0.85em; color: var(--highlight); text-align: center; }
+
+        /* === Anchor UI Components === */
+        .anchor-input-group { display: flex; gap: 6px; align-items: center; width: 100%; }
+        .anchor-grow-box { flex-grow: 1; transition: flex-grow 0.3s cubic-bezier(0.4, 0, 0.2, 1); min-width: 60px; }
+        .anchor-grow-box:focus-within { flex-grow: 4; }
+        #anchorSlots { display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap; min-height: 24px; padding: 4px; background: rgba(0,0,0,0.2); border-radius: 4px; border: 1px dashed #444; }
+        .anchor-slot { width: 20px; height: 20px; border: 1px solid #555; border-radius: 3px; cursor: pointer; position: relative; transition: transform 0.1s, opacity 0.2s; user-select: none; }
+        .anchor-slot:hover { transform: scale(1.1); z-index: 5; }
+        .anchor-slot.disabled::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: -10%;
+            width: 120%;
+            height: 2px;
+            background: #ff0000;
+            transform: translateY(-50%) rotate(45deg);
+            pointer-events: none;
+            box-shadow: 0 0 2px rgba(0,0,0,0.5);
+        }
+
+        /* === Help Overlay System === */
+        .help-section { position: relative; }
+        .help-overlay { display: none; position: absolute; inset: 0; background: rgba(10, 10, 30, 0.72); color: #ddd; z-index: 50; padding: 10px 14px; font-size: 0.78em; line-height: 1.55; border-radius: 6px; border: 1px solid rgba(77, 184, 255, 0.25); overflow-y: auto; transition: background 0.25s ease; cursor: default; }
+        .help-overlay:hover { background: rgba(10, 10, 30, 0.95); color: #fff; border-color: rgba(77, 184, 255, 0.6); height: auto; min-height: 100%; bottom: auto; z-index: 1000; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5); }
+        .help-overlay h4 { margin: 0 0 6px 0; color: var(--highlight); font-size: 1.05em; }
+        .help-overlay .hl { color: #ffcc00; font-weight: bold; }
+        .help-overlay .tip { color: #77dd77; }
+        body.help-visible .help-overlay { display: block; }
+        body.help-visible .info-icon { background: var(--highlight); color: #000; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js" crossorigin="anonymous"></script>
+    <script>
+        console.log("[Main] crossOriginIsolated:", window.crossOriginIsolated);
+        if (!window.crossOriginIsolated) {
+            console.warn("[Main] Cross-Origin Isolation is NOT active. Multi-threading disabled. Check coi-serviceworker.");
+        }
+    </script>
+</head>
+
+<body>
+    <svg width="0" height="0" style="position:absolute;z-index:-1;">
+        <filter id="gamma-filter">
+            <feComponentTransfer>
+                <feFuncR type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaR" />
+                <feFuncG type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaG" />
+                <feFuncB type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaB" />
+            </feComponentTransfer>
+        </filter>
+        <defs>
+            <g id="icon-reset"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></g>
+            <g id="icon-lock"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/></g>
+            <g id="icon-unlock"><path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h2c0-1.66 1.34-3 3-3s3 1.34 3 3v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10z"/></g>
+            <g id="icon-camera"><circle cx="12" cy="12" r="3.2"/><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></g>
+            <g id="icon-save"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></g>
+            <g id="icon-send"><path d="M8 5v14l11-7z"/></g>
+            <g id="icon-download"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></g>
+            <g id="icon-global"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm6.93 6h-2.95c-.32-1.25-.78-2.45-1.38-3.56 1.84.63 3.37 1.91 4.33 3.56zM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM4.26 14C4.1 13.36 4 12.69 4 12s.1-1.36.26-2h3.38c-.08.66-.14 1.32-.14 2s.06 1.34.14 2H4.26zm.82 2h2.95c.32 1.25.78 2.45 1.38 3.56-1.84-.63-3.37-1.9-4.33-3.56zm2.95-8H5.08c.96-1.66 2.49-2.93 4.33-3.56C8.81 5.55 8.35 6.75 8.03 8zM12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82c-.43 1.43-1.08 2.76-1.91 3.96zM14.34 14H9.66c-.09-.66-.16-1.32-.16-2s.07-1.34.16-2h4.68c.09.66.16 1.32.16 2s-.07 1.34-.16 2zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95c-.96 1.65-2.49 2.93-4.33 3.56zM16.36 14c.08-.66.14-1.32.14-2s-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2h-3.38z"/></g>
+            <g id="icon-vram"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM5 15h4v2H5v-2zm6 0h8v2h-8v-2zm-6-4h14v2H5v-2zm0-4h14v2H5V7z"/></g>
+            <g id="icon-play-osd"><path d="M8 5v14l11-7z" /></g>
+            <g id="icon-pause-osd"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></g>
+        </defs>
+    </svg>
+
+    <div class="title-container">
+        <h2>📼 MSX2 MV2 Video Encoder</h2>
+        <div class="info-icon" id="btnInfo" aria-label="Toggle Help Tooltips">i</div>
+    </div>
+
+    <div class="panel">
+        <input type="file" id="videoInput" accept="video/*, .mp4, .webm" aria-label="Video input file" />
+        <video id="sourceVideo" style="position: absolute; width: 1px; height: 1px; left: 0; bottom: 0; opacity: 0.01; pointer-events: none;" playsinline muted crossorigin="anonymous"></video>
+
+        <div class="grid" style="margin-top: 15px;">
+            <div class="help-section">
+                <label>Quantizer Algorithm</label>
+                <select id="cfg_quantizer">
+                    <option value="kmeans">K-Means++ (Smooth Gradients)</option>
+                    <option value="greedy">Greedy (High Contrast/Pixel Art)</option>
+                </select>
+                <div class="help-overlay">
+                    <h4>Quantizer Algorithm <span class="tip">(색상 추출 방식)</span></h4>
+                    <span class="hl">K-Means++</span>: 실사 영상이나 그라데이션이 많은 화면에 유리합니다.<br><br>
+                    <span class="hl">Greedy</span>: 대비가 강하고 제한된 색상을 찾아냅니다. 픽셀아트, 2D 게임 영상에 적합합니다.
+                </div>
+            </div>
+            <div class="help-section">
+                <label>Dither Mode</label>
+                <select id="cfg_dither_mode">
+                    <option value="fs" selected>Floyd-Steinberg (FS)</option>
+                    <option value="dizzy">Dizzy (Error Diffusion)</option>
+                    <option value="bluenoise">Blue Noise Void & Cluster</option>
+                    <option value="bayer4">Bayer (4x4)</option>
+                    <option value="bayer8">Bayer (8x8)</option>
+                    <option value="none">None (Posterized)</option>
+                </select>
+                <div class="help-overlay">
+                    <h4>Dither Mode <span class="tip">(디더링 모드)</span></h4>
+                    <span class="hl">FS</span>: 표준적인 오차 확산. 선명함.<br>
+                    <span class="hl">Dizzy</span>: 무작위 패턴으로 규칙성 제거.<br>
+                    <span class="hl">Blue Noise</span>: 타일링 없는 고급 블루 노이즈.<br>
+                    <span class="hl">None</span>: 디더링 끄기 (등고선 발생).
+                </div>
+            </div>
+            <div class="help-section">
+                <label>Dither Strength (0-100)</label>
+                <input type="number" id="cfg_dither" value="75" min="0" max="100">
+                <div class="help-overlay">
+                    <h4>Dither Strength <span class="tip">(디더링 강도)</span></h4>
+                    <span class="hl">0</span>: 디더링 끄기<br>
+                    <span class="hl">75~100</span>: 부드러운 음영 전환. (100에 가까울수록 노이즈 질감 강해짐)
+                </div>
+            </div>
+            <div class="help-section">
+                <label>VRAM Local Dither (0.0-1.0)</label>
+                <input type="number" id="cfg_vram_dither" value="0.0" min="0.0" max="1.0" step="0.1">
+                <div class="help-overlay">
+                    <h4>VRAM Local Dither <span class="tip">(블록 내부 오차 확산)</span></h4>
+                    MSX2의 8x1 블록 제약 속에서 선택된 2가지 색상 내에서만 추가 디더링을 수행합니다.
+                </div>
+            </div>
+            <div class="help-section">
+                <label>Max Extra Colors</label>
+                <input type="number" id="cfg_colors" value="15" min="1" max="100">
+                <div class="help-overlay">
+                    <h4>Max Extra Colors <span class="tip">(추출 색상 수)</span></h4>
+                    하드웨어 한계상 배경 투명색 1개를 제외하고 <b>최대 15개</b>까지만 실제로 사용됩니다.<br>
+                    <span class="hl">팁</span>: 일부러 더 적은 색상(예: 4~8)으로 제한하여 레트로 분위기를 연출할 수도 있습니다.
+                </div>
+            </div>
+            <div class="help-section">
+                <label>Anchor Colors</label>
+                <div class="anchor-input-group">
+                    <div class="anchor-grow-box">
+                        <input type="text" id="cfg_anchors" value="K_W" aria-label="Anchor Colors">
+                    </div>
+                    <button id="btnPickColor" class="action-btn" style="background: #5bc0de;" title="Toggle Color Picker (VRAM Preview mode only)" disabled><svg class="svg-icon"><use href="#icon-camera"></use></svg> Pick</button>
+                    <button id="btnClearAnchors" class="action-btn" style="background: #777;" title="Clear All Anchors">Clear</button>
+                </div>
+                <div id="anchorSlots" title="Click to disable, Drag outside to remove"></div>
+                <div class="help-overlay">
+                    <h4>Anchor Colors <span class="tip">(고정 색상)</span></h4>
+                    영상에 반드시 포함시켜야 할 색상들을 고정합니다. 밝기 고정은 _를 앞에 붙입니다.<br><br>
+                    <span class="hl">지원 코드</span>: <b>K</b>(검정), <b>W</b>(흰색), <b>R</b>, <b>G</b>, <b>B</b>, <b>Y</b>, <b>M</b>, <b>C</b>. 소문자는 어두운 색. 또는 <b>#RRGGBB</b><br><br>
+                    💡 <b>클릭</b>: 사용/미사용 토글. <b>드래그 앤 드롭</b>: 밖으로 끌어서 삭제.
+                </div>
+            </div>
+            <div class="help-section">
+                <label>Initial Iterations (Quality)</label>
+                <input type="number" id="cfg_iter_init" value="30" min="1">
+                <div class="help-overlay">
+                    <h4>Initial Iterations <span class="tip">(초기 탐색)</span></h4>
+                    영상의 첫 프레임을 분석할 때 색상 공간을 반복 탐색하는 횟수입니다.<br><br>
+                    수치가 높을수록 정밀한 파렛트를 생성하지만 인코딩 시작이 느려집니다. (기본값 30 권장)
+                </div>
+            </div>
+            <div class="help-section">
+                <label>Subsequent Iterations (Speed)</label>
+                <input type="number" id="cfg_iter_sub" value="6" min="1">
+                <div class="help-overlay">
+                    <h4>Subsequent Iterations <span class="tip">(후속 탐색)</span></h4>
+                    프레임 간 색상 변화를 미세 조정하는 반복 횟수입니다. 낮은 수치(3~5)는 인코딩 속도를 크게 향상시킵니다.
+                </div>
+            </div>
+            <div class="help-section">
+                <label>Distance Metric</label>
+                <select id="cfg_metric">
+                    <option value="redmean">Redmean (Skin/Natural Video)</option>
+                    <option value="euclidean">Euclidean (Test Patterns/Anime)</option>
+                </select>
+                <div class="help-overlay">
+                    <h4>Distance Metric <span class="tip">(색상 거리 계산 공식)</span></h4>
+                    <span class="hl">Redmean</span>: 인간의 시각 특성을 반영하여 인물이나 실사 영상에서 자연스러운 결과를 냅니다.<br>
+                    <span class="hl">Euclidean</span>: 순수한 수학적 거리로 픽셀아트나 애니메이션에 유리합니다.
+                </div>
+            </div>
+            <div class="help-section">
+                <label>Aspect Mode</label>
+                <select id="cfg_aspect">
+                    <option value="crop">Crop (Pan & Scan)</option>
+                    <option value="pad">Pad (Letterbox)</option>
+                    <option value="force">Force (Stretch)</option>
+                </select>
+                <div class="help-overlay">
+                    <h4>Aspect Mode <span class="tip">(화면비 맞춤 방식)</span></h4>
+                    <span class="hl">Crop</span>: 파란 박스 도구로 원하는 부분만 잘라냅니다. 화면에 가장 꽉 차게 나옵니다.<br>
+                    <span class="hl">Pad</span>: 비율을 유지하며 남는 공간에 검은색 레터박스를 둡니다.<br>
+                    <span class="hl">Force</span>: 원본을 타겟 크기에 맞춰 강제로 늘리거나 줄입니다.
+                </div>
+            </div>
+            <div style="grid-column: span 2; display: flex; gap: 10px;" class="help-section">
+                <div style="flex: 1;">
+                    <label>Crop Left Offset (%)</label>
+                    <input type="number" id="cfg_crop_left" value="0" min="-100" max="100">
+                </div>
+                <div style="flex: 1;">
+                    <label>Crop Up Offset (%)</label>
+                    <input type="number" id="cfg_crop_up" value="0" min="-100" max="100">
+                </div>
+                <div class="help-overlay">
+                    <h4>Crop Offset <span class="tip">(화면 미세 이동)</span></h4>
+                    <span class="hl">Left Offset</span>: -100(가장 왼쪽) ~ 100(가장 오른쪽)<br>
+                    <span class="hl">Up Offset</span>: -100(가장 위쪽) ~ 100(가장 아래쪽)
+                </div>
+            </div>
+
+            <div class="help-section" style="grid-column: span 2;">
+                <div class="av-header">
+                    <span style="font-weight: bold; font-size: 13px;">A/V Adjustments</span>
+                    <button id="btn-reset-global" class="action-btn" style="background:transparent; border:1px solid #666; color:#ddd;"><svg class="svg-icon-sm"><use href="#icon-reset"></use></svg> Reset Global</button>
+                </div>
+                <div class="av-row">
+                    <div class="av-control">
+                        <div class="av-control-header">
+                            <label>Bright</label>
+                            <div class="av-actions">
+                                <button class="icon-btn btn-av-reset" data-target="brightness" title="Reset"><svg class="svg-icon-sm"><use href="#icon-reset"></use></svg></button>
+                                <button class="icon-btn btn-av-lock" data-target="brightness" title="Lock"><svg class="svg-icon-sm icon-svg-lock"><use href="#icon-unlock"></use></svg></button>
+                            </div>
+                        </div>
+                        <div class="dial-container">
+                            <div class="dial" id="dial_brightness" data-min="-100" data-max="100" data-step="1" title="Drag Up/Down to adjust">
+                                <div class="dial-indicator"></div>
+                            </div>
+                            <input type="hidden" id="cfg_brightness" value="0">
+                        </div>
+                        <div class="dial-val-display" id="val_brightness">0</div>
+                    </div>
+                    <div class="av-control">
+                        <div class="av-control-header">
+                            <label>Cont</label>
+                            <div class="av-actions">
+                                <button class="icon-btn btn-av-reset" data-target="contrast" title="Reset"><svg class="svg-icon-sm"><use href="#icon-reset"></use></svg></button>
+                                <button class="icon-btn btn-av-lock" data-target="contrast" title="Lock"><svg class="svg-icon-sm icon-svg-lock"><use href="#icon-unlock"></use></svg></button>
+                            </div>
+                        </div>
+                        <div class="dial-container">
+                            <div class="dial" id="dial_contrast" data-min="-100" data-max="100" data-step="1" title="Drag Up/Down to adjust">
+                                <div class="dial-indicator"></div>
+                            </div>
+                            <input type="hidden" id="cfg_contrast" value="0">
+                        </div>
+                        <div class="dial-val-display" id="val_contrast">0</div>
+                    </div>
+                    <div class="av-control">
+                        <div class="av-control-header">
+                            <label>Sat</label>
+                            <div class="av-actions">
+                                <button class="icon-btn btn-av-reset" data-target="saturation" title="Reset"><svg class="svg-icon-sm"><use href="#icon-reset"></use></svg></button>
+                                <button class="icon-btn btn-av-lock" data-target="saturation" title="Lock"><svg class="svg-icon-sm icon-svg-lock"><use href="#icon-unlock"></use></svg></button>
+                            </div>
+                        </div>
+                        <div class="dial-container">
+                            <div class="dial" id="dial_saturation" data-min="-100" data-max="200" data-step="1" title="Drag Up/Down to adjust">
+                                <div class="dial-indicator"></div>
+                            </div>
+                            <input type="hidden" id="cfg_saturation" value="0">
+                        </div>
+                        <div class="dial-val-display" id="val_saturation">0</div>
+                    </div>
+                    <div class="av-control">
+                        <div class="av-control-header">
+                            <label>Hue</label>
+                            <div class="av-actions">
+                                <button class="icon-btn btn-av-reset" data-target="hue" title="Reset"><svg class="svg-icon-sm"><use href="#icon-reset"></use></svg></button>
+                                <button class="icon-btn btn-av-lock" data-target="hue" title="Lock"><svg class="svg-icon-sm icon-svg-lock"><use href="#icon-unlock"></use></svg></button>
+                            </div>
+                        </div>
+                        <div class="dial-container">
+                            <div class="dial" id="dial_hue" data-min="-180" data-max="180" data-step="1" title="Drag Up/Down to adjust">
+                                <div class="dial-indicator"></div>
+                            </div>
+                            <input type="hidden" id="cfg_hue" value="0">
+                        </div>
+                        <div class="dial-val-display" id="val_hue">0°</div>
+                    </div>
+                    <div class="av-control">
+                        <div class="av-control-header">
+                            <label>Gamma</label>
+                            <div class="av-actions">
+                                <button class="icon-btn btn-av-reset" data-target="gamma" title="Reset"><svg class="svg-icon-sm"><use href="#icon-reset"></use></svg></button>
+                                <button class="icon-btn btn-av-lock" data-target="gamma" title="Lock"><svg class="svg-icon-sm icon-svg-lock"><use href="#icon-unlock"></use></svg></button>
+                            </div>
+                        </div>
+                        <div class="dial-container">
+                            <div class="dial" id="dial_gamma" data-min="0.1" data-max="3.0" data-step="0.1" title="Drag Up/Down to adjust">
+                                <div class="dial-indicator"></div>
+                            </div>
+                            <input type="hidden" id="cfg_gamma" value="1.0">
+                        </div>
+                        <div class="dial-val-display" id="val_gamma">1.0</div>
+                    </div>
+                    <div class="av-control">
+                        <div class="av-control-header">
+                            <label>Gain</label>
+                            <div class="av-actions">
+                                <button class="icon-btn btn-av-reset" data-target="audio_gain" title="Reset"><svg class="svg-icon-sm"><use href="#icon-reset"></use></svg></button>
+                                <button class="icon-btn btn-av-lock" data-target="audio_gain" title="Lock"><svg class="svg-icon-sm icon-svg-lock"><use href="#icon-unlock"></use></svg></button>
+                            </div>
+                        </div>
+                        <div class="dial-container">
+                            <div class="dial" id="dial_audio_gain" data-min="-20" data-max="20" data-step="1" title="Drag Up/Down to adjust (Snaps at +5dB)">
+                                <div class="dial-indicator"></div>
+                            </div>
+                            <input type="hidden" id="cfg_audio_gain" value="0">
+                        </div>
+                        <div class="dial-val-display" id="val_audio_gain">0dB</div>
+                    </div>
+                </div>
+                <div class="help-overlay">
+                    <h4>A/V Adjustments <span class="tip">(화면/소리 실시간 보정)</span></h4>
+                    원본 동영상의 색감과 소리 크기를 인코딩 전에 실시간으로 보정합니다.<br><br>
+                    <span class="hl">Bright/Cont/Sat</span>: 밝기, 대비, 채도를 보정합니다.<br>
+                    <span class="hl">Hue</span>: 전체적인 색상 톤(색조)을 회전시킵니다.<br>
+                    <span class="hl">Gamma</span>: 화면의 중간 톤 밝기를 커브로 조절합니다.<br>
+                    <span class="hl">Gain</span>: 데시벨(dB) 단위로 볼륨을 증폭하거나 감소시킵니다.
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 5px;">
+            <button id="btnStart" style="flex: 1;"><svg class="svg-icon"><use href="#icon-global"></use></svg> Start Encoding</button>
+            <button id="btnTestFrame" style="flex: 1; background: var(--success);"><svg class="svg-icon"><use href="#icon-vram"></use></svg> <span id="vramModeText">Mode: Source Preview</span></button>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+                <label style="display: flex; align-items: center; gap: 5px; font-size: 12px; color: #ccc;" title="Automatically download the encoded file">
+                    <input type="checkbox" id="cfg_auto_download" checked> Auto-DL
+                </label>
+                <label style="display: flex; align-items: center; gap: 5px; font-size: 12px; color: #ccc;" title="Show 8x8 Tile Grid">
+                    <input type="checkbox" id="cfg_show_grid" onchange="window.toggleGrid(this.checked)"> Grid
+                </label>
+            </div>
+        </div>
+        
+        <div id="progress-container">
+            <div class="status-row">
+                <span id="statusText">Extracting Audio...</span>
+                <div id="encoding-actions" style="display: none; gap: 5px;">
+                    <button id="btnSnapshot" class="action-btn btn-snapshot" title="Send a real-time snapshot to the player tab"><svg class="svg-icon"><use href="#icon-camera"></use></svg> Snapshot to Player</button>
+                    <button id="btnInterimSave" class="action-btn btn-interim-save" title="Save an intermediate MV2 file"><svg class="svg-icon"><use href="#icon-save"></use></svg> Save Interim</button>
+                </div>
+                <div id="final-actions" style="display: none; gap: 5px;">
+                    <button id="btnSendToPlayer" class="action-btn btn-send-player" title="Send to MV Player tab"><svg class="svg-icon"><use href="#icon-send"></use></svg> Send to Player</button>
+                    <button id="btnSaveMv2" class="action-btn btn-save-final" title="Download Encoded File"><svg class="svg-icon"><use href="#icon-download"></use></svg> Save MV2</button>
+                </div>
+            </div>
+            <progress id="progressBar" value="0" max="100"></progress>
+        </div>
+    </div>
+
+    <div class="panel">
+        <label id="previewLabel" style="display: block; text-align: center; margin-bottom: 10px;">Target Window Selection</label>
+        
+        <div class="preview-container" id="previewContainer">
+            <canvas id="previewCanvas" width="256" height="192"></canvas>
+            <div class="drag-overlay" id="dragOverlay">Drop Video File Here</div>
+            <div class="osd-center-play-btn" id="previewPlayBtn">
+                <svg id="icon-play" viewBox="0 0 24 24" width="36" height="36">
+                    <use href="#icon-play-osd"></use>
+                </svg>
+                <svg id="icon-pause" viewBox="0 0 24 24" width="36" height="36" style="display:none;">
+                    <use href="#icon-pause-osd"></use>
+                </svg>
+            </div>
+            <div class="split-handle" id="splitLeft" title="Drag to adjust boundary"></div>
+            <div class="split-handle" id="splitRight" title="Drag to adjust boundary"></div>
+        </div>
+
+        <div class="timeline-container" id="timelineContainer">
+            <div class="time-inputs">
+                <div class="time-input-group">
+                    <label>Start Time</label>
+                    <input type="text" id="timeStart" value="00:00:00.000" disabled aria-label="Start Time">
+                </div>
+                <div class="selection-info-box" id="selectionInfo">
+                    <span>0.00s | 0 F</span>
+                    <span style="color:#4CAF50">~0.00 MB</span>
+                </div>
+                <div class="time-input-group">
+                    <label>End Time</label>
+                    <input type="text" id="timeEnd" value="00:00:00.000" disabled aria-label="End Time">
+                </div>
+            </div>
+            <div class="slider-wrapper" id="seekSlider" aria-label="Timeline Slider">
+                <div class="slider-track" id="sliderTrack"></div>
+                <div class="slider-fill" id="sliderFill" style="left: 0%; width: 100%;"></div>
+                <div class="marker start-marker" id="markerStart" style="left: 0%;" title="Start Point"></div>
+                <div class="marker playhead-marker" id="markerPlayhead" style="left: 0%;" title="Current Position"></div>
+                <div class="marker end-marker" id="markerEnd" style="left: 100%;" title="End Point"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        const videoInput = document.getElementById('videoInput');
+        const btnStart = document.getElementById('btnStart');
+        const progressBar = document.getElementById('progressBar');
+        const statusText = document.getElementById('statusText');
+        const canvas = document.getElementById('previewCanvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = 256; offscreenCanvas.height = 192;
+        const offCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
+
+        const sourceVideo = document.getElementById('sourceVideo');
+        const previewContainer = document.getElementById('previewContainer');
+        const timeStartInput = document.getElementById('timeStart');
+        const timeEndInput = document.getElementById('timeEnd');
+        const seekSlider = document.getElementById('seekSlider');
+        const markerStart = document.getElementById('markerStart');
+        const markerPlayhead = document.getElementById('markerPlayhead');
+        const markerEnd = document.getElementById('markerEnd');
+        const btnInfo = document.getElementById('btnInfo');
+        const splitLeft = document.getElementById('splitLeft');
+        const splitRight = document.getElementById('splitRight');
+        const btnTestFrame = document.getElementById('btnTestFrame');
+        const previewPlayBtn = document.getElementById('previewPlayBtn');
+        const iconPlay = document.getElementById('icon-play');
+        const iconPause = document.getElementById('icon-pause');
+
+        window.monitorTempCanvas = document.createElement('canvas');
+        window.monitorTempCanvas.width = 256; window.monitorTempCanvas.height = 192;
+        window.vramTempCanvas = document.createElement('canvas');
+        window.vramTempCanvas.width = 256; window.vramTempCanvas.height = 192;
+
+        const TARGET_FPS = 15.0;
+        const TARGET_SAMPLE_RATE = 44100;
+        let isEncoding = false;
+        let shouldStopEncoding = false;
+        let isVramPreviewMode = false;
+        let isVramProcessing = false;
+        let isColorPickerActive = false;
+        let currentMode = 'preview'; 
+        const btnPickColor = document.getElementById('btnPickColor');
+        let videoDuration = 0;
+        let startTime = 0;
+        let endTime = 0;
+        let currentTime = 0;
+        let playbackAnimFrame;
+        let previewAudioCtx, previewSource, previewGainNode;
+        let audioGainStickyBypass = false;
+        let monitorLeftSplit = 0.33;
+        let monitorRightSplit = 0.66;
+        let currentFile = null;
+        let isDraggingMarker = null;
+        let accumulatedMv2Blocks = [];
+        let interimHeader = null;
+        let isDraggingCanvas = false;
+        let hasDraggedCanvas = false;
+        let dragMode = null;
+        let dragStartX = 0, dragStartY = 0;
+        let dragStartBox = null;
+        let customBox = null;
+        let isAspectLocked = true;
+        let isCustomMode = false;
+        let vramRedrawPending = false;
+        let lastFrameTime = 0;
+        let fps = 0;
+
+        // Dial Registry
+        const dials = {};
+
+        // Worker Init
+        let worker;
+        try {
+            worker = new Worker('./worker.js?v=' + Date.now(), { type: 'module' });
+        } catch (e) { console.error(e); }
+
+        // === Event Listeners Setup ===
+        document.addEventListener('DOMContentLoaded', () => {
+            btnInfo.addEventListener('click', () => { if (!isEncoding) document.body.classList.toggle('help-visible'); });
+            
+            // Setup Dials
+            const dialConfigs = [
+                { id: 'brightness', min: -100, max: 100, default: 0 },
+                { id: 'contrast', min: -100, max: 100, default: 0 },
+                { id: 'saturation', min: -100, max: 200, default: 0 },
+                { id: 'hue', min: -180, max: 180, default: 0 },
+                { id: 'gamma', min: 0.1, max: 3.0, default: 1.0, isFloat: true },
+                { id: 'audio_gain', min: -20, max: 20, default: 0, isAudio: true }
+            ];
+            dialConfigs.forEach(c => dials[c.id] = setupDial(c.id, c.min, c.max, c.default, c.isFloat, c.isAudio));
+
+            document.getElementById('btn-reset-global').addEventListener('click', () => {
+                Object.values(dials).forEach(d => { if(!d.isLocked()) d.setValue(d.defaultVal); });
+                drawPreviewCanvas();
+            });
+
+            document.querySelectorAll('.btn-av-reset').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.currentTarget.dataset.target;
+                    if (!dials[id].isLocked()) { dials[id].setValue(dials[id].defaultVal); drawPreviewCanvas(); }
+                });
+            });
+
+            document.querySelectorAll('.btn-av-lock').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.currentTarget.dataset.target;
+                    const locked = dials[id].toggleLock();
+                    e.currentTarget.classList.toggle('locked', locked);
+                    e.currentTarget.querySelector('.icon-svg-lock use').setAttribute('href', locked ? '#icon-lock' : '#icon-unlock');
+                });
+            });
+
+            // General inputs
+            ['cfg_aspect', 'cfg_crop_left', 'cfg_crop_up'].forEach(id => {
+                document.getElementById(id).addEventListener('input', () => { customBox = null; isCustomMode = false; drawPreviewCanvas(); });
+            });
+        });
+
+        // === Dial Logic ===
+        function setupDial(id, min, max, defaultVal, isFloat, isAudio) {
+            const dialEl = document.getElementById(`dial_${id}`);
+            const indEl = dialEl.querySelector('.dial-indicator');
+            const valDisplay = document.getElementById(`val_${id}`);
+            const hiddenInput = document.getElementById(`cfg_${id}`);
+            const step = isFloat ? 0.1 : 1;
+            
+            let currentVal = defaultVal;
+            let locked = false;
+            let audioBypass = false;
+
+            function updateVisuals(val) {
+                const range = max - min;
+                const pct = (val - min) / range;
+                const deg = -135 + (pct * 270);
+                indEl.style.transform = `rotate(${deg}deg)`;
+                valDisplay.innerText = isFloat ? val.toFixed(1) : Math.round(val) + (id === 'hue' ? '°' : id === 'audio_gain' ? 'dB' : '');
+                hiddenInput.value = val;
+                if (isAudio && typeof updatePreviewGain === 'function') updatePreviewGain();
+            }
+
+            let startY, startVal;
+            dialEl.addEventListener('mousedown', startDrag);
+            dialEl.addEventListener('touchstart', startDrag, { passive: false });
+
+            function startDrag(e) {
+                if (locked || isEncoding) return;
+                if (e.type === 'touchstart') e.preventDefault();
+                startY = e.clientY || e.touches[0].clientY;
+                startVal = currentVal;
+                if (isAudio) audioBypass = (currentVal >= 5);
+                
+                document.addEventListener('mousemove', onDrag);
+                document.addEventListener('mouseup', endDrag);
+                document.addEventListener('touchmove', onDrag, { passive: false });
+                document.addEventListener('touchend', endDrag);
+            }
+
+            function onDrag(e) {
+                const y = e.clientY || e.touches[0].clientY;
+                const dy = startY - y;
+                const range = max - min;
+                let newVal = startVal + (dy * (range / 200)); // 200px sweep
+                
+                if (isFloat) newVal = Math.round(newVal * 10) / 10;
+                else newVal = Math.round(newVal);
+
+                if (isAudio && !audioBypass && newVal > 5) newVal = 5;
+                newVal = Math.max(min, Math.min(max, newVal));
+                
+                if (newVal !== currentVal) {
+                    currentVal = newVal; updateVisuals(currentVal); drawPreviewCanvas();
+                }
+            }
+
+            function endDrag() {
+                document.removeEventListener('mousemove', onDrag);
+                document.removeEventListener('mouseup', endDrag);
+                document.removeEventListener('touchmove', onDrag);
+                document.removeEventListener('touchend', endDrag);
+            }
+
+            updateVisuals(currentVal);
+
+            return {
+                setValue: (v) => { currentVal = v; updateVisuals(v); },
+                getValue: () => currentVal,
+                toggleLock: () => { locked = !locked; dialEl.classList.toggle('disabled', locked); return locked; },
+                isLocked: () => locked,
+                defaultVal
+            };
+        }
+
+        // === Anchor Slot Logic ===
+        let anchorColors = []; // { code: 'K', hex: '#000000', active: true }
+        const anchorInput = document.getElementById('cfg_anchors');
+        const anchorSlots = document.getElementById('anchorSlots');
+        const shorthandColors = {
+            'K': '#000000', 'W': '#FFFFFF', 'R': '#FF0000', 'G': '#00FF00', 'B': '#0000FF',
+            'C': '#00FFFF', 'M': '#FF00FF', 'Y': '#FFFF00', 'A': '#888888',
+            'k': '#000000', 'w': '#AAAAAA', 'r': '#880000', 'g': '#008800', 'b': '#000088',
+            'c': '#008888', 'm': '#880088', 'y': '#888800', 'a': '#444444'
+        };
+
+        function parseAnchorInput() {
+            const val = anchorInput.value;
+            const regex = /(#[0-9A-F]{6}|[KWRGBYMCAkwrgbymca])/gi;
+            let match;
+            const newAnchors = [];
+            const seen = new Set();
+            while ((match = regex.exec(val)) !== null) {
+                const code = match[0].toUpperCase().startsWith('#') ? match[0].toUpperCase() : match[0];
+                if (seen.has(code)) continue;
+                seen.add(code);
+                // preserve active state if it already existed
+                const existing = anchorColors.find(a => a.code === code);
+                const hex = shorthandColors[code] || code;
+                newAnchors.push({ code, hex, active: existing ? existing.active : true });
+            }
+            anchorColors = newAnchors;
+            renderAnchorSlots();
+        }
+
+        function renderAnchorSlots() {
+            anchorSlots.innerHTML = '';
+            anchorColors.forEach((anchor, idx) => {
+                const slot = document.createElement('div');
+                slot.className = `anchor-slot ${anchor.active ? '' : 'disabled'}`;
+                slot.style.backgroundColor = anchor.hex;
+                slot.title = anchor.code + (anchor.active ? ' (Active)' : ' (Disabled)');
+                
+                // Drag & Drop / Click logic
+                let startX, startY, isDragging = false;
+                slot.addEventListener('mousedown', (e) => {
+                    startX = e.clientX; startY = e.clientY; isDragging = false;
+                    const onMove = (me) => {
+                        const dist = Math.sqrt(Math.pow(me.clientX - startX, 2) + Math.pow(me.clientY - startY, 2));
+                        if (dist > 5) {
+                            isDragging = true; slot.style.transform = `translate(${me.clientX - startX}px, ${me.clientY - startY}px)`; slot.style.zIndex = 100;
+                        }
+                    };
+                    const onUp = (ue) => {
+                        document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp);
+                        slot.style.transform = 'none'; slot.style.zIndex = '';
+                        if (isDragging) {
+                            const dist = Math.sqrt(Math.pow(ue.clientX - startX, 2) + Math.pow(ue.clientY - startY, 2));
+                            if (dist > 40) { // Dragged out -> Remove
+                                anchorColors.splice(idx, 1); syncAnchorInput(); if(isVramPreviewMode) drawPreviewCanvas();
+                            }
+                        } else {
+                            // Clicked -> Toggle
+                            anchor.active = !anchor.active;
+                            renderAnchorSlots();
+                            if(isVramPreviewMode) drawPreviewCanvas();
+                        }
+                    };
+                    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+                });
+                anchorSlots.appendChild(slot);
+            });
+        }
+
+        function syncAnchorInput() {
+            anchorInput.value = anchorColors.map(a => a.code).join('_');
+            renderAnchorSlots();
+        }
+
+        anchorInput.addEventListener('input', parseAnchorInput);
+        parseAnchorInput(); // Init
+
+        document.getElementById('btnClearAnchors').addEventListener('click', () => {
+            anchorInput.value = "K_W"; parseAnchorInput(); if (isVramPreviewMode) drawPreviewCanvas();
+        });
+
+        // Pick Color Logic
+        canvas.addEventListener('click', (e) => {
+            if (!isVramPreviewMode || !isColorPickerActive || isEncoding || !currentFile) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = ((e.clientX - rect.left) / rect.width) * 256, y = ((e.clientY - rect.top) / rect.height) * 192;
+            if (!window.vramTempCanvas) return;
+            const pixel = window.vramTempCanvas.getContext('2d').getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
+            const hex = "#" + ((1 << 24) | (pixel[0] << 16) | (pixel[1] << 8) | pixel[2]).toString(16).slice(1).toUpperCase();
+            
+            if (!anchorColors.some(a => a.code === hex)) {
+                anchorColors.push({ code: hex, hex: hex, active: true });
+                syncAnchorInput();
+                drawPreviewCanvas();
+            }
+        });
+
+        // === File & Playback Logic ===
+        function formatTimeInput(seconds) {
+            const h = Math.floor(seconds / 3600).toString().padStart(2, '0'), m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0'), s = Math.floor(seconds % 60).toString().padStart(2, '0'), ms = Math.floor((seconds % 1) * 1000).toString().padStart(3, '0');
+            return `${h}:${m}:${s}.${ms}`;
+        }
+        function parseTimeInput(timeStr) {
+            const parts = timeStr.split(':'); if (parts.length !== 3) return 0;
+            const secParts = parts[2].split('.');
+            return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(secParts[0]) + (secParts[1] ? parseInt(secParts[1]) / 1000 : 0);
+        }
+
+        async function loadVideoFile(file) {
+            if (sourceVideo.src && sourceVideo.src.startsWith('blob:')) URL.revokeObjectURL(sourceVideo.src);
+            currentFile = file; sourceVideo.src = URL.createObjectURL(file); sourceVideo.load();
+            await new Promise((resolve, reject) => {
+                const onReady = () => {
+                    videoDuration = sourceVideo.duration; startTime = 0; endTime = videoDuration; currentTime = 0;
+                    document.getElementById('cfg_crop_left').value = 0; document.getElementById('cfg_crop_up').value = 0;
+                    timeStartInput.value = formatTimeInput(startTime); timeEndInput.value = formatTimeInput(endTime);
+                    timeStartInput.disabled = false; timeEndInput.disabled = false;
+                    previewContainer.classList.add('has-media', 'paused');
+                    updateSliderVisuals(); updateVideoTime();
+                    resolve();
+                };
+                sourceVideo.onloadedmetadata = () => {
+                    if (sourceVideo.videoWidth > 0) onReady();
+                    else {
+                        let attempts = 0;
+                        const checkInterval = setInterval(() => {
+                            if (sourceVideo.videoWidth > 0) { clearInterval(checkInterval); onReady(); } 
+                            else if (attempts > 50) { clearInterval(checkInterval); onReady(); }
+                            attempts++;
+                        }, 50);
+                    }
+                };
+                sourceVideo.onerror = () => { alert(`⚠️ Video Load Error.`); reject(new Error("Video Error")); };
+            });
+        }
+
+        window.updatePreviewGain = function () {
+            let db = dials['audio_gain'] ? dials['audio_gain'].getValue() : 0;
+            if (previewAudioCtx && previewAudioCtx.state === 'suspended') previewAudioCtx.resume();
+            if (previewGainNode) previewGainNode.gain.value = Math.pow(10, db / 20);
+        }
+
+        async function togglePlay() {
+            if (!currentFile || isEncoding) return;
+            if (!previewAudioCtx) {
+                try {
+                    previewAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    previewSource = previewAudioCtx.createMediaElementSource(sourceVideo);
+                    previewGainNode = previewAudioCtx.createGain();
+                    previewSource.connect(previewGainNode); previewGainNode.connect(previewAudioCtx.destination);
+                    updatePreviewGain();
+                } catch (e) { console.warn(e); }
+            }
+            if (previewAudioCtx && previewAudioCtx.state === 'suspended') await previewAudioCtx.resume();
+
+            if (sourceVideo.paused) {
+                if (currentTime >= endTime - 0.1) { currentTime = startTime; sourceVideo.currentTime = currentTime; }
+                sourceVideo.muted = false; sourceVideo.play();
+                previewContainer.classList.remove('paused'); previewContainer.classList.add('playing');
+                iconPlay.style.display = 'none'; iconPause.style.display = 'block';
+                lastFrameTime = 0; fps = 0; // Reset FPS tracking
+                playbackLoop();
+            } else {
+                sourceVideo.pause();
+                previewContainer.classList.add('paused'); previewContainer.classList.remove('playing');
+                iconPlay.style.display = 'block'; iconPause.style.display = 'none';
+                cancelAnimationFrame(playbackAnimFrame);
+                drawPreviewCanvas();
+            }
+        }
+
+        function playbackLoop() {
+            if (sourceVideo.paused || isEncoding) return;
+            currentTime = sourceVideo.currentTime;
+            if (currentTime >= endTime) { currentTime = endTime; togglePlay(); updateVideoTime(); } 
+            else { updateSliderVisuals(); drawPreviewCanvas(); playbackAnimFrame = requestAnimationFrame(playbackLoop); }
+        }
+
+        previewPlayBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePlay(); });
+        previewContainer.addEventListener('click', (e) => {
+            if (currentMode === 'preview' && currentFile && !hasDraggedCanvas && e.target !== previewPlayBtn) togglePlay();
+        });
+
+        previewContainer.addEventListener('dragover', (e) => { e.preventDefault(); if (!isEncoding) previewContainer.classList.add('dragover'); });
+        previewContainer.addEventListener('dragleave', () => previewContainer.classList.remove('dragover'));
+        previewContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            previewContainer.classList.remove('dragover');
+            if (isEncoding) return;
+            if (e.dataTransfer.files.length && e.dataTransfer.files[0].type.startsWith('video/')) {
+                videoInput.files = e.dataTransfer.files;
+                loadVideoFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        videoInput.addEventListener('change', (e) => { if (e.target.files.length) loadVideoFile(e.target.files[0]); });
+
+        function updateSliderVisuals() {
+            if (videoDuration === 0) return;
+            const sPct = (startTime / videoDuration) * 100, ePct = (endTime / videoDuration) * 100, cPct = (currentTime / videoDuration) * 100;
+            markerStart.style.left = `${sPct}%`; markerEnd.style.left = `${ePct}%`; markerPlayhead.style.left = `${cPct}%`;
+            sliderFill.style.left = `${sPct}%`; sliderFill.style.width = `${ePct - sPct}%`;
+            const selDur = endTime - startTime, selFrames = Math.floor(selDur * TARGET_FPS), estMB = ((16384 + (selFrames * 16384)) / (1024 * 1024)).toFixed(2);
+            document.getElementById('selectionInfo').innerHTML = `<span>${selDur.toFixed(2)}s | ${selFrames} F</span><span style="color:#4CAF50">~${estMB} MB</span>`;
+        }
+
+        function updateVideoTime() {
+            if (!currentFile) return;
+            if (Math.abs(sourceVideo.currentTime - currentTime) > 0.01) {
+                sourceVideo.currentTime = currentTime;
+                sourceVideo.onseeked = () => { sourceVideo.onseeked = null; if (!isEncoding) drawPreviewCanvas(); };
+            }
+            else if (!isEncoding) drawPreviewCanvas();
+        }
+
+        // Toggle Preview Mode
+        btnTestFrame.onclick = async () => {
+            if (isEncoding) return;
+            isVramPreviewMode = !isVramPreviewMode;
+            if (isVramPreviewMode) {
+                btnTestFrame.innerHTML = "<svg class='svg-icon'><use href='#icon-vram'></use></svg> <span>Mode: VRAM Preview</span>";
+                btnTestFrame.style.background = "var(--warning)";
+                btnPickColor.disabled = false;
+            } else {
+                btnTestFrame.innerHTML = "<svg class='svg-icon'><use href='#icon-vram'></use></svg> <span>Mode: Source Preview</span>";
+                btnTestFrame.style.background = "var(--success)";
+                btnPickColor.disabled = true; isColorPickerActive = false; btnPickColor.style.background = "#5bc0de"; canvas.style.cursor = 'crosshair';
+            }
+            if (currentFile && sourceVideo.videoWidth) drawPreviewCanvas();
+        };
+
+        btnPickColor.onclick = () => {
+            if (!isVramPreviewMode) return;
+            isColorPickerActive = !isColorPickerActive;
+            btnPickColor.style.background = isColorPickerActive ? "var(--warning)" : "#5bc0de";
+            canvas.style.cursor = isColorPickerActive ? 'crosshair' : 'default';
+            drawPreviewCanvas(); // re-eval overlay handlers
+        };
+
+        function handleCanvasDown(e) {
+            if (currentMode !== 'preview' || !currentFile || isColorPickerActive) return;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX, clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const rect = canvas.getBoundingClientRect(), scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
+            const mouseX = (clientX - rect.left) * scaleX, mouseY = (clientY - rect.top) * scaleY;
+
+            if (customBox) {
+                const cx = customBox.x + customBox.w / 2, cy = customBox.y + 14;
+                if (Math.abs(mouseX - cx) < 15 && Math.abs(mouseY - cy) < 12) { isAspectLocked = !isAspectLocked; drawPreviewCanvas(); return; }
+            }
+            let box = customBox || getCalculatedBox(); if (!box) return;
+
+            const r = 15;
+            if (Math.abs(mouseX - box.x) < r && Math.abs(mouseY - box.y) < r) dragMode = 'resize_tl';
+            else if (Math.abs(mouseX - (box.x + box.w)) < r && Math.abs(mouseY - box.y) < r) dragMode = 'resize_tr';
+            else if (Math.abs(mouseX - box.x) < r && Math.abs(mouseY - (box.y + box.h)) < r) dragMode = 'resize_bl';
+            else if (Math.abs(mouseX - (box.x + box.w)) < r && Math.abs(mouseY - (box.y + box.h)) < r) dragMode = 'resize_br';
+            else if (mouseX > box.x && mouseX < box.x + box.w && mouseY > box.y && mouseY < box.y + box.h) dragMode = 'pan';
+            else return;
+
+            if (e.type === 'touchstart' && dragMode.startsWith('resize')) e.preventDefault();
+            isDraggingCanvas = true; hasDraggedCanvas = true; dragStartX = mouseX; dragStartY = mouseY; dragStartBox = { ...box };
+            if (dragMode.startsWith('resize')) { isCustomMode = true; customBox = { ...box }; }
+        }
+
+        previewContainer.addEventListener('mousedown', handleCanvasDown); previewContainer.addEventListener('touchstart', handleCanvasDown, { passive: false });
+
+        function getCalculatedBox() {
+            if (!currentFile) return null;
+            const vw = sourceVideo.videoWidth || 256, vh = sourceVideo.videoHeight || 192;
+            const aspectMode = document.getElementById('cfg_aspect').value;
+            const targetRatio = (document.querySelector('input[name="cfg_target_ratio"]:checked')||{value:'5:3'}).value === '5:3' ? (5 / 3) : (4 / 3);
+            const canvasAspect = canvas.width / Math.max(1, canvas.height), videoAspect = vw / Math.max(1, vh);
+            const par = targetRatio / Math.max(0.01, canvasAspect), correctedVideoAspect = videoAspect / Math.max(0.01, par);
+
+            let drawW = canvas.width, drawH = canvas.height, drawX = 0, drawY = 0;
+            if (correctedVideoAspect > canvasAspect) { drawH = canvas.width / Math.max(0.01, correctedVideoAspect); drawY = (canvas.height - drawH) / 2; }
+            else { drawW = canvas.height * correctedVideoAspect; drawX = (canvas.width - drawW) / 2; }
+
+            let targetX = drawX, targetY = drawY, targetW = drawW, targetH = drawH;
+            if (aspectMode === 'pad') { targetX = 0; targetY = 0; targetW = canvas.width; targetH = canvas.height; }
+            else if (aspectMode === 'crop') {
+                if (correctedVideoAspect > canvasAspect) {
+                    targetW = drawH * canvasAspect; let cropOffX = parseFloat(document.getElementById('cfg_crop_left').value) || 0;
+                    targetX = drawX + ((drawW - targetW) / 2) + ((drawW - targetW) / 2) * (cropOffX / 100);
+                } else {
+                    targetH = drawW / canvasAspect; let cropOffY = parseFloat(document.getElementById('cfg_crop_up').value) || 0;
+                    targetY = drawY + ((drawH - targetH) / 2) + ((drawH - targetH) / 2) * (cropOffY / 100);
+                }
+            } else if (aspectMode === 'force') { targetX = 0; targetY = 0; targetW = canvas.width; targetH = canvas.height; drawX = 0; drawY = 0; drawW = canvas.width; drawH = canvas.height; }
+            return { x: targetX, y: targetY, w: Math.max(1, targetW), h: Math.max(1, targetH), drawX, drawY, drawW: Math.max(1, drawW), drawH: Math.max(1, drawH) };
+        }
+
+        function handleCanvasMove(e) {
+            if (!isDraggingCanvas) return;
+            if (e.type === 'touchmove') e.preventDefault();
+            hasDraggedCanvas = true;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX, clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const rect = canvas.getBoundingClientRect(), scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
+            const mouseX = (clientX - rect.left) * scaleX, mouseY = (clientY - rect.top) * scaleY;
+            const dx = mouseX - dragStartX, dy = mouseY - dragStartY;
+
+            if (!customBox && dragMode === 'pan') {
+                const pctX = (dx / canvas.width) * 100, pctY = (dy / canvas.height) * 100;
+                let newLeft = (parseFloat(document.getElementById('cfg_crop_left').value) || 0) + pctX;
+                let newUp = (parseFloat(document.getElementById('cfg_crop_up').value) || 0) + pctY;
+                document.getElementById('cfg_crop_left').value = Math.max(-100, Math.min(100, newLeft)).toFixed(1);
+                document.getElementById('cfg_crop_up').value = Math.max(-100, Math.min(100, newUp)).toFixed(1);
+                dragStartX = mouseX; dragStartY = mouseY; drawPreviewCanvas(); return;
+            }
+            if (!customBox) customBox = { ...dragStartBox };
+            isCustomMode = true; let newX = dragStartBox.x, newY = dragStartBox.y, newW = dragStartBox.w, newH = dragStartBox.h;
+
+            if (dragMode === 'pan') { newX += dx; newY += dy; }
+            else {
+                const targetRatio = (document.querySelector('input[name="cfg_target_ratio"]:checked')||{value:'5:3'}).value === '5:3' ? (5 / 3) : (4 / 3);
+                let targetW = dragStartBox.w, targetH = dragStartBox.h;
+                if (dragMode === 'resize_br') { targetW += dx; targetH += dy; }
+                else if (dragMode === 'resize_bl') { targetW -= dx; targetH += dy; }
+                else if (dragMode === 'resize_tr') { targetW += dx; targetH -= dy; }
+                else if (dragMode === 'resize_tl') { targetW -= dx; targetH -= dy; }
+
+                if (isAspectLocked) { if (Math.abs(dx) > Math.abs(dy)) targetH = targetW / targetRatio; else targetW = targetH * targetRatio; }
+                if (targetW < 20) { targetW = 20; if (isAspectLocked) targetH = 20 / targetRatio; }
+                if (targetH < 20) { targetH = 20; if (isAspectLocked) targetW = 20 * targetRatio; }
+                newW = targetW; newH = targetH;
+                if (dragMode === 'resize_bl' || dragMode === 'resize_tl') newX = dragStartBox.x + dragStartBox.w - newW;
+                if (dragMode === 'resize_tr' || dragMode === 'resize_tl') newY = dragStartBox.y + dragStartBox.h - newH;
+            }
+            customBox.x = newX; customBox.y = newY; customBox.w = newW; customBox.h = newH; drawPreviewCanvas();
+        }
+
+        document.addEventListener('mousemove', handleCanvasMove); document.addEventListener('touchmove', handleCanvasMove, { passive: false });
+        function handleCanvasUp() { const wasDragging = isDraggingCanvas; isDraggingCanvas = false; if (wasDragging && sourceVideo.paused) drawPreviewCanvas(); }
+        document.addEventListener('mouseup', handleCanvasUp); document.addEventListener('touchend', handleCanvasUp);
+
+        window.toggleGrid = function(show) {
+            window.showGrid = show;
+            drawPreviewCanvas();
+        };
+
+        function getUIConfig() {
+            const activeAnchors = anchorColors.filter(a => a.active).map(a => a.code).join('_');
+            const config = {
+                width: 256, height: 192,
+                quantizer: document.getElementById('cfg_quantizer').value,
+                dither: document.getElementById('cfg_dither_mode').value,
+                dither_strength: parseInt(document.getElementById('cfg_dither').value),
+                vram_dither: parseFloat(document.getElementById('cfg_vram_dither').value),
+                anchor_colors: activeAnchors,
+                max_extra_colors: parseInt(document.getElementById('cfg_colors').value),
+                quant_iters_initial: parseInt(document.getElementById('cfg_iter_init').value),
+                quant_iters_subsequent: parseInt(document.getElementById('cfg_iter_sub').value),
+                aspect_mode: "force", crop_left: 0, crop_up: 0,
+                sample_rate: TARGET_SAMPLE_RATE, fps: TARGET_FPS,
+                metric: document.getElementById('cfg_metric').value
+            };
+            return config;
+        }
+
+        function requestVramFrameFromWorker(rgbaBytes, config, gamma) {
+            return new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => { worker.removeEventListener('message', tempHandler); reject(new Error("Worker timeout")); }, 5000);
+                const tempHandler = (e) => {
+                    if (e.data.type === 'TEST_FRAME_DONE') { clearTimeout(timeout); worker.removeEventListener('message', tempHandler); resolve(e.data.payload); } 
+                    else if (e.data.type === 'ERROR') { clearTimeout(timeout); worker.removeEventListener('message', tempHandler); reject(new Error(e.data.payload)); }
+                };
+                worker.addEventListener('message', tempHandler);
+                worker.postMessage({ type: 'TEST_FRAME', payload: { config: JSON.stringify(config), rgbaBytes, origW: 256, origH: 192, gamma } }, [rgbaBytes.buffer]);
+            });
+        }
+
+        function applyVideoFilters(context) {
+            if (!dials['brightness']) return; // Wait for dials to init
+            const b = parseFloat(dials['brightness'].getValue()) + 100;
+            const c = parseFloat(dials['contrast'].getValue()) + 100;
+            const s = parseFloat(dials['saturation'].getValue()) + 100;
+            const h = parseFloat(dials['hue'].getValue());
+            const gamma = parseFloat(dials['gamma'].getValue()) || 1.0;
+            document.getElementById('gammaR').setAttribute('exponent', 1 / gamma);
+            document.getElementById('gammaG').setAttribute('exponent', 1 / gamma);
+            document.getElementById('gammaB').setAttribute('exponent', 1 / gamma);
+            context.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) hue-rotate(${h}deg)`;
+            if (context === ctx) canvas.style.filter = `url(#gamma-filter)`;
+        }
+
+        function drawUIOverlays(box) {
+            if (!box) return;
+
+            // Draw FPS Overlay (Drawn first so it's always visible)
+            if (currentFile && !isEncoding) {
+                ctx.font = '10px monospace';
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'top';
+                ctx.fillText(`${Math.round(fps)} FPS`, 252, 4);
+            }
+            
+            // In VRAM Preview mode, we hide ALL handlers for a clean WYSIWYG view
+            if (isVramPreviewMode && !isDraggingCanvas && !isDraggingMarker) {
+                if (window.showGrid) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.25)'; for (let x = 0; x < 256; x += 8) ctx.fillRect(x, 0, 1, 192); for (let y = 0; y < 192; y += 8) ctx.fillRect(0, y, 256, 1);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)'; ctx.fillRect(128, 0, 1, 192); ctx.fillRect(0, 96, 256, 1);
+                }
+                return;
+            }
+
+            if (!isVramPreviewMode) {
+                // In source mode, dim outside
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                ctx.fillRect(0, 0, canvas.width, box.y); ctx.fillRect(0, box.y + box.h, canvas.width, canvas.height - (box.y + box.h));
+                ctx.fillRect(0, box.y, box.x, box.h); ctx.fillRect(box.x + box.w, box.y, canvas.width - (box.x + box.w), box.h);
+                // Box border
+                ctx.strokeStyle = 'rgba(77, 184, 255, 0.8)'; ctx.lineWidth = 1; ctx.setLineDash(isCustomMode && !isAspectLocked ? [4, 4] : []);
+                ctx.strokeRect(box.x, box.y, box.w, box.h);
+            }
+
+            // Corners
+            ctx.fillStyle = 'rgba(77, 184, 255, 0.9)'; const s = 10;
+            ctx.fillRect(box.x, box.y, s, s); ctx.fillRect(box.x + box.w - s, box.y, s, s);
+            ctx.fillRect(box.x, box.y + box.h - s, s, s); ctx.fillRect(box.x + box.w - s, box.y + box.h - s, s, s);
+
+            // Lock Icon
+            const cx = box.x + box.w / 2, cy = box.y + 14;
+            ctx.font = '14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.fillText(isAspectLocked ? '🔒' : '🔓', cx, cy);
+
+            if (!isVramPreviewMode) {
+                ctx.font = '10px monospace'; ctx.fillStyle = '#4db8ff'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+                ctx.fillText("256px", box.x + box.w / 2, box.y - 4);
+                ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText("192px", box.x + box.w + 4, box.y + box.h / 2);
+            }
+
+            if (isDraggingCanvas && dragMode && dragMode.startsWith('resize')) {
+                const pipW = 256 / 3, pipH = 192 / 3; let pipX, pipY;
+                if (dragMode === 'resize_br') { pipX = box.x; pipY = box.y; } else if (dragMode === 'resize_bl') { pipX = box.x + box.w - pipW; pipY = box.y; }
+                else if (dragMode === 'resize_tr') { pipX = box.x; pipY = box.y + box.h - pipH; } else if (dragMode === 'resize_tl') { pipX = box.x + box.w - pipW; pipY = box.y + box.h - pipH; }
+                pipX = Math.max(5, Math.min(canvas.width - pipW - 5, pipX)); pipY = Math.max(5, Math.min(canvas.height - pipH - 5, pipY));
+                ctx.fillStyle = '#000'; ctx.fillRect(pipX, pipY, pipW, pipH); ctx.strokeStyle = '#fff'; ctx.setLineDash([]); ctx.strokeRect(pipX, pipY, pipW, pipH);
+                
+                const vw = sourceVideo.videoWidth || 256, vh = sourceVideo.videoHeight || 192;
+                const scaleVidX = vw / Math.max(1, box.drawW), scaleVidY = vh / Math.max(1, box.drawH);
+                const vidSx = (box.x - box.drawX) * scaleVidX, vidSy = (box.y - box.drawY) * scaleVidY;
+                if (box.w * scaleVidX > 0 && box.h * scaleVidY > 0) {
+                    applyVideoFilters(ctx); ctx.drawImage(sourceVideo, vidSx, vidSy, box.w * scaleVidX, box.h * scaleVidY, pipX, pipY, pipW, pipH); ctx.filter = 'none';
+                }
+            }
+
+            if (window.showGrid) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.25)'; for (let x = 0; x < 256; x += 8) ctx.fillRect(x, 0, 1, 192); for (let y = 0; y < 192; y += 8) ctx.fillRect(0, y, 256, 1);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.45)'; ctx.fillRect(128, 0, 1, 192); ctx.fillRect(0, 96, 256, 1);
+            }
+        }
+
+        async function drawPreviewCanvas() {
+            if (currentMode === 'monitor' && isEncoding) return; 
+
+            // FPS Calculation
+            const now = performance.now();
+            if (lastFrameTime > 0) {
+                const delta = now - lastFrameTime;
+                const instantFps = 1000 / delta;
+                fps = fps === 0 ? instantFps : fps * 0.9 + instantFps * 0.1; // Simple moving average
+            }
+            lastFrameTime = now;
+
+            const targetRatioStr = (document.querySelector('input[name="cfg_target_ratio"]:checked')||{value:'5:3'}).value;
+            canvas.style.aspectRatio = targetRatioStr === '5:3' ? '5 / 3' : '4 / 3';
+
+            if (!currentFile) { ctx.filter = 'none'; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height); return; }
+
+            let box = customBox || getCalculatedBox(); 
+            if (!box) box = { x: 0, y: 0, w: 256, h: 192, drawX: 0, drawY: 0, drawW: 256, drawH: 192 };
+
+            offCtx.filter = 'none'; offCtx.fillStyle = '#000'; offCtx.fillRect(0, 0, 256, 192);
+            applyVideoFilters(offCtx);
+            const vw = sourceVideo.videoWidth || 256, vh = sourceVideo.videoHeight || 192;
+            if (vw > 0 && vh > 0) {
+                const scaleVidX = vw / Math.max(1, box.drawW), scaleVidY = vh / Math.max(1, box.drawH);
+                const vidSx = (box.x - box.drawX) * scaleVidX, vidSy = (box.y - box.drawY) * scaleVidY;
+                const vidSw = box.w * scaleVidX, vidSh = box.h * scaleVidY;
+                if (vidSw > 0 && vidSh > 0) offCtx.drawImage(sourceVideo, vidSx, vidSy, vidSw, vidSh, 0, 0, 256, 192);
+            }
+            offCtx.filter = 'none';
+
+            if (!isVramPreviewMode) {
+                ctx.filter = 'none'; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                applyVideoFilters(ctx); ctx.drawImage(sourceVideo, box.drawX, box.drawY, box.drawW, box.drawH);
+                ctx.filter = 'none'; 
+                drawUIOverlays(box);
+            } else {
+                canvas.style.filter = 'none'; // VRAM handles its own appearance
+                if (isVramProcessing || isDraggingCanvas || isDraggingMarker) {
+                    if (isDraggingCanvas || isDraggingMarker) { 
+                        ctx.filter = 'none'; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        applyVideoFilters(ctx); ctx.drawImage(sourceVideo, box.drawX, box.drawY, box.drawW, box.drawH);
+                        ctx.filter = 'none'; 
+                        drawUIOverlays(box);
+                    } else {
+                        drawUIOverlays(box);
+                        if (sourceVideo.paused) vramRedrawPending = true;
+                    }
+                    return;
+                }
+                isVramProcessing = true;
+                const frameData = offCtx.getImageData(0, 0, 256, 192);
+                const rgbaBytes = new Uint8Array(frameData.data.buffer);
+                const config = getUIConfig();
+                const gamma = parseFloat(dials['gamma'] ? dials['gamma'].getValue() : 1.0) || 1.0;
+
+                requestVramFrameFromWorker(rgbaBytes, config, gamma).then(payload => {
+                    if (isDraggingCanvas || isDraggingMarker || !isVramPreviewMode) return;
+                    
+                    const vImg = new ImageData(new Uint8ClampedArray(payload.vramRGBA), 256, 192);
+                    ctx.putImageData(vImg, 0, 0);
+                    window.vramTempCanvas.getContext('2d').putImageData(vImg, 0, 0); 
+                    drawUIOverlays(box);
+                }).catch(err => {
+                    console.error("[VRAM] Worker Error:", err);
+                    ctx.filter = 'none'; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    applyVideoFilters(ctx); ctx.drawImage(sourceVideo, box.drawX, box.drawY, box.drawW, box.drawH);
+                    ctx.filter = 'none'; drawUIOverlays(box);
+                }).finally(() => { 
+                    isVramProcessing = false; 
+                    if (vramRedrawPending && !isDraggingCanvas && !isDraggingMarker && sourceVideo.paused) {
+                        vramRedrawPending = false;
+                        drawPreviewCanvas();
+                    }
+                });
+            }
+        }
+
+        let isDraggingSplit = null;
+        function handleSplitDown(side, e) { if (currentMode === 'monitor' && isEncoding) { isDraggingSplit = side; if (e.type === 'touchstart') e.preventDefault(); } }
+        splitLeft.addEventListener('mousedown', (e) => handleSplitDown('left', e)); splitLeft.addEventListener('touchstart', (e) => handleSplitDown('left', e), { passive: false });
+        splitRight.addEventListener('mousedown', (e) => handleSplitDown('right', e)); splitRight.addEventListener('touchstart', (e) => handleSplitDown('right', e), { passive: false });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDraggingSplit || !isEncoding) return;
+            const rect = previewContainer.getBoundingClientRect();
+            let pct = Math.max(0, Math.min(100, (((e.touches ? e.touches[0].clientX : e.clientX) - rect.left) / rect.width) * 100));
+            if (isDraggingSplit === 'left') { monitorLeftSplit = Math.min(pct / 100, monitorRightSplit); splitLeft.style.left = `${monitorLeftSplit * 100}%`; } 
+            else { monitorRightSplit = Math.max(pct / 100, monitorLeftSplit); splitRight.style.left = `${monitorRightSplit * 100}%`; }
+        });
+        document.addEventListener('mouseup', () => isDraggingSplit = null); document.addEventListener('touchend', () => isDraggingSplit = null);
+
+        function getSliderX(e) {
+            const rect = seekSlider.getBoundingClientRect();
+            return Math.max(0, Math.min((e.touches ? e.touches[0].clientX : e.clientX) - rect.left, rect.width));
+        }
+
+        function handleSliderDown(e) {
+            if (!currentFile || isEncoding) return;
+            const rect = seekSlider.getBoundingClientRect();
+            let clickTime = (getSliderX(e) / rect.width) * videoDuration;
+            if (e.target === markerStart) isDraggingMarker = 'start';
+            else if (e.target === markerEnd) isDraggingMarker = 'end';
+            else if (e.target === markerPlayhead) isDraggingMarker = 'playhead';
+            else {
+                isDraggingMarker = 'playhead'; currentTime = Math.max(startTime, Math.min(clickTime, endTime));
+                updateVideoTime(); updateSliderVisuals();
+            }
+            const onMove = (me) => { if (me.type === 'touchmove') me.preventDefault(); updateSliderFromDrag(me); };
+            const onUp = () => {
+                const wasDragging = isDraggingMarker; isDraggingMarker = null; anchorTime = null;
+                document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp);
+                document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onUp);
+                if (wasDragging && sourceVideo.paused) drawPreviewCanvas(); 
+            };
+            document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+            document.addEventListener('touchmove', onMove, { passive: false }); document.addEventListener('touchend', onUp);
+        }
+        seekSlider.addEventListener('mousedown', handleSliderDown); seekSlider.addEventListener('touchstart', handleSliderDown, { passive: false });
+
+        function updateSliderFromDrag(e) {
+            if (!isDraggingMarker) return;
+            let time = (getSliderX(e) / seekSlider.getBoundingClientRect().width) * videoDuration;
+            if (isDraggingMarker === 'start') { startTime = Math.min(time, endTime); currentTime = Math.max(startTime, Math.min(currentTime, endTime)); }
+            else if (isDraggingMarker === 'end') { endTime = Math.max(time, startTime); currentTime = Math.max(startTime, Math.min(currentTime, endTime)); }
+            else if (isDraggingMarker === 'playhead') { currentTime = Math.max(startTime, Math.min(time, endTime)); }
+            timeStartInput.value = formatTimeInput(startTime); timeEndInput.value = formatTimeInput(endTime);
+            updateSliderVisuals(); updateVideoTime();
+        }
+
+        timeStartInput.addEventListener('change', () => { startTime = Math.max(0, Math.min(parseTimeInput(timeStartInput.value), endTime)); timeStartInput.value = formatTimeInput(startTime); updateSliderVisuals(); updateVideoTime(); });
+        timeEndInput.addEventListener('change', () => { endTime = Math.max(startTime, Math.min(parseTimeInput(timeEndInput.value), videoDuration)); timeEndInput.value = formatTimeInput(endTime); updateSliderVisuals(); updateVideoTime(); });
+
+        btnStart.addEventListener('click', async () => {
+            if (!videoInput.files.length) return alert("Please select a video file first!");
+            if (isEncoding) { shouldStopEncoding = true; btnStart.disabled = true; btnStart.innerHTML = "<svg class='svg-icon'><use href='#icon-global'></use></svg> Stopping..."; return; }
+            const file = videoInput.files[0];
+            const totalFrames = Math.floor((endTime - startTime) * TARGET_FPS);
+            const playTimeDuration = endTime - startTime;
+            const m = Math.floor(playTimeDuration / 60), s = Math.floor(playTimeDuration % 60), ms = Math.floor((playTimeDuration % 1) * 100);
+            const playTime = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+            const recipeMeta = {
+                encoder: "MV2 Web Encoder (Studio)", source: file.name, date: new Date().toISOString(),
+                duration_sec: sourceVideo.duration, play_time: playTime, total_frames: totalFrames, settings: getUIConfig()
+            };
+            interimHeader = new Uint8Array(16384);
+            const sig = "MMCSD_MV", ver = "v2.00", metaStr = JSON.stringify(recipeMeta);
+            for (let i = 0; i < sig.length; i++) interimHeader[i] = sig.charCodeAt(i);
+            for (let i = 0; i < ver.length; i++) interimHeader[16 + i] = ver.charCodeAt(i);
+            for (let i = 0; i < metaStr.length; i++) interimHeader[256 + i] = metaStr.charCodeAt(i);
+            accumulatedMv2Blocks = [];
+
+            sourceVideo.pause(); sourceVideo.muted = true;
+            if (playbackAnimFrame) cancelAnimationFrame(playbackAnimFrame);
+            previewContainer.classList.remove('playing'); previewContainer.classList.add('paused');
+            isEncoding = true; shouldStopEncoding = false; currentMode = 'monitor';
+            previewContainer.classList.add('monitor-mode');
+            btnStart.innerHTML = "<svg class='svg-icon'><use href='#icon-global'></use></svg> Stop Encoding"; btnStart.style.background = "var(--danger)";
+            document.querySelectorAll('input, select').forEach(el => el.disabled = true);
+            document.getElementById('progress-container').style.display = 'block';
+            document.getElementById('encoding-actions').style.display = 'flex';
+            document.getElementById('final-actions').style.display = 'none';
+            document.getElementById('progressBar').style.display = 'inline-block';
+            document.getElementById('progressBar').value = 0;
+            statusText.innerText = "Initializing...";
+
+            try {
+                const config = getUIConfig(); config.metadata = JSON.stringify(recipeMeta);
+                await new Promise((resolve, reject) => {
+                    worker.onmessage = (e) => { if (e.data.type === 'INIT_DONE') resolve(); if (e.data.type === 'ERROR') reject(e.data.payload); };
+                    worker.postMessage({ type: 'INIT', payload: { config: JSON.stringify(config) } });
+                });
+                const arrayBuffer = await file.arrayBuffer();
+                const audioCtx = new AudioContext({ sampleRate: TARGET_SAMPLE_RATE });
+                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                const pcmFloat32 = audioBuffer.getChannelData(0);
+                const slicedFloat32 = pcmFloat32.subarray(startTime * TARGET_SAMPLE_RATE, endTime * TARGET_SAMPLE_RATE);
+                const pcmInt16 = new Int16Array(slicedFloat32.length);
+                const gainDb = parseFloat(dials['audio_gain'] ? dials['audio_gain'].getValue() : 0);
+                const gain = Math.pow(10, gainDb / 20);
+                for (let i = 0; i < slicedFloat32.length; i++) {
+                    let s = slicedFloat32[i] * gain; s = Math.max(-1, Math.min(1, s)); pcmInt16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                }
+                const mp3Encoder = new lamejs.Mp3Encoder(1, TARGET_SAMPLE_RATE, 128); const mp3Data = [];
+                for (let i = 0; i < pcmInt16.length; i += 11520) {
+                    const mp3buf = mp3Encoder.encodeBuffer(pcmInt16.subarray(i, i + 11520));
+                    if (mp3buf.length > 0) mp3Data.push(new Uint8Array(mp3buf));
+                }
+                const leftover = mp3Encoder.flush(); if (leftover.length > 0) mp3Data.push(new Uint8Array(leftover));
+
+                const totalMp3Len = mp3Data.reduce((acc, curr) => acc + curr.length, 0); const fullMp3 = new Uint8Array(totalMp3Len);
+                let offset = 0; for (const chunk of mp3Data) { fullMp3.set(chunk, offset); offset += chunk.length; }
+
+                offCtx.imageSmoothingEnabled = true; offCtx.imageSmoothingQuality = 'high';
+                progressBar.max = totalFrames; let globalMp3Offset = 0, encodedFramesCount = 0;
+
+                sourceVideo.currentTime = startTime; await new Promise(r => sourceVideo.onseeked = r);
+
+                for (let frameIdx = 0; frameIdx < totalFrames; frameIdx++) {
+                    if (shouldStopEncoding) break;
+                    statusText.innerText = `Encoding Frame ${frameIdx + 1} / ${totalFrames}...`; progressBar.value = frameIdx + 1;
+
+                    offCtx.fillStyle = '#000'; offCtx.fillRect(0, 0, 256, 192);
+                    let box = customBox || getCalculatedBox();
+                    if (!box) box = { x: 0, y: 0, w: 256, h: 192, drawX: 0, drawY: 0, drawW: 256, drawH: 192 };
+                    const scaleX = sourceVideo.videoWidth / box.drawW, scaleY = sourceVideo.videoHeight / box.drawH;
+                    applyVideoFilters(offCtx);
+                    offCtx.drawImage(sourceVideo, (box.x - box.drawX) * scaleX, (box.y - box.drawY) * scaleY, box.w * scaleX, box.h * scaleY, 0, 0, 256, 192);
+                    offCtx.filter = 'none';
+                    const rgbaBytes = new Uint8Array(offCtx.getImageData(0, 0, 256, 192).data.buffer);
+                    
+                    let nextTarget = Math.floor((frameIdx + 1) * (16000 / TARGET_FPS));
+                    let mp3ChunkSize = Math.floor((nextTarget - globalMp3Offset) / 32) * 32;
+                    if (frameIdx === totalFrames - 1) mp3ChunkSize = fullMp3.length - globalMp3Offset;
+                    
+                    const mp3Chunk = fullMp3.slice(globalMp3Offset, globalMp3Offset + mp3ChunkSize);
+                    globalMp3Offset += mp3ChunkSize;
+                    const pcmSlice = pcmInt16.slice(frameIdx * (TARGET_SAMPLE_RATE / TARGET_FPS), (frameIdx + 1) * (TARGET_SAMPLE_RATE / TARGET_FPS));
+
+                    // 📊 Audio EQ Visualization Data (Real FFT Analysis)
+                    const eqData = new Uint8Array(9);
+                    if (pcmSlice && pcmSlice.length > 0) {
+                        const fftSize = 2048; 
+                        const real = new Float32Array(fftSize);
+                        const imag = new Float32Array(fftSize);
+                        for (let i = 0; i < fftSize; i++) {
+                            if (i < pcmSlice.length) {
+                                const window = 0.5 * (1 - Math.cos(2 * Math.PI * i / (pcmSlice.length - 1)));
+                                real[i] = (pcmSlice[i] / 32768) * window;
+                            } else real[i] = 0;
+                            imag[i] = 0;
+                        }
+                        function computeFFT(re, im) {
+                            const n = re.length;
+                            for (let i = 1, j = 0; i < n; i++) {
+                                let bit = n >> 1;
+                                for (; j & bit; bit >>= 1) j ^= bit;
+                                j ^= bit;
+                                if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+                            }
+                            for (let len = 2; len <= n; len <<= 1) {
+                                const ang = 2 * Math.PI / len;
+                                const wlen_re = Math.cos(ang), wlen_im = -Math.sin(ang);
+                                for (let i = 0; i < n; i += len) {
+                                    let w_re = 1, w_im = 0;
+                                    for (let j = 0; j < len / 2; j++) {
+                                        const u_re = re[i + j], u_im = im[i + j];
+                                        const v_re = re[i + j + len / 2] * w_re - im[i + j + len / 2] * w_im;
+                                        const v_im = re[i + j + len / 2] * w_im + im[i + j + len / 2] * w_re;
+                                        re[i + j] = u_re + v_re; im[i + j] = u_im + v_im;
+                                        re[i + j + len / 2] = u_re - v_re; im[i + j + len / 2] = u_im - v_im;
+                                        const tmp_re = w_re * wlen_re - w_im * wlen_im;
+                                        w_im = w_re * wlen_im + w_im * wlen_re; w_re = tmp_re;
+                                    }
+                                }
+                            }
+                        }
+                        computeFFT(real, imag);
+                        const bandEdges = [2, 8, 15, 30, 50, 140, 280, 560, 750, 1024];
+                        for (let b = 0; b < 9; b++) {
+                            let maxMag = 0;
+                            for (let i = bandEdges[b]; i < bandEdges[b+1]; i++) {
+                                const mag = Math.sqrt(real[i]*real[i] + imag[i]*imag[i]);
+                                if (mag > maxMag) maxMag = mag;
+                            }
+                            const db = 20 * Math.log10(Math.max(maxMag, 0.001));
+                            const scaled = Math.max(0, Math.min(15, Math.floor((db + 60) / 60 * 15)));
+                            eqData[b] = 15 - scaled;
+                        }
+                    } else eqData.fill(15);
+
+                    const workerPromise = new Promise((resolve, reject) => {
+                        worker.onmessage = (e) => {
+                            if (e.data.type === 'FRAME_DONE') {
+                                const { vramBytes, paletteBytes, ditheredRGBA, vramRGBA, mp3Chunk: returnedMp3Chunk } = e.data.payload;
+                                const frameBlock = new Uint8Array(16384); frameBlock.set(vramBytes, 0);
+                                const msxPal = new Uint8Array(30);
+                                for (let i = 1; i < 16; i++) {
+                                    const r = Math.round(paletteBytes[i * 3] * 7 / 255), g = Math.round(paletteBytes[i * 3 + 1] * 7 / 255), b = Math.round(paletteBytes[i * 3 + 2] * 7 / 255);
+                                    msxPal[(i - 1) * 2] = (r << 4) | b; msxPal[(i - 1) * 2 + 1] = g;
+                                }
+                                frameBlock.set(msxPal, 12288);
+                                frameBlock.set(eqData, 12320); // Use the pre-calculated EQ data
+
+                                if (returnedMp3Chunk && returnedMp3Chunk.length > 0) {
+                                    frameBlock[12800] = Math.ceil(returnedMp3Chunk.length / 32); frameBlock.set(returnedMp3Chunk, 12801);
+                                }
+                                accumulatedMv2Blocks.push(frameBlock);
+                                
+                                // Monitor UI Update (Only if requested and data exists)
+                                if (ditheredRGBA && vramRGBA) {
+                                    window.monitorTempCanvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(ditheredRGBA), 256, 192), 0, 0);
+                                    window.vramTempCanvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(vramRGBA), 256, 192), 0, 0);
+
+                                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                                    const s1 = Math.floor(256 * monitorLeftSplit), s2 = Math.floor(256 * monitorRightSplit);
+                                    if (s1 > 0) { ctx.save(); ctx.beginPath(); ctx.rect(0,0,s1,192); ctx.clip(); ctx.drawImage(offscreenCanvas,0,0); ctx.restore(); }
+                                    if (s2 > s1) { ctx.save(); ctx.beginPath(); ctx.rect(s1,0,s2-s1,192); ctx.clip(); ctx.drawImage(window.monitorTempCanvas,0,0); ctx.restore(); }
+                                    if (256 > s2) { ctx.save(); ctx.beginPath(); ctx.rect(s2,0,256-s2,192); ctx.clip(); ctx.drawImage(window.vramTempCanvas,0,0); ctx.restore(); }
+
+                                    ctx.lineWidth = 1;
+                                    if (s1 > 0 && s1 < 256) { ctx.strokeStyle = '#4CAF50'; ctx.beginPath(); ctx.moveTo(s1, 0); ctx.lineTo(s1, 192); ctx.stroke(); }
+                                    if (s2 > s1 && s2 < 256) { ctx.strokeStyle = '#ff9800'; ctx.beginPath(); ctx.moveTo(s2, 0); ctx.lineTo(s2, 192); ctx.stroke(); }
+                                }
+                                
+                                if (window.showGrid) {
+                                    ctx.fillStyle = 'rgba(255, 255, 255, 0.25)'; for (let x = 0; x < 256; x += 8) ctx.fillRect(x, 0, 1, 192); for (let y = 0; y < 192; y += 8) ctx.fillRect(0, y, 256, 1);
+                                    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)'; ctx.fillRect(128, 0, 1, 192); ctx.fillRect(0, 96, 256, 1);
+                                }
+                                resolve();
+                            }
+                            if (e.data.type === 'ERROR') reject(e.data.payload);
+                        };
+                        const gamma = parseFloat(dials['gamma'] ? dials['gamma'].getValue() : 1.0) || 1.0;
+                        const needsMonitor = (currentMode === 'monitor');
+                        worker.postMessage({ type: 'ENCODE_FRAME', payload: { rgbaBytes, origW: 256, origH: 192, mp3Chunk, pcmSlice, frameIdx, gamma, needsMonitor } }, [rgbaBytes.buffer, mp3Chunk.buffer, pcmSlice.buffer]);
+                    });
+                    let nextSeekPromise = null;
+                    if (frameIdx + 1 < totalFrames) { sourceVideo.currentTime = startTime + ((frameIdx + 1) / TARGET_FPS); nextSeekPromise = new Promise(r => sourceVideo.onseeked = r); }
+                    await workerPromise; if (nextSeekPromise) await nextSeekPromise;
+                    encodedFramesCount++;
+                }
+
+                await new Promise((resolve, reject) => {
+                    worker.onmessage = (e) => {
+                        if (e.data.type === 'FINISHED') {
+                            recipeMeta.total_frames = accumulatedMv2Blocks.length;
+                            const actualDuration = accumulatedMv2Blocks.length / TARGET_FPS;
+                            const m = Math.floor(actualDuration / 60), s = Math.floor(actualDuration % 60), ms = Math.floor((actualDuration % 1) * 100);
+                            recipeMeta.play_time = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+                            const metaStr = JSON.stringify(recipeMeta);
+                            for (let i = 256; i < 16384; i++) interimHeader[i] = 0;
+                            for (let i = 0; i < metaStr.length; i++) interimHeader[256 + i] = metaStr.charCodeAt(i);
+                            const finalResult = assembleInterimMv2();
+                            if (document.getElementById('cfg_auto_download').checked) downloadFile(finalResult, "output.mv2", "application/octet-stream");
+                            lastEncodedMv2 = finalResult; resolve();
+                        }
+                        if (e.data.type === 'ERROR') reject(e.data.payload);
+                    };
+                    let finalMp3 = shouldStopEncoding ? new Uint8Array(0) : fullMp3.slice(globalMp3Offset);
+                    if (finalMp3.length > 8192) finalMp3 = finalMp3.slice(0, 8192);
+                    worker.postMessage({ type: 'FINISH', payload: { remainingMp3: finalMp3 } });
+                });
+                statusText.innerText = "Encoding Complete! 🎉";
+                document.getElementById('encoding-actions').style.display = 'none';
+                document.getElementById('final-actions').style.display = 'flex';
+            } catch (err) { console.error(err); statusText.innerText = "Error: " + err; }
+            finally {
+                isEncoding = false; currentMode = 'preview'; previewContainer.classList.remove('monitor-mode');
+                splitLeft.style.display = 'none'; splitRight.style.display = 'none';
+                btnStart.innerHTML = "<svg class='svg-icon'><use href='#icon-global'></use></svg> Start Encoding"; btnStart.style.background = "var(--accent)"; btnStart.disabled = false;
+                document.querySelectorAll('input, select').forEach(el => el.disabled = false);
+                document.getElementById('progressBar').style.display = 'none'; document.getElementById('encoding-actions').style.display = 'none';
+                renderPreview();
+            }
+        });
+
+        let lastEncodedMv2 = null;
+        function assembleInterimMv2() {
+            if (!interimHeader || accumulatedMv2Blocks.length === 0) return null;
+            const fullData = new Uint8Array(16384 + accumulatedMv2Blocks.length * 16384);
+            fullData.set(interimHeader, 0);
+            for (let i = 0; i < accumulatedMv2Blocks.length; i++) fullData.set(accumulatedMv2Blocks[i], 16384 + i * 16384);
+            return fullData;
+        }
+
+        document.getElementById('btnSnapshot').onclick = () => {
+            const data = assembleInterimMv2(); if (!data) return;
+            const channel = new BroadcastChannel('msx-encoder-player');
+            channel.postMessage({ type: 'encoded-file', fileName: `snapshot_${accumulatedMv2Blocks.length}F.mv2`, data: data.buffer });
+            channel.close();
+            const btn = document.getElementById('btnSnapshot'), oldHTML = btn.innerHTML;
+            btn.innerText = '✓ Sent!'; btn.disabled = true; setTimeout(() => { btn.innerHTML = oldHTML; btn.disabled = false; }, 2000);
+        };
+
+        document.getElementById('btnInterimSave').onclick = () => {
+            const data = assembleInterimMv2(); if (!data) return;
+            downloadFile(data, `interim_${accumulatedMv2Blocks.length}F.mv2`, "application/octet-stream");
+            const btn = document.getElementById('btnInterimSave'), oldHTML = btn.innerHTML;
+            btn.innerText = '✓ Saved!'; btn.disabled = true; setTimeout(() => { btn.innerHTML = oldHTML; btn.disabled = false; }, 2000);
+        };
+
+        document.getElementById('btnSendToPlayer').onclick = () => {
+            if (!lastEncodedMv2) return;
+            const channel = new BroadcastChannel('msx-encoder-player');
+            channel.postMessage({ type: 'encoded-file', fileName: 'retro_output.mv2', data: lastEncodedMv2.buffer });
+            channel.close();
+            const btn = document.getElementById('btnSendToPlayer');
+            if (btn) { btn.innerText = '✓ Sent!'; btn.style.background = '#666'; btn.disabled = true; }
+        };
+
+        document.getElementById('btnSaveMv2').onclick = () => {
+            if (lastEncodedMv2) downloadFile(lastEncodedMv2, "output.mv2", "application/octet-stream");
+        };
+
+        function downloadFile(uint8Array, filename, mimeType) {
+            const blob = new Blob([uint8Array], { type: mimeType }); const url = URL.createObjectURL(blob);
+            const a = document.createElement("a"); a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>

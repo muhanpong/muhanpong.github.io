@@ -18,15 +18,18 @@ export class Mv2Encoder {
      * @param {number} channels
      * @param {Uint8Array | null} [mp3_data]
      * @param {Int16Array | null} [pcm_data]
+     * @param {Float32Array | null} [pcm_f32_data]
      */
-    add_frame(rgba_data, in_w, in_h, channels, mp3_data, pcm_data) {
+    add_frame(rgba_data, in_w, in_h, channels, mp3_data, pcm_data, pcm_f32_data) {
         const ptr0 = passArray8ToWasm0(rgba_data, wasm.__wbindgen_malloc);
         const len0 = WASM_VECTOR_LEN;
         var ptr1 = isLikeNone(mp3_data) ? 0 : passArray8ToWasm0(mp3_data, wasm.__wbindgen_malloc);
         var len1 = WASM_VECTOR_LEN;
         var ptr2 = isLikeNone(pcm_data) ? 0 : passArray16ToWasm0(pcm_data, wasm.__wbindgen_malloc);
         var len2 = WASM_VECTOR_LEN;
-        wasm.mv2encoder_add_frame(this.__wbg_ptr, ptr0, len0, in_w, in_h, channels, ptr1, len1, ptr2, len2);
+        var ptr3 = isLikeNone(pcm_f32_data) ? 0 : passArrayF32ToWasm0(pcm_f32_data, wasm.__wbindgen_malloc);
+        var len3 = WASM_VECTOR_LEN;
+        wasm.mv2encoder_add_frame(this.__wbg_ptr, ptr0, len0, in_w, in_h, channels, ptr1, len1, ptr2, len2, ptr3, len3);
     }
     /**
      * @param {Uint8Array | null} [remaining_mp3]
@@ -59,6 +62,13 @@ export class Mv2Encoder {
     /**
      * @returns {Uint8Array}
      */
+    get_last_eq_data() {
+        const ret = wasm.mv2encoder_get_last_eq_data(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {Uint8Array}
+     */
     get_last_palette() {
         const ret = wasm.mv2encoder_get_last_palette(this.__wbg_ptr);
         return ret;
@@ -68,6 +78,15 @@ export class Mv2Encoder {
      */
     get_last_vram() {
         const ret = wasm.mv2encoder_get_last_vram(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Decode VRAM pattern+color tables into RGBA (256x192x4) entirely in WASM.
+     * This replaces the expensive per-pixel JS loop in worker.js.
+     * @returns {Uint8Array}
+     */
+    get_last_vram_rgba() {
+        const ret = wasm.mv2encoder_get_last_vram_rgba(this.__wbg_ptr);
         return ret;
     }
     /**
@@ -94,12 +113,13 @@ export function init_panic_hook() {
 /**
  * @param {string} shorthand
  * @param {number} peak_val
+ * @param {number} avg_lum
  * @returns {Float32Array}
  */
-export function test_anchor_resolution(shorthand, peak_val) {
+export function test_anchor_resolution(shorthand, peak_val, avg_lum) {
     const ptr0 = passStringToWasm0(shorthand, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.test_anchor_resolution(ptr0, len0, peak_val);
+    const ret = wasm.test_anchor_resolution(ptr0, len0, peak_val, avg_lum);
     return ret;
 }
 
@@ -234,6 +254,13 @@ function passArray16ToWasm0(arg, malloc) {
 function passArray8ToWasm0(arg, malloc) {
     const ptr = malloc(arg.length * 1, 1) >>> 0;
     getUint8ArrayMemory0().set(arg, ptr / 1);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
+}
+
+function passArrayF32ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 4, 4) >>> 0;
+    getFloat32ArrayMemory0().set(arg, ptr / 4);
     WASM_VECTOR_LEN = arg.length;
     return ptr;
 }
