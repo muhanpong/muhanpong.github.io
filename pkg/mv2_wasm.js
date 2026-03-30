@@ -113,12 +113,13 @@ export function init_panic_hook() {
 /**
  * @param {string} shorthand
  * @param {number} peak_val
+ * @param {number} avg_lum
  * @returns {Float32Array}
  */
-export function test_anchor_resolution(shorthand, peak_val) {
+export function test_anchor_resolution(shorthand, peak_val, avg_lum) {
     const ptr0 = passStringToWasm0(shorthand, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.test_anchor_resolution(ptr0, len0, peak_val);
+    const ret = wasm.test_anchor_resolution(ptr0, len0, peak_val, avg_lum);
     return ret;
 }
 

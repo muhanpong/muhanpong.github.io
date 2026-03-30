@@ -150,7 +150,8 @@
 
 <body>
     <svg width="0" height="0" style="position:absolute;z-index:-1;">
-        <filter id="gamma-filter">
+        <filter id="av-filter">
+            <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0" id="colorMatrix" />
             <feComponentTransfer>
                 <feFuncR type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaR" />
                 <feFuncG type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaG" />
@@ -199,6 +200,8 @@
                     <option value="fs" selected>Floyd-Steinberg (FS)</option>
                     <option value="dizzy">Dizzy (Error Diffusion)</option>
                     <option value="bluenoise">Blue Noise Void & Cluster</option>
+                    <option value="bayer4">Bayer (4x4)</option>
+                    <option value="bayer8">Bayer (8x8)</option>
                     <option value="none">None (Posterized)</option>
                 </select>
                 <div class="help-overlay">
@@ -206,6 +209,7 @@
                     <span class="hl">FS</span>: 표준적인 오차 확산. 선명함.<br>
                     <span class="hl">Dizzy</span>: 무작위 패턴으로 규칙성 제거.<br>
                     <span class="hl">Blue Noise</span>: 타일링 없는 고급 블루 노이즈.<br>
+                    <span class="hl">Bayer</span>: 레트로한 격자무늬 패턴.<br>
                     <span class="hl">None</span>: 디더링 끄기 (등고선 발생).
                 </div>
             </div>
@@ -389,6 +393,50 @@
                         <div class="dial-val-display" id="val_audio_gain">0dB</div>
                     </div>
                 </div>
+                <div class="av-row" style="margin-top: 10px; border-top: 1px dashed #444; padding-top: 10px;">
+                    <div class="av-control">
+                        <div class="av-control-header"><label style="color:#ff8888;">Gain R</label>
+                            <div class="av-actions"><button class="icon-btn btn-av-reset" data-target="gain_r"><svg class="svg-icon-sm"><use href="#icon-reset"></use></svg></button></div>
+                        </div>
+                        <div class="dial-container"><div class="dial" id="dial_gain_r" data-min="-100" data-max="200" data-step="1"><div class="dial-indicator"></div></div><input type="hidden" id="cfg_gain_r" value="0"></div>
+                        <div class="dial-val-display" id="val_gain_r">0%</div>
+                    </div>
+                    <div class="av-control">
+                        <div class="av-control-header"><label style="color:#88ff88;">Gain G</label>
+                            <div class="av-actions"><button class="icon-btn btn-av-reset" data-target="gain_g"><svg class="svg-icon-sm"><use href="#icon-reset"></use></svg></button></div>
+                        </div>
+                        <div class="dial-container"><div class="dial" id="dial_gain_g" data-min="-100" data-max="200" data-step="1"><div class="dial-indicator"></div></div><input type="hidden" id="cfg_gain_g" value="0"></div>
+                        <div class="dial-val-display" id="val_gain_g">0%</div>
+                    </div>
+                    <div class="av-control">
+                        <div class="av-control-header"><label style="color:#8888ff;">Gain B</label>
+                            <div class="av-actions"><button class="icon-btn btn-av-reset" data-target="gain_b"><svg class="svg-icon-sm"><use href="#icon-reset"></use></svg></button></div>
+                        </div>
+                        <div class="dial-container"><div class="dial" id="dial_gain_b" data-min="-100" data-max="200" data-step="1"><div class="dial-indicator"></div></div><input type="hidden" id="cfg_gain_b" value="0"></div>
+                        <div class="dial-val-display" id="val_gain_b">0%</div>
+                    </div>
+                    <div class="av-control">
+                        <div class="av-control-header"><label style="color:#88ffff;">Gain C</label>
+                            <div class="av-actions"><button class="icon-btn btn-av-reset" data-target="gain_c"><svg class="svg-icon-sm"><use href="#icon-reset"></use></svg></button></div>
+                        </div>
+                        <div class="dial-container"><div class="dial" id="dial_gain_c" data-min="-100" data-max="200" data-step="1"><div class="dial-indicator"></div></div><input type="hidden" id="cfg_gain_c" value="0"></div>
+                        <div class="dial-val-display" id="val_gain_c">0%</div>
+                    </div>
+                    <div class="av-control">
+                        <div class="av-control-header"><label style="color:#ff88ff;">Gain M</label>
+                            <div class="av-actions"><button class="icon-btn btn-av-reset" data-target="gain_m"><svg class="svg-icon-sm"><use href="#icon-reset"></use></svg></button></div>
+                        </div>
+                        <div class="dial-container"><div class="dial" id="dial_gain_m" data-min="-100" data-max="200" data-step="1"><div class="dial-indicator"></div></div><input type="hidden" id="cfg_gain_m" value="0"></div>
+                        <div class="dial-val-display" id="val_gain_m">0%</div>
+                    </div>
+                    <div class="av-control">
+                        <div class="av-control-header"><label style="color:#ffff88;">Gain Y</label>
+                            <div class="av-actions"><button class="icon-btn btn-av-reset" data-target="gain_y"><svg class="svg-icon-sm"><use href="#icon-reset"></use></svg></button></div>
+                        </div>
+                        <div class="dial-container"><div class="dial" id="dial_gain_y" data-min="-100" data-max="200" data-step="1"><div class="dial-indicator"></div></div><input type="hidden" id="cfg_gain_y" value="0"></div>
+                        <div class="dial-val-display" id="val_gain_y">0%</div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -534,7 +582,13 @@
             { id: 'saturation', min: -100, max: 200, default: 0 },
             { id: 'hue', min: -180, max: 180, default: 0 },
             { id: 'gamma', min: 0.1, max: 3.0, default: 1.0, isFloat: true },
-            { id: 'audio_gain', min: -20, max: 20, default: 0, isAudio: true }
+            { id: 'audio_gain', min: -20, max: 20, default: 0, isAudio: true },
+            { id: 'gain_r', min: -100, max: 200, default: 0 },
+            { id: 'gain_g', min: -100, max: 200, default: 0 },
+            { id: 'gain_b', min: -100, max: 200, default: 0 },
+            { id: 'gain_c', min: -100, max: 200, default: 0 },
+            { id: 'gain_m', min: -100, max: 200, default: 0 },
+            { id: 'gain_y', min: -100, max: 200, default: 0 }
         ];
         dialConfigs.forEach(c => dials[c.id] = setupDial(c.id, c.min, c.max, c.default, c.isFloat, c.isAudio));
 
@@ -1031,11 +1085,35 @@
             const s = parseFloat(dials['saturation'] ? dials['saturation'].getValue() : 0) + 100;
             const h = parseFloat(dials['hue'] ? dials['hue'].getValue() : 0);
             const gamma = parseFloat(dials['gamma'] ? dials['gamma'].getValue() : 1.0) || 1.0;
+
+            // Color Gains Math
+            const gr = parseFloat(dials['gain_r'] ? dials['gain_r'].getValue() : 0);
+            const gg = parseFloat(dials['gain_g'] ? dials['gain_g'].getValue() : 0);
+            const gb = parseFloat(dials['gain_b'] ? dials['gain_b'].getValue() : 0);
+            const gc = parseFloat(dials['gain_c'] ? dials['gain_c'].getValue() : 0);
+            const gm = parseFloat(dials['gain_m'] ? dials['gain_m'].getValue() : 0);
+            const gy = parseFloat(dials['gain_y'] ? dials['gain_y'].getValue() : 0);
+
+            const rScale = Math.max(0, Math.min(5, 1.0 + (gr / 100.0) - (gc / 100.0)));
+            const gScale = Math.max(0, Math.min(5, 1.0 + (gg / 100.0) - (gm / 100.0)));
+            const bScale = Math.max(0, Math.min(5, 1.0 + (gb / 100.0) - (gy / 100.0)));
+
+            const colorMatrix = document.getElementById('colorMatrix');
+            if (colorMatrix) {
+                colorMatrix.setAttribute('values', `${rScale} 0 0 0 0  0 ${gScale} 0 0 0  0 0 ${bScale} 0 0  0 0 0 1 0`);
+            }
+
             document.getElementById('gammaR').setAttribute('exponent', 1 / gamma);
             document.getElementById('gammaG').setAttribute('exponent', 1 / gamma);
             document.getElementById('gammaB').setAttribute('exponent', 1 / gamma);
-            context.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) hue-rotate(${h}deg)`;
-            if (context === ctx) canvas.style.filter = `url(#gamma-filter)`;
+
+            if (b === 100 && c === 100 && s === 100 && h === 0 && rScale === 1 && gScale === 1 && bScale === 1) {
+                context.filter = 'none';
+            } else {
+                context.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) hue-rotate(${h}deg)`;
+            }
+
+            if (context === ctx) canvas.style.filter = `url(#av-filter)`;
         }
 
         function drawUIOverlays(box) {

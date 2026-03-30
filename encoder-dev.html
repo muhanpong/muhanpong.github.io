@@ -515,9 +515,9 @@
 
 <body>
     <svg width="0" height="0" style="position:absolute;z-index:-1;">
-        <filter id="gamma-filter">
+        <filter id="av-filter">
+            <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0" id="colorMatrix" />
             <feComponentTransfer>
-                <!-- SVG Gamma exponent is 1/gamma. We will update this via JS -->
                 <feFuncR type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaR" />
                 <feFuncG type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaG" />
                 <feFuncB type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaB" />
@@ -558,6 +558,8 @@
                         <option value="fs" selected>Floyd-Steinberg (FS)</option>
                         <option value="dizzy">Dizzy (Error Diffusion)</option>
                         <option value="bluenoise">Blue Noise Void & Cluster</option>
+                        <option value="bayer4">Bayer (4x4)</option>
+                        <option value="bayer8">Bayer (8x8)</option>
                         <option value="none">None (Posterized)</option>
                     </select>
                     <div class="help-overlay">
@@ -690,47 +692,6 @@
                         <span class="hl">Up Offset</span>: -100(가장 위쪽) ~ 100(가장 아래쪽)
                     </div>
                 </div>
-                <div class="help-section" style="grid-column: span 2;">
-                    <div
-                        style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #444; margin-top: 5px; padding-top: 5px;">
-                        <span style="font-weight: bold; font-size: 13px;">A/V Adjustments</span>
-                        <button onclick="resetAllAV()"
-                            style="background:transparent; border:1px solid #666; color:#ddd; padding:2px 6px; border-radius:4px; cursor:pointer; font-size:11px;">↺
-                            Reset Global Defaults</button>
-                    </div>
-                    <div style="display: flex; gap: 10px; margin-top: 10px;">
-                        <div style="flex: 1;">
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <label style="margin:0;">Brightness: <span id="val_brightness">0</span></label>
-                                <div style="display:flex; gap:6px; font-size:12px;">
-                                    <span style="cursor:pointer;" onclick="resetAV('brightness', 0)"
-                                        title="Default">↺</span>
-                                    <span style="cursor:pointer;" onclick="toggleLockAV('brightness')"
-                                        id="lock_brightness" title="Lock">🔓</span>
-                                </div>
-                            </div>
-                            <input type="range" id="cfg_brightness" value="0" min="-100" max="100" step="1"
-                                oninput="document.getElementById('val_brightness').innerText = this.value">
-                        </div>
-                        <div style="flex: 1;">
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <label style="margin:0;">Contrast: <span id="val_contrast">0</span></label>
-                                <div style="display:flex; gap:6px; font-size:12px;">
-                                    <span style="cursor:pointer;" onclick="resetAV('contrast', 0)"
-                                        title="Default">↺</span>
-                                    <span style="cursor:pointer;" onclick="toggleLockAV('contrast')" id="lock_contrast"
-                                        title="Lock">🔓</span>
-                                </div>
-                            </div>
-                            <input type="range" id="cfg_contrast" value="0" min="-100" max="100" step="1"
-                                oninput="document.getElementById('val_contrast').innerText = this.value">
-                        </div>
-                        <div style="flex: 1;">
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <label style="margin:0;">Saturation: <span id="val_saturation">0</span></label>
-                                <div style="display:flex; gap:6px; font-size:12px;">
-                                    <span style="cursor:pointer;" onclick="resetAV('saturation', 0)"
-                                        title="Default">↺</span>
                                     <span style="cursor:pointer;" onclick="toggleLockAV('saturation')"
                                         id="lock_saturation" title="Lock">🔓</span>
                                 </div>
@@ -1327,8 +1288,10 @@
                 canvas.style.aspectRatio = e.target.value === '5:3' ? '5 / 3' : '4 / 3';
                 drawPreviewCanvas();
             }));
-            ['cfg_brightness', 'cfg_contrast', 'cfg_saturation', 'cfg_hue', 'cfg_gamma'].forEach(id => {
-                document.getElementById(id).addEventListener('input', drawPreviewCanvas);
+            ['cfg_brightness', 'cfg_contrast', 'cfg_saturation', 'cfg_hue', 'cfg_gamma',
+             'cfg_gain_r', 'cfg_gain_g', 'cfg_gain_b', 'cfg_gain_c', 'cfg_gain_m', 'cfg_gain_y'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('input', drawPreviewCanvas);
             });
 
             window.resetAV = function (id, defaultVal) {
@@ -1346,6 +1309,7 @@
             window.resetAllAV = function () {
                 window.resetAV('brightness', 0); window.resetAV('contrast', 0); window.resetAV('saturation', 0);
                 window.resetAV('hue', 0); window.resetAV('gamma', '1.0'); window.resetAV('audio_gain', 0);
+                ['r','g', 'b', 'c', 'm', 'y'].forEach(c => window.resetAV('gain_' + c, 0));
             }
 
             function getUIConfig() {
@@ -1396,11 +1360,33 @@
                 const s = parseFloat(document.getElementById('cfg_saturation').value) + 100;
                 const h = parseFloat(document.getElementById('cfg_hue').value);
                 const gamma = parseFloat(document.getElementById('cfg_gamma').value) || 1.0;
+
+                const gr = parseFloat(document.getElementById('cfg_gain_r').value || 0);
+                const gg = parseFloat(document.getElementById('cfg_gain_g').value || 0);
+                const gb = parseFloat(document.getElementById('cfg_gain_b').value || 0);
+                const gc = parseFloat(document.getElementById('cfg_gain_c').value || 0);
+                const gm = parseFloat(document.getElementById('cfg_gain_m').value || 0);
+                const gy = parseFloat(document.getElementById('cfg_gain_y').value || 0);
+
+                const rScale = Math.max(0, Math.min(5, 1.0 + (gr / 100) - (gc / 100)));
+                const gScale = Math.max(0, Math.min(5, 1.0 + (gg / 100) - (gm / 100)));
+                const bScale = Math.max(0, Math.min(5, 1.0 + (gb / 100) - (gy / 100)));
+
+                const colorMatrix = document.getElementById('colorMatrix');
+                if (colorMatrix) {
+                    colorMatrix.setAttribute('values', `${rScale} 0 0 0 0  0 ${gScale} 0 0 0  0 0 ${bScale} 0 0  0 0 0 1 0`);
+                }
+
                 document.getElementById('gammaR').setAttribute('exponent', 1 / gamma);
                 document.getElementById('gammaG').setAttribute('exponent', 1 / gamma);
                 document.getElementById('gammaB').setAttribute('exponent', 1 / gamma);
-                context.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) hue-rotate(${h}deg)`;
-                if (context === ctx) canvas.style.filter = `url(#gamma-filter)`;
+
+                if (b === 100 && c === 100 && s === 100 && h === 0 && rScale === 1 && gScale === 1 && bScale === 1) {
+                    context.filter = 'none';
+                } else {
+                    context.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) hue-rotate(${h}deg)`;
+                }
+                if (context === ctx) canvas.style.filter = `url(#av-filter)`;
             }
 
             async function drawPreviewCanvas() {
