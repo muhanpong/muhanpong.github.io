@@ -117,22 +117,33 @@ self.onmessage = async (e) => {
 
             // Only perform expensive reconstruction if it's a TEST_FRAME (preview) or specifically requested for the monitor
             if (type === 'TEST_FRAME' || needsMonitor) {
-                // 🚀 VRAM RGBA: Decode entirely in WASM (replaces expensive JS per-pixel loop)
-                const vramRGBA = activeEncoder.get_last_vram_rgba();
-                response.payload.vramRGBA = vramRGBA.slice();
-                transferables.push(response.payload.vramRGBA.buffer);
+                const dRGB = activeEncoder.get_last_dithered_frame();
+                
+                // Buffer Management (Allocation bypass)
+                // Note: We MUST create fresh buffers if we want to transfer them
+                const ditheredRGBA = new Uint8ClampedArray(256 * 192 * 4);
+                const vramRGBA = new Uint8ClampedArray(256 * 192 * 4);
+                const vData32 = new Uint32Array(vramRGBA.buffer);
+                const pal32 = new Uint32Array(16);
 
-                // Dithered RGBA: Only needed for monitor mode (3-way split view), skip for preview
-                if (needsMonitor) {
-                    const dRGB = activeEncoder.get_last_dithered_frame();
-                    const ditheredRGBA = new Uint8ClampedArray(256 * 192 * 4);
-                    for (let i = 0, j = 0; i < dRGB.length; i += 3, j += 4) {
-                        ditheredRGBA[j] = dRGB[i]; ditheredRGBA[j + 1] = dRGB[i + 1];
-                        ditheredRGBA[j + 2] = dRGB[i + 2]; ditheredRGBA[j + 3] = 255;
-                    }
-                    response.payload.ditheredRGBA = ditheredRGBA;
-                    transferables.push(ditheredRGBA.buffer);
+                for (let i = 0, j = 0; i < dRGB.length; i += 3, j += 4) {
+                    ditheredRGBA[j] = dRGB[i]; ditheredRGBA[j + 1] = dRGB[i + 1];
+                    ditheredRGBA[j + 2] = dRGB[i + 2]; ditheredRGBA[j + 3] = 255;
                 }
+                for (let i = 0; i < 16; i++) {
+                    pal32[i] = (255 << 24) | (pBytes[i * 3 + 2] << 16) | (pBytes[i * 3 + 1] << 8) | pBytes[i * 3 + 0];
+                }
+                for (let y = 0; y < 192; y++) {
+                    const y8 = Math.floor(y / 8), yMod8 = y % 8, rowOffset = y * 256;
+                    for (let x = 0; x < 256; x++) {
+                        const vram_off = (y8 * 32 + Math.floor(x / 8)) * 8 + yMod8;
+                        const bit = (vBytes[vram_off] >> (7 - (x % 8))) & 1, ct = vBytes[6144 + vram_off];
+                        vData32[rowOffset + x] = pal32[bit ? (ct >> 4) : (ct & 0x0F)];
+                    }
+                }
+                response.payload.ditheredRGBA = ditheredRGBA;
+                response.payload.vramRGBA = vramRGBA;
+                transferables.push(ditheredRGBA.buffer, vramRGBA.buffer);
             }
 
             self.postMessage(response, transferables);
