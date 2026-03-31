@@ -9,6 +9,12 @@ export class Mv2Encoder {
      * Optimized Gamma correction for RGBA buffer entirely in WASM.
      */
     static apply_gamma_to_rgba(rgba: Uint8Array, gamma: number): void;
+    /**
+     * Native implementation of Brightness, Contrast, Saturation.
+     * brightness, contrast, saturation: 100.0 is neutral (1.0)
+     */
+    static apply_visual_filters(rgba: Uint8Array, b: number, c: number, s: number): void;
+    convert_f32_to_i16(f32_samples: Float32Array, gain: number): Int16Array;
     finish(remaining_mp3?: Uint8Array | null): Uint8Array;
     finish_rgb(): Uint8Array;
     get_last_dithered_frame(): Uint8Array;
@@ -25,6 +31,7 @@ export class Mv2Encoder {
      */
     get_last_vram_rgba(): Uint8Array;
     constructor(config_json: string);
+    update_config(config_json: string): void;
 }
 
 export function init_panic_hook(): void;
@@ -38,6 +45,8 @@ export interface InitOutput {
     readonly __wbg_mv2encoder_free: (a: number, b: number) => void;
     readonly mv2encoder_add_frame: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => void;
     readonly mv2encoder_apply_gamma_to_rgba: (a: number, b: number, c: any, d: number) => void;
+    readonly mv2encoder_apply_visual_filters: (a: number, b: number, c: any, d: number, e: number, f: number) => void;
+    readonly mv2encoder_convert_f32_to_i16: (a: number, b: number, c: number, d: number) => [number, number];
     readonly mv2encoder_finish: (a: number, b: number, c: number) => [number, number];
     readonly mv2encoder_finish_rgb: (a: number) => [number, number];
     readonly mv2encoder_get_last_dithered_frame: (a: number) => any;
@@ -47,6 +56,7 @@ export interface InitOutput {
     readonly mv2encoder_get_last_vram: (a: number) => any;
     readonly mv2encoder_get_last_vram_rgba: (a: number) => any;
     readonly mv2encoder_new: (a: number, b: number) => [number, number, number];
+    readonly mv2encoder_update_config: (a: number, b: number, c: number) => [number, number];
     readonly test_anchor_resolution: (a: number, b: number, c: number, d: number) => any;
     readonly init_panic_hook: () => void;
     readonly __wbindgen_free: (a: number, b: number, c: number) => void;

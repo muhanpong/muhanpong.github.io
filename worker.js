@@ -12,29 +12,27 @@ let lastPreviewConfig = null;
 let monitorDitheredRGBA = null;
 let monitorVramRGBA = null;
 
-// Gamma LUT state
-let gammaLUT = new Uint8Array(256);
-let currentGamma = 1.0;
+// MP3 Encoding State (Task 1)
+let lamejs = null; // Loaded via shim
+let mp3Encoder = null;
+let mp3ResidualBuffer = new Uint8Array(0);
 
-// Initialize Gamma LUT
-function updateGammaLUT(gamma) {
-    if (Math.abs(currentGamma - gamma) < 0.001 && gammaLUT[255] !== 0) return;
-    currentGamma = gamma;
-    for (let i = 0; i < 256; i++) {
-        gammaLUT[i] = Math.pow(i / 255, 1 / gamma) * 255;
+async function ensureLamejs() {
+    if (lamejs) return;
+    console.log("[Worker] Loading lamejs shim...");
+    try {
+        const resp = await fetch('https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js');
+        const text = await resp.text();
+        // The script defines a function named 'lamejs'. We execute it and grab that function.
+        const factory = new Function(text + "; return lamejs;")();
+        lamejs = factory; // This is the factory function that returns { Mp3Encoder, ... }
+        console.log("[Worker] lamejs shim loaded.");
+    } catch (err) {
+        console.error("[Worker] Failed to load lamejs shim:", err);
+        throw err;
     }
 }
 
-// Apply Gamma LUT to RGBA buffer
-function applyGamma(rgbaBytes, gamma) {
-    if (Math.abs(gamma - 1.0) < 0.001) return; // Skip if gamma is 1.0
-    updateGammaLUT(gamma);
-    for (let i = 0; i < rgbaBytes.length; i += 4) {
-        rgbaBytes[i] = gammaLUT[rgbaBytes[i]];
-        rgbaBytes[i + 1] = gammaLUT[rgbaBytes[i + 1]];
-        rgbaBytes[i + 2] = gammaLUT[rgbaBytes[i + 2]];
-    }
-}
 
 /**
  * Ensures WASM module is loaded and initialized.
@@ -43,16 +41,13 @@ function applyGamma(rgbaBytes, gamma) {
 async function ensureWasm() {
     if (Mv2Encoder) return; // Already initialized
 
-    console.log("[Worker] Loading WASM module with cache buster...");
+    console.log("[Worker] Loading WASM module...");
     try {
-        // Use timestamp to bypass service worker / browser cache for the glue code
-        const v = Date.now();
-        const module = await import(`./pkg/mv2_wasm.js?v=${v}`);
+        const module = await import(`./pkg/mv2_wasm.js`);
         init = module.default;
         Mv2Encoder = module.Mv2Encoder;
 
-        // Initialize WASM with cache-busted path for the .wasm file itself
-        await init(`./pkg/mv2_wasm_bg.wasm?v=${v}`);
+        await init(`./pkg/mv2_wasm_bg.wasm`);
 
         if (module.init_panic_hook) module.init_panic_hook();
         console.log("[Worker] WASM loaded and initialized.");
@@ -78,23 +73,39 @@ self.onmessage = async (e) => {
 
         if (type === 'INIT') {
             console.log("[Worker] Initializing Main Encoder instance...");
-            if (encoder) {
-                try { encoder.free(); } catch(e) {}
+            await ensureLamejs();
+            if (!encoder) {
+                encoder = new Mv2Encoder(payload.config);
+            } else {
+                // Adaptive Update instead of full re-init
+                try { encoder.update_config(payload.config); } catch(e) {
+                    encoder.free(); encoder = new Mv2Encoder(payload.config);
+                }
             }
-            encoder = new Mv2Encoder(payload.config);
+            
+            // Re-initialize MP3 Encoder for a fresh session
+            const cfg = JSON.parse(payload.config);
+            mp3Encoder = new lamejs.Mp3Encoder(1, cfg.sample_rate || 44100, 128);
+            mp3ResidualBuffer = new Uint8Array(0);
+            
             self.postMessage({ type: 'INIT_DONE' });
         }
 
         else if (type === 'ENCODE_FRAME' || type === 'TEST_FRAME') {
             const { rgbaBytes, origW, origH, gamma, mp3Chunk, pcmSlice, pcmF32Slice, frameIdx, config, needsMonitor } = payload;
-            if (gamma) applyGamma(rgbaBytes, gamma);
+            if (gamma && gamma !== 1.0) Mv2Encoder.apply_gamma_to_rgba(rgbaBytes, gamma);
 
             let activeEncoder = encoder;
             if (type === 'TEST_FRAME') {
                 if (!config) throw new Error("Config required for TEST_FRAME");
-                if (!previewEncoder || lastPreviewConfig !== config) {
-                    if (previewEncoder) { try { previewEncoder.free(); } catch(e) {} }
+                if (!previewEncoder) {
                     previewEncoder = new Mv2Encoder(config);
+                    lastPreviewConfig = config;
+                } else if (lastPreviewConfig !== config) {
+                    // Ad-hoc optimization: only re-init if really needed, otherwise update
+                    try { previewEncoder.update_config(config); } catch(e) {
+                        previewEncoder.free(); previewEncoder = new Mv2Encoder(config);
+                    }
                     lastPreviewConfig = config;
                 }
                 activeEncoder = previewEncoder;
@@ -102,7 +113,32 @@ self.onmessage = async (e) => {
                 throw new Error("Encoder not initialized.");
             }
 
-            activeEncoder.add_frame(rgbaBytes, origW, origH, 4, mp3Chunk, pcmSlice, pcmF32Slice);
+            // 🔊 Streaming MP3 Encoding (Task 1) - Must happen BEFORE add_frame for interleaving
+            let returnedMp3Chunk = null;
+            if (type === 'ENCODE_FRAME' && pcmF32Slice && mp3Encoder) {
+                // 🚀 Native WASM Audio Conversion (Performance Fix)
+                const pcmInt16 = activeEncoder.convert_f32_to_i16(pcmF32Slice, payload.gain || 1.0);
+                
+                // 2. Encode to MP3
+                const mp3buf = new Uint8Array(mp3Encoder.encodeBuffer(pcmInt16));
+                
+                // 3. Handle 32-byte alignment and requested size
+                const combined = new Uint8Array(mp3ResidualBuffer.length + mp3buf.length);
+                combined.set(mp3ResidualBuffer, 0);
+                combined.set(mp3buf, mp3ResidualBuffer.length);
+                
+                const requestedSize = payload.requestedMp3Size || 0; 
+                if (requestedSize > 0) {
+                    returnedMp3Chunk = combined.slice(0, requestedSize);
+                    mp3ResidualBuffer = combined.slice(requestedSize);
+                } else {
+                    const alignedLen = Math.floor(combined.length / 32) * 32;
+                    returnedMp3Chunk = combined.slice(0, alignedLen);
+                    mp3ResidualBuffer = combined.slice(alignedLen);
+                }
+            }
+
+            activeEncoder.add_frame(rgbaBytes, origW, origH, 4, returnedMp3Chunk, pcmSlice, pcmF32Slice);
 
             const vBytes = activeEncoder.get_last_vram();
             const pBytes = activeEncoder.get_last_palette();
@@ -110,37 +146,21 @@ self.onmessage = async (e) => {
 
             const response = {
                 type: type === 'ENCODE_FRAME' ? 'FRAME_DONE' : 'TEST_FRAME_DONE',
-                payload: { frameIdx, vramBytes: vBytes.slice(), paletteBytes: pBytes.slice(), eqBytes: eqBytes.slice() }
+                payload: { frameIdx, vramBytes: vBytes, paletteBytes: pBytes, eqBytes: eqBytes }
             };
             const transferables = [response.payload.vramBytes.buffer, response.payload.paletteBytes.buffer, response.payload.eqBytes.buffer];
-            if (mp3Chunk) { response.payload.mp3Chunk = mp3Chunk; transferables.push(mp3Chunk.buffer); }
+            if (returnedMp3Chunk && returnedMp3Chunk.length > 0) {
+                response.payload.mp3Chunk = returnedMp3Chunk; 
+                transferables.push(returnedMp3Chunk.buffer); 
+            }
 
             // Only perform expensive reconstruction if it's a TEST_FRAME (preview) or specifically requested for the monitor
             if (type === 'TEST_FRAME' || needsMonitor) {
-                const dRGB = activeEncoder.get_last_dithered_frame();
-                
-                // Buffer Management (Allocation bypass)
-                // Note: We MUST create fresh buffers if we want to transfer them
-                const ditheredRGBA = new Uint8ClampedArray(256 * 192 * 4);
-                const vramRGBA = new Uint8ClampedArray(256 * 192 * 4);
-                const vData32 = new Uint32Array(vramRGBA.buffer);
-                const pal32 = new Uint32Array(16);
+                // 🚀 WASM-Accelerated Reconstruction (Task 2)
+                // This eliminates the expensive JS pixel loops
+                const ditheredRGBA = activeEncoder.get_last_dithered_rgba();
+                const vramRGBA = activeEncoder.get_last_vram_rgba();
 
-                for (let i = 0, j = 0; i < dRGB.length; i += 3, j += 4) {
-                    ditheredRGBA[j] = dRGB[i]; ditheredRGBA[j + 1] = dRGB[i + 1];
-                    ditheredRGBA[j + 2] = dRGB[i + 2]; ditheredRGBA[j + 3] = 255;
-                }
-                for (let i = 0; i < 16; i++) {
-                    pal32[i] = (255 << 24) | (pBytes[i * 3 + 2] << 16) | (pBytes[i * 3 + 1] << 8) | pBytes[i * 3 + 0];
-                }
-                for (let y = 0; y < 192; y++) {
-                    const y8 = Math.floor(y / 8), yMod8 = y % 8, rowOffset = y * 256;
-                    for (let x = 0; x < 256; x++) {
-                        const vram_off = (y8 * 32 + Math.floor(x / 8)) * 8 + yMod8;
-                        const bit = (vBytes[vram_off] >> (7 - (x % 8))) & 1, ct = vBytes[6144 + vram_off];
-                        vData32[rowOffset + x] = pal32[bit ? (ct >> 4) : (ct & 0x0F)];
-                    }
-                }
                 response.payload.ditheredRGBA = ditheredRGBA;
                 response.payload.vramRGBA = vramRGBA;
                 transferables.push(ditheredRGBA.buffer, vramRGBA.buffer);
@@ -154,7 +174,19 @@ self.onmessage = async (e) => {
             if (!encoder) throw new Error("Encoder not initialized.");
 
             // 결과물 추출 및 WASM 메모리 분리
-            const mv2Bytes = encoder.finish(remainingMp3).slice();
+            // Flush leftover MP3
+            let finalMp3 = mp3ResidualBuffer;
+            if (mp3Encoder) {
+                const flushBuf = new Uint8Array(mp3Encoder.flush());
+                if (flushBuf.length > 0) {
+                    const combined = new Uint8Array(finalMp3.length + flushBuf.length);
+                    combined.set(finalMp3, 0);
+                    combined.set(flushBuf, finalMp3.length);
+                    finalMp3 = combined;
+                }
+            }
+
+            const mv2Bytes = encoder.finish(finalMp3).slice();
             const rgbBytes = encoder.finish_rgb().slice();
 
             self.postMessage({
