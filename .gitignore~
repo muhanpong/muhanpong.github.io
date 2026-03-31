@@ -1,8 +1,5 @@
 .gemini
 !*md
-
-# submodule recursive
-devel/
     
 *mv2
 !README.md
@@ -13,4 +10,3 @@ devel/
 encoder_mob.html
 encoder_studio.html
 .gait/
-
