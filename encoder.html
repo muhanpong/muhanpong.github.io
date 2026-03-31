@@ -692,19 +692,13 @@
                     </div>
                 </div>
                 <div class="help-section">
-                    <label>Aspect Ratio (Preview)</label>
-                    <div style="display:flex; align-items:center; margin-top:10px;">
-                        <label style="margin-right: 15px;"><input type="radio" name="cfg_target_ratio" value="5:3"
-                                checked>
-                            5:3</label>
-                        <label><input type="radio" name="cfg_target_ratio" value="4:3"> 4:3</label>
-                    </div>
+                    <label>Temporal Reuse Threshold</label>
+                    <input type="number" id="cfg_temporal_threshold" value="4.0" min="0.0" step="0.1">
                     <div class="help-overlay">
-                        <h4>Aspect Ratio <span class="tip">(프리뷰 비율)</span></h4>
-                        MSX2(256x192)의 실제 출력 픽셀 비율은 물리적으로 약 <span class="hl">5:3</span>에 가깝습니다. 하지만 과거 브라운관 TV의 비율로 늘려서
-                        보던
-                        방식은 <span class="hl">4:3</span>입니다.<br><br>
-                        이 옵션은 결과물의 해상도를 바꾸는 것이 아니며, 작업 시 보여지는 모니터 박스의 비율 가이드라인만 변경합니다.
+                        <h4>Temporal Reuse <span class="tip">(화면 정적 구역 유지)</span></h4>
+                        이전 프레임과 비교해 변화가 적은 8x1 블록을 그대로 재사용할지 결정하는 임계값입니다.<br><br>
+                        <span class="hl">낮은 값 (1.0)</span>: 아주 미세한 변화도 감지하여 새로 렌더링합니다. (자글거림 발생 가능)<br>
+                        <span class="hl">높은 값 (10.0+)</span>: 노이즈나 미세한 움직임을 무시하고 정지 화면으로 유지하여 Floyd-Steinberg의 '끓는 현상'을 억제합니다.
                     </div>
                 </div>
                 <div class="help-section">
@@ -721,6 +715,22 @@
                         <span class="hl">Crop</span>: 파란색 박스 도구로 원하는 부분만 잘라냅니다. 화면에 가장 꽉 차게 나옵니다.<br>
                         <span class="hl">Pad</span>: 비율을 유지하며 남는 공간에 검은색 레터박스 여백을 둡니다.<br>
                         <span class="hl">Force</span>: 원본을 256x192 크기에 맞춰 강제로 찌그러뜨립니다.
+                    </div>
+                </div>
+                <div class="help-section">
+                    <label>Aspect Ratio (Preview)</label>
+                    <div style="display:flex; align-items:center; margin-top:10px;">
+                        <label style="margin-right: 15px;"><input type="radio" name="cfg_target_ratio" value="5:3"
+                                checked>
+                            5:3</label>
+                        <label><input type="radio" name="cfg_target_ratio" value="4:3"> 4:3</label>
+                    </div>
+                    <div class="help-overlay">
+                        <h4>Aspect Ratio <span class="tip">(프리뷰 비율)</span></h4>
+                        MSX2(256x192)의 실제 출력 픽셀 비율은 물리적으로 약 <span class="hl">5:3</span>에 가깝습니다. 하지만 과거 브라운관 TV의 비율로 늘려서
+                        보던
+                        방식은 <span class="hl">4:3</span>입니다.<br><br>
+                        이 옵션은 결과물의 해상도를 바꾸는 것이 아니며, 작업 시 보여지는 모니터 박스의 비율 가이드라인만 변경합니다.
                     </div>
                 </div>
                 <div style="grid-column: span 2;" class="help-section">
@@ -1059,6 +1069,7 @@
                 'cfg_anchors': 'Lock specific colors into the palette. UPPERCASE (Bright): K=Black, W=White, R, G, B, C, M, Y, A=Ash(Gray). lowercase (Dark): r, g, b, c, m, y, w=LtGray. _ to hold bright/dark. Example: K_W = Black + always-bright White.',
                 'cfg_iter_init': 'K-Means iterations for the first frame. Higher = better quality.',
                 'cfg_iter_sub': 'Iterations for subsequent frames. Can be lower for speed.',
+                'cfg_temporal_threshold': 'Copy static blocks from previous frame if Mean Squared Error is below this value. Reduces dither jitter.',
                 'cfg_metric': 'Redmean is best for human skin. Euclidean is standard.',
                 'cfg_aspect': 'Crop: cuts edges. Pad: adds black bars. Force: stretches image.',
                 'cfg_crop_left': 'Shift crop window horizontally (-100 to 100).',
@@ -1494,6 +1505,7 @@
                     max_extra_colors: parseInt(document.getElementById('cfg_colors').value),
                     quant_iters_initial: parseInt(document.getElementById('cfg_iter_init').value),
                     quant_iters_subsequent: parseInt(document.getElementById('cfg_iter_sub').value),
+                    temporal_threshold: parseFloat(document.getElementById('cfg_temporal_threshold').value),
                     aspect_mode: "force", crop_left: 0, crop_up: 0,
                     sample_rate: TARGET_SAMPLE_RATE, fps: TARGET_FPS,
                     metric: document.getElementById('cfg_metric').value,
