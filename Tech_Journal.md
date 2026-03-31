@@ -485,3 +485,11 @@
     - **WASM Side (`lib.rs`, `mv2_writer.rs`):** Restricted the palette export to 15 colors (`palette[1..16]`). Updated `write_frame` signature to enforce the 30-byte limit.
     - **JS Side (`encoder.html`):** Reverted the snapshot assembly logic to skip Register 0 and write exactly 30 bytes to the frame block.
 - **Result:** Perfect color alignment and hardware-compliant file structures restored across all export paths.
+
+## 2026-03-31 18:15:00 - Performance: Streaming MP3 & UI Throttling
+- **Streaming MP3 Encoding (Task 1):** Removed the blocking sequential audio encoding phase. Encoding now happens frame-by-frame in the Web Worker.
+- **Lib-Level Fix (lamejs Shim):** Encountered `ReferenceError: MPEGMode` when importing `lamejs` via `esm.sh`. 
+    - **Resolution:** Replaced the ESM import with a manual `fetch + eval` shim in `worker.js`. This ensures the library executes in a controlled scope where its internal namespaces (like `MPEGMode`) are correctly initialized and bound to the `lamejs` factory function.
+- **UI Throttling (Task 4):** Implemented a `requestDraw` throttler in `encoder.html` using `requestAnimationFrame` and a `drawPending` lock. 
+    - **Benefit:** Prevents UI "frame piling" during rapid mouse interactions or heavy VRAM-preview processing, ensuring a smooth 60FPS experience even when the background worker is busy.
+- **Bug Fix (Audio Gain):** Fixed a `ReferenceError: gain` in the encoding loop by correctly calculating the decibel-to-linear factor from the UI slider.
