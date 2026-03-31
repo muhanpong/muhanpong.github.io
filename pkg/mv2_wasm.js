@@ -32,6 +32,16 @@ export class Mv2Encoder {
         wasm.mv2encoder_add_frame(this.__wbg_ptr, ptr0, len0, in_w, in_h, channels, ptr1, len1, ptr2, len2, ptr3, len3);
     }
     /**
+     * Optimized Gamma correction for RGBA buffer entirely in WASM.
+     * @param {Uint8Array} rgba
+     * @param {number} gamma
+     */
+    static apply_gamma_to_rgba(rgba, gamma) {
+        var ptr0 = passArray8ToWasm0(rgba, wasm.__wbindgen_malloc);
+        var len0 = WASM_VECTOR_LEN;
+        wasm.mv2encoder_apply_gamma_to_rgba(ptr0, len0, rgba, gamma);
+    }
+    /**
      * @param {Uint8Array | null} [remaining_mp3]
      * @returns {Uint8Array}
      */
@@ -57,6 +67,14 @@ export class Mv2Encoder {
      */
     get_last_dithered_frame() {
         const ret = wasm.mv2encoder_get_last_dithered_frame(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Get the dithered RGB frame converted to RGBA (256x192x4) in WASM.
+     * @returns {Uint8Array}
+     */
+    get_last_dithered_rgba() {
+        const ret = wasm.mv2encoder_get_last_dithered_rgba(this.__wbg_ptr);
         return ret;
     }
     /**
@@ -126,6 +144,9 @@ export function test_anchor_resolution(shorthand, peak_val, avg_lum) {
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
+        __wbg___wbindgen_copy_to_typed_array_d2f20acdab8e0740: function(arg0, arg1, arg2) {
+            new Uint8Array(arg2.buffer, arg2.byteOffset, arg2.byteLength).set(getArrayU8FromWasm0(arg0, arg1));
+        },
         __wbg___wbindgen_throw_6ddd609b62940d55: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },

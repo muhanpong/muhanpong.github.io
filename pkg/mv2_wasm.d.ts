@@ -5,9 +5,17 @@ export class Mv2Encoder {
     free(): void;
     [Symbol.dispose](): void;
     add_frame(rgba_data: Uint8Array, in_w: number, in_h: number, channels: number, mp3_data?: Uint8Array | null, pcm_data?: Int16Array | null, pcm_f32_data?: Float32Array | null): void;
+    /**
+     * Optimized Gamma correction for RGBA buffer entirely in WASM.
+     */
+    static apply_gamma_to_rgba(rgba: Uint8Array, gamma: number): void;
     finish(remaining_mp3?: Uint8Array | null): Uint8Array;
     finish_rgb(): Uint8Array;
     get_last_dithered_frame(): Uint8Array;
+    /**
+     * Get the dithered RGB frame converted to RGBA (256x192x4) in WASM.
+     */
+    get_last_dithered_rgba(): Uint8Array;
     get_last_eq_data(): Uint8Array;
     get_last_palette(): Uint8Array;
     get_last_vram(): Uint8Array;
@@ -29,9 +37,11 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_mv2encoder_free: (a: number, b: number) => void;
     readonly mv2encoder_add_frame: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => void;
+    readonly mv2encoder_apply_gamma_to_rgba: (a: number, b: number, c: any, d: number) => void;
     readonly mv2encoder_finish: (a: number, b: number, c: number) => [number, number];
     readonly mv2encoder_finish_rgb: (a: number) => [number, number];
     readonly mv2encoder_get_last_dithered_frame: (a: number) => any;
+    readonly mv2encoder_get_last_dithered_rgba: (a: number) => any;
     readonly mv2encoder_get_last_eq_data: (a: number) => any;
     readonly mv2encoder_get_last_palette: (a: number) => any;
     readonly mv2encoder_get_last_vram: (a: number) => any;

@@ -676,10 +676,10 @@
                             <option value="redmean">Redmean (Skin/Natural)</option>
                             <option value="euclidean">Euclidean (Anime)</option>
                         </select>
-                        <!-- <label style="display: flex; align-items: center; gap: 5px; font-size: 13px; color: #ccc; margin-top: 0; white-space: nowrap;"
+                        <label style="display: flex; align-items: center; gap: 5px; font-size: 13px; color: #ccc; margin-top: 0; white-space: nowrap;"
                             title="Force 64-color posterization pre-filter (AVGEN mode)">
                             <input type="checkbox" id="cfg_avgen64c" style="margin-top: 0; width: auto;"> AVGEN 64C
-			</label> -->
+                        </label>
                     </div>
                     <div class="help-overlay">
                         <h4>Distance Metric <span class="tip">(색상 거리 계산 공식)</span></h4>
@@ -1993,22 +1993,19 @@
                 if (isVramPreviewMode) renderPreview();
             };
 
-            const avgenEl = document.getElementById('cfg_avgen64c');
-            if (avgenEl) {
-                avgenEl.addEventListener('change', (e) => {
-                    if (e.target.checked) {
-                        ['c', 'y', 'm', 'r'].forEach(code => {
-                            if (!anchorColors.some(a => a.code === code)) {
-                                anchorColors.push({ code: code, hex: shorthandColors[code] || code, state: "locked" });
-                            }
-                        });
-                    } else {
-                        anchorColors = anchorColors.filter(a => !['c', 'y', 'm', 'r'].includes(a.code));
-                    }
-                    syncAnchorInput();
-                    if (isVramPreviewMode) renderPreview();
-                });
-            }
+            document.getElementById('cfg_avgen64c').addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    ['c', 'y', 'm', 'r'].forEach(code => {
+                        if (!anchorColors.some(a => a.code === code)) {
+                            anchorColors.push({ code: code, hex: shorthandColors[code] || code, state: "locked" });
+                        }
+                    });
+                } else {
+                    anchorColors = anchorColors.filter(a => !['c', 'y', 'm', 'r'].includes(a.code));
+                }
+                syncAnchorInput();
+                if (isVramPreviewMode) renderPreview();
+            });
 
             timeStartInput.addEventListener('change', () => {
                 startTime = Math.max(0, Math.min(parseTimeInput(timeStartInput.value), endTime));
