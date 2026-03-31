@@ -67,6 +67,7 @@
             margin-top: 10px;
         }
 
+        
         button:hover {
             background: #005f9e;
         }
@@ -545,9 +546,9 @@
 
 <body>
     <svg width="0" height="0" style="position:absolute;z-index:-1;">
-        <filter id="gamma-filter">
+        <filter id="av-filter" color-interpolation-filters="sRGB">
+            <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0" id="colorMatrix" />
             <feComponentTransfer>
-                <!-- SVG Gamma exponent is 1/gamma. We will update this via JS -->
                 <feFuncR type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaR" />
                 <feFuncG type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaG" />
                 <feFuncB type="gamma" amplitude="1" exponent="1.0" offset="0" id="gammaB" />
@@ -586,16 +587,20 @@
                     <label>Dither Mode</label>
                     <select id="cfg_dither_mode">
                         <option value="fs" selected>Floyd-Steinberg (FS)</option>
+                        <option value="sierra_lite">Sierra Lite</option>
                         <option value="dizzy">Dizzy (Error Diffusion)</option>
                         <option value="bluenoise">Blue Noise Void & Cluster</option>
+                        <option value="bayer4">Bayer (4x4)</option>
+                        <option value="bayer8">Bayer (8x8)</option>
                         <option value="none">None (Posterized)</option>
                     </select>
                     <div class="help-overlay">
                         <h4>Dither Mode <span class="tip">(디더링 모드)</span></h4>
                         <span class="hl">FS</span>: 표준적인 플로이드-스타인버그 오차 확산입니다. 선명합니다.<br>
+                        <span class="hl">Sierra Lite</span>: FS보다 빠르고 가벼우며 대비가 강한 디더링 패턴입니다.<br>
                         <span class="hl">Dizzy</span>: 픽셀을 무작위로 방문하여 오차를 확산해 규칙적인 패턴을 없앱니다.<br>
-                        <span class="hl">Blue Noise Void & Cluster</span>: 사전 계산된 마스크를 사용하여 타일링이 전혀 없는 고급 블루 노이즈를
-                        렌더링합니다.<br>
+                        <span class="hl">Blue Noise Void & Cluster</span>: 사전 계산된 마스크를 사용하여 타일링이 전혀 없는 고급 블루 노이즈를 렌더링합니다.<br>
+                        <span class="hl">Bayer 4x4 / 8x8</span>: 레트로한 격자무늬(크로스해치) 패턴을 생성합니다.<br>
                         <span class="hl">None</span>: 디더링을 완전히 끕니다. (등고선 현상 발생)
                     </div>
                 </div>
@@ -666,17 +671,24 @@
                 </div>
                 <div class="help-section">
                     <label>Distance Metric</label>
-                    <select id="cfg_metric">
-                        <option value="redmean">Redmean (Skin/Natural Video)</option>
-                        <option value="euclidean">Euclidean (Test Patterns/Anime)</option>
-                    </select>
+                    <div style="display: flex; gap: 10px; align-items: center; margin-top: 4px;">
+                        <select id="cfg_metric" style="flex: 1; margin-top: 0;">
+                            <option value="redmean">Redmean (Skin/Natural)</option>
+                            <option value="euclidean">Euclidean (Anime)</option>
+                        </select>
+                        <label style="display: flex; align-items: center; gap: 5px; font-size: 13px; color: #ccc; margin-top: 0; white-space: nowrap;"
+                            title="Force 64-color posterization pre-filter (AVGEN mode)">
+                            <input type="checkbox" id="cfg_avgen64c" style="margin-top: 0; width: auto;"> AVGEN 64C
+                        </label>
+                    </div>
                     <div class="help-overlay">
                         <h4>Distance Metric <span class="tip">(색상 거리 계산 공식)</span></h4>
                         유사한 색상을 판별할 때 사용하는 수학적 접근법입니다.<br><br>
                         <span class="hl">Redmean</span>: 인간의 눈동자가 붉은색에 민감한 점을 반영합니다. 인물 사진, 피부톤, 일반적인 자연 실사 영상에서 훨씬 보기
                         좋은
                         결과를 냅니다.<br>
-                        <span class="hl">Euclidean</span>: 순수한 수학적 입체 거리입니다. 명확한 원색 중심의 픽셀아트나 애니메이션에 유리합니다.
+                        <span class="hl">Euclidean</span>: 순수한 수학적 입체 거리입니다. 명확한 원색 중심의 픽셀아트나 애니메이션에 유리합니다.<br><br>
+                        <span class="hl">AVGEN 64C Filter</span>: 분석 전 이미지를 강제로 64색(AVGEN 레트로 팔레트)으로 압축하여 굵직한 픽셀 아트 느낌을 살립니다.
                     </div>
                 </div>
                 <div class="help-section">
@@ -701,6 +713,7 @@
                         <option value="crop">Crop (Pan & Scan)</option>
                         <option value="pad">Pad (Letterbox)</option>
                         <option value="force">Force (Stretch)</option>
+                        <option value="custom" style="display:none;" disabled>Free Form (Custom Crop)</option>
                     </select>
                     <div class="help-overlay">
                         <h4>Aspect Mode <span class="tip">(화면비 맞춤 방식)</span></h4>
@@ -710,14 +723,21 @@
                         <span class="hl">Force</span>: 원본을 256x192 크기에 맞춰 강제로 찌그러뜨립니다.
                     </div>
                 </div>
-                <div style="grid-column: span 2; display: flex; gap: 10px;" class="help-section">
-                    <div style="flex: 1;">
-                        <label>Crop Left Offset (%)</label>
-                        <input type="number" id="cfg_crop_left" value="0" min="-100" max="100">
+                <div style="grid-column: span 2;" class="help-section">
+                    <div id="crop_standard_ui" style="display: flex; gap: 10px;">
+                        <div style="flex: 1;">
+                            <label>Crop Left Offset (%)</label>
+                            <input type="number" id="cfg_crop_left" value="0" min="-100" max="100">
+                        </div>
+                        <div style="flex: 1;">
+                            <label>Crop Up Offset (%)</label>
+                            <input type="number" id="cfg_crop_up" value="0" min="-100" max="100">
+                        </div>
                     </div>
-                    <div style="flex: 1;">
-                        <label>Crop Up Offset (%)</label>
-                        <input type="number" id="cfg_crop_up" value="0" min="-100" max="100">
+                    <div id="crop_custom_ui" style="display: none; background: #222; padding: 10px; border-radius: 4px; border: 1px dashed #4db8ff; color: #4db8ff; font-family: monospace; align-items: center; justify-content: space-around;">
+                        <span><span style="color:#888;">Offset:</span> <span id="cc_offset">0,0</span></span>
+                        <span><span style="color:#888;">Size:</span> <span id="cc_size">0x0</span></span>
+                        <span><span style="color:#888;">Ratio:</span> <span id="cc_ratio">1.0</span></span>
                     </div>
                     <div class="help-overlay">
                         <h4>Crop Offset <span class="tip">(화면 미세 이동)</span></h4>
@@ -815,13 +835,59 @@
                                 oninput="document.getElementById('val_audio_gain').innerText = this.value; updatePreviewGain();">
                         </div>
                     </div>
+                    <div style="display: flex; gap: 10px; margin-top: 10px; border-top: 1px dashed #444; padding-top: 8px;">
+                        <div style="flex: 1;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <label style="margin:0; color:#ff8888;">Red Gain: <span id="val_gain_r">0</span>%</label>
+                                <span style="cursor:pointer; font-size:12px;" onclick="resetAV('gain_r', 0)">↺</span>
+                            </div>
+                            <input type="range" id="cfg_gain_r" value="0" min="-100" max="200" step="1">
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <label style="margin:0; color:#88ff88;">Green Gain: <span id="val_gain_g">0</span>%</label>
+                                <span style="cursor:pointer; font-size:12px;" onclick="resetAV('gain_g', 0)">↺</span>
+                            </div>
+                            <input type="range" id="cfg_gain_g" value="0" min="-100" max="200" step="1">
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <label style="margin:0; color:#8888ff;">Blue Gain: <span id="val_gain_b">0</span>%</label>
+                                <span style="cursor:pointer; font-size:12px;" onclick="resetAV('gain_b', 0)">↺</span>
+                            </div>
+                            <input type="range" id="cfg_gain_b" value="0" min="-100" max="200" step="1">
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 5px;">
+                        <div style="flex: 1;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <label style="margin:0; color:#88ffff;">Cyan Gain: <span id="val_gain_c">0</span>%</label>
+                                <span style="cursor:pointer; font-size:12px;" onclick="resetAV('gain_c', 0)">↺</span>
+                            </div>
+                            <input type="range" id="cfg_gain_c" value="0" min="-100" max="200" step="1">
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <label style="margin:0; color:#ff88ff;">Magenta Gain: <span id="val_gain_m">0</span>%</label>
+                                <span style="cursor:pointer; font-size:12px;" onclick="resetAV('gain_m', 0)">↺</span>
+                            </div>
+                            <input type="range" id="cfg_gain_m" value="0" min="-100" max="200" step="1">
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <label style="margin:0; color:#ffff88;">Yellow Gain: <span id="val_gain_y">0</span>%</label>
+                                <span style="cursor:pointer; font-size:12px;" onclick="resetAV('gain_y', 0)">↺</span>
+                            </div>
+                            <input type="range" id="cfg_gain_y" value="0" min="-100" max="200" step="1">
+                        </div>
+                    </div>
                     <div class="help-overlay">
                         <h4>A/V Adjustments <span class="tip">(화면/소리 실시간 보정)</span></h4>
                         원본 동영상의 색감과 소리 크기를 인코딩 전에 실시간으로 보정합니다.<br><br>
                         <span class="hl">Brightness/Contrast/Saturation</span>: 밝기, 대비, 채도를 보정합니다.<br>
-                        <span class="hl">Hue</span>: 전체적인 색상 톤(색조)을 회전시킵니다.<br>
-                        <span class="hl">Gamma</span>: 화면의 중간 톤 밝기를 커브로 조절합니다. (어두운 곳을 밝게 혹은 그 반대)<br>
-                        <span class="hl">Audio Gain</span>: 영상의 소리가 너무 작거나 클 때 데시벨(dB) 단위로 볼륨을 증폭/감소시킵니다.
+                        <span class="hl">Hue/Gamma</span>: 색조와 감마(중간톤 명암)를 조절합니다.<br>
+                        <span class="hl">Color Gains</span>: RGB(적/녹/청)와 CMY(청록/자홍/노랑) 채널별 강도를 개별 조절합니다. Cyan은 Red의 반전 색상입니다.<br>
+                        <span class="hl">Audio Gain</span>: 데시벨(dB) 단위로 볼륨을 증폭/감소시킵니다.
                     </div>
                 </div>
             </div>
@@ -1267,7 +1333,7 @@
                 else if (Math.abs(mouseX - box.x) < r && Math.abs(mouseY - (box.y + box.h)) < r) dragMode = 'resize_bl';
                 else if (Math.abs(mouseX - (box.x + box.w)) < r && Math.abs(mouseY - (box.y + box.h)) < r) dragMode = 'resize_br';
                 else if (mouseX > box.x && mouseX < box.x + box.w && mouseY > box.y && mouseY < box.y + box.h) dragMode = 'pan';
-                else return;
+                else dragMode = 'pan'; // clicked outside the box triggers panning
 
                 if (e.type === 'touchstart' && dragMode.startsWith('resize')) e.preventDefault();
                 isDraggingCanvas = true; hasDraggedCanvas = true;
@@ -1339,15 +1405,26 @@
                 else {
                     const targetRatio = (document.querySelector('input[name="cfg_target_ratio"]:checked') || {value: '5:3'}).value === '5:3' ? (5 / 3) : (4 / 3);
                     let targetW = dragStartBox.w, targetH = dragStartBox.h;
-                    if (dragMode === 'resize_br') { targetW += dx; targetH += dy; }
-                    else if (dragMode === 'resize_bl') { targetW -= dx; targetH += dy; }
-                    else if (dragMode === 'resize_tr') { targetW += dx; targetH -= dy; }
-                    else if (dragMode === 'resize_tl') { targetW -= dx; targetH -= dy; }
 
                     if (isAspectLocked) {
-                        if (Math.abs(dx) > Math.abs(dy)) targetH = targetW / targetRatio;
-                        else targetW = targetH * targetRatio;
+                        let currentRatio = dragStartBox.w / dragStartBox.h;
+                        let correctedStartW = dragStartBox.w;
+                        let correctedStartH = dragStartBox.h;
+                        
+                        if (dragMode === 'resize_br') { targetW = correctedStartW + dx; targetH = correctedStartH + dy; }
+                        else if (dragMode === 'resize_bl') { targetW = correctedStartW - dx; targetH = correctedStartH + dy; }
+                        else if (dragMode === 'resize_tr') { targetW = correctedStartW + dx; targetH = correctedStartH - dy; }
+                        else if (dragMode === 'resize_tl') { targetW = correctedStartW - dx; targetH = correctedStartH - dy; }
+
+                        if (Math.abs(dx) > Math.abs(dy)) targetH = targetW / currentRatio;
+                        else targetW = targetH * currentRatio;
+                    } else {
+                        if (dragMode === 'resize_br') { targetW += dx; targetH += dy; }
+                        else if (dragMode === 'resize_bl') { targetW -= dx; targetH += dy; }
+                        else if (dragMode === 'resize_tr') { targetW += dx; targetH -= dy; }
+                        else if (dragMode === 'resize_tl') { targetW -= dx; targetH -= dy; }
                     }
+
                     if (targetW < 20) { targetW = 20; if (isAspectLocked) targetH = 20 / targetRatio; }
                     if (targetH < 20) { targetH = 20; if (isAspectLocked) targetW = 20 * targetRatio; }
                     newW = targetW; newH = targetH;
@@ -1375,8 +1452,15 @@
                 canvas.style.aspectRatio = e.target.value === '5:3' ? '5 / 3' : '4 / 3';
                 drawPreviewCanvas();
             }));
-            ['cfg_brightness', 'cfg_contrast', 'cfg_saturation', 'cfg_hue', 'cfg_gamma'].forEach(id => {
-                document.getElementById(id).addEventListener('input', drawPreviewCanvas);
+            ['cfg_brightness', 'cfg_contrast', 'cfg_saturation', 'cfg_hue', 'cfg_gamma',
+             'cfg_gain_r', 'cfg_gain_g', 'cfg_gain_b', 'cfg_gain_c', 'cfg_gain_m', 'cfg_gain_y'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('input', (e) => {
+                    const valId = id.replace('cfg_', 'val_');
+                    const valEl = document.getElementById(valId);
+                    if (valEl) valEl.innerText = e.target.value;
+                    drawPreviewCanvas();
+                });
             });
 
             window.resetAV = function (id, defaultVal) {
@@ -1394,10 +1478,12 @@
             window.resetAllAV = function () {
                 window.resetAV('brightness', 0); window.resetAV('contrast', 0); window.resetAV('saturation', 0);
                 window.resetAV('hue', 0); window.resetAV('gamma', '1.0'); window.resetAV('audio_gain', 0);
+                window.resetAV('gain_r', 0); window.resetAV('gain_g', 0); window.resetAV('gain_b', 0);
+                window.resetAV('gain_c', 0); window.resetAV('gain_m', 0); window.resetAV('gain_y', 0);
             }
 
             function getUIConfig() {
-                const activeAnchors = anchorColors.filter(a => a.state !== "disabled").map(a => a.code).join('_');
+                const activeAnchors = anchorColors.filter(a => a.state !== "disabled").map(a => a.code).join('');
                 const config = {
                     width: 256, height: 192,
                     quantizer: document.getElementById('cfg_quantizer').value,
@@ -1410,13 +1496,14 @@
                     quant_iters_subsequent: parseInt(document.getElementById('cfg_iter_sub').value),
                     aspect_mode: "force", crop_left: 0, crop_up: 0,
                     sample_rate: TARGET_SAMPLE_RATE, fps: TARGET_FPS,
-                    metric: document.getElementById('cfg_metric').value
+                    metric: document.getElementById('cfg_metric').value,
+                    avgen64c: document.getElementById('cfg_avgen64c') ? document.getElementById('cfg_avgen64c').checked : false
                 };
                 config.metadata = JSON.stringify({ encoder: "MV2 Preview", settings: config });
                 return config;
             }
 
-            function requestVramFrameFromWorker(rgbaBytes, config, gamma) {
+            function requestVramFrameFromWorker(rgbaBytes, config) {
                 return new Promise((resolve, reject) => {
                     const timeout = setTimeout(() => {
                         worker.removeEventListener('message', tempHandler);
@@ -1434,7 +1521,7 @@
                     worker.addEventListener('message', tempHandler);
                     worker.postMessage({
                         type: 'TEST_FRAME',
-                        payload: { config: JSON.stringify(config), rgbaBytes, origW: 256, origH: 192, gamma }
+                        payload: { config: JSON.stringify(config), rgbaBytes, origW: 256, origH: 192, gamma: 1.0 }
                     }, [rgbaBytes.buffer]);
                 });
             }
@@ -1446,16 +1533,41 @@
                 const h = parseFloat(document.getElementById('cfg_hue').value);
                 const gamma = parseFloat(document.getElementById('cfg_gamma').value) || 1.0;
                 
-                if (b === 100 && c === 100 && s === 100 && h === 0) {
-                    context.filter = 'none';
-                } else {
-                    context.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) hue-rotate(${h}deg)`;
+                const gr = parseFloat(document.getElementById('cfg_gain_r').value) || 0;
+                const gg = parseFloat(document.getElementById('cfg_gain_g').value) || 0;
+                const gb = parseFloat(document.getElementById('cfg_gain_b').value) || 0;
+                const gc = parseFloat(document.getElementById('cfg_gain_c').value) || 0;
+                const gm = parseFloat(document.getElementById('cfg_gain_m').value) || 0;
+                const gy = parseFloat(document.getElementById('cfg_gain_y').value) || 0;
+
+                const rScale = Math.max(0, Math.min(5, 1.0 + (gr / 100.0) - (gc / 100.0)));
+                const gScale = Math.max(0, Math.min(5, 1.0 + (gg / 100.0) - (gm / 100.0)));
+                const bScale = Math.max(0, Math.min(5, 1.0 + (gb / 100.0) - (gy / 100.0)));
+
+                const colorMatrix = document.getElementById('colorMatrix');
+                if (colorMatrix) {
+                    colorMatrix.setAttribute('values', `${rScale} 0 0 0 0  0 ${gScale} 0 0 0  0 0 ${bScale} 0 0  0 0 0 1 0`);
                 }
-                
+
                 document.getElementById('gammaR').setAttribute('exponent', 1 / gamma);
                 document.getElementById('gammaG').setAttribute('exponent', 1 / gamma);
                 document.getElementById('gammaB').setAttribute('exponent', 1 / gamma);
-                if (context === ctx) canvas.style.filter = `url(#gamma-filter)`;
+
+                // Bake into context.filter so getImageData captures it!
+                let filterStr = `brightness(${b}%) contrast(${c}%) saturate(${s}%) hue-rotate(${h}deg)`;
+                // Always add the SVG filter for Gains and Gamma if they are non-default
+                if (rScale !== 1 || gScale !== 1 || bScale !== 1 || gamma !== 1.0) {
+                    filterStr += ` url(#av-filter)`;
+                }
+                
+                if (b === 100 && c === 100 && s === 100 && h === 0 && rScale === 1 && gScale === 1 && bScale === 1 && gamma === 1.0) {
+                    context.filter = 'none';
+                } else {
+                    context.filter = filterStr;
+                }
+                
+                // Clear style filter on main canvas to avoid double-processing
+                if (context === ctx) canvas.style.filter = 'none';
             }
 
             async function drawPreviewCanvas() {
@@ -1468,6 +1580,24 @@
                     return;
                 }
                 let box = customBox || getCalculatedBox(); if (!box) return;
+
+                if (isCustomMode) {
+                    document.getElementById('cfg_aspect').value = 'custom';
+                    document.getElementById('crop_standard_ui').style.display = 'none';
+                    document.getElementById('crop_custom_ui').style.display = 'flex';
+                    
+                    const pvw = sourceVideo.videoWidth, pvh = sourceVideo.videoHeight;
+                    if (pvw > 0 && pvh > 0 && box.drawW > 0 && box.drawH > 0) {
+                        const scaleVidX = pvw / box.drawW, scaleVidY = pvh / box.drawH;
+                        document.getElementById('cc_offset').innerText = `+${Math.round((box.x - box.drawX) * scaleVidX)}, +${Math.round((box.y - box.drawY) * scaleVidY)}`;
+                        const w = Math.round(box.w * scaleVidX), h = Math.round(box.h * scaleVidY);
+                        document.getElementById('cc_size').innerText = `${w}x${h}`;
+                        document.getElementById('cc_ratio').innerText = `${(w/h).toFixed(2)}`;
+                    }
+                } else {
+                    document.getElementById('crop_standard_ui').style.display = 'flex';
+                    document.getElementById('crop_custom_ui').style.display = 'none';
+                }
 
                 // 1. Common Preprocessing on offscreenCanvas (always 256x192)
                 offCtx.filter = 'none'; offCtx.fillStyle = '#000'; offCtx.fillRect(0, 0, 256, 192);
@@ -1517,7 +1647,7 @@
                     const rgbaBytes = new Uint8Array(frameData.data.buffer);
                     const config = getUIConfig();
                     const gamma = parseFloat(document.getElementById('cfg_gamma').value) || 1.0;
-                    requestVramFrameFromWorker(rgbaBytes, config, gamma).then(payload => {
+                    requestVramFrameFromWorker(rgbaBytes, config).then(payload => {
                         if (isDraggingCanvas || isDraggingMarker || !isVramPreviewMode) return;
 
                         const vImg = new ImageData(new Uint8ClampedArray(payload.vramRGBA), 256, 192);
@@ -1589,21 +1719,30 @@
                 }
 
                 // Draw Corner Handlers (Squares)
-                ctx.fillStyle = 'rgba(77, 184, 255, 0.9)';
-                const s = 10;
-                ctx.fillRect(box.x, box.y, s, s); // TL
-                ctx.fillRect(box.x + box.w - s, box.y, s, s); // TR
-                ctx.fillRect(box.x, box.y + box.h - s, s, s); // BL
-                ctx.fillRect(box.x + box.w - s, box.y + box.h - s, s, s); // BR
+                let s = 10;
+                if (box.w < 60 || box.h < 60) s = 6;
+                if (box.w < 30 || box.h < 30) s = 0; // Hide completely if very small
+
+                if (s > 0) {
+                    ctx.fillStyle = 'rgba(77, 184, 255, 0.9)';
+                    ctx.fillRect(box.x, box.y, s, s); // TL
+                    ctx.fillRect(box.x + box.w - s, box.y, s, s); // TR
+                    ctx.fillRect(box.x, box.y + box.h - s, s, s); // BL
+                    ctx.fillRect(box.x + box.w - s, box.y + box.h - s, s, s); // BR
+                }
 
                 // Draw Lock/Unlock Icon
-                const cx = box.x + box.w / 2;
-                const cy = box.y + 14;
-                ctx.font = '14px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-                ctx.fillText(isAspectLocked ? '🔒' : '🔓', cx, cy);
+                if (box.w >= 30 && box.h >= 30) {
+                    const cx = box.x + box.w / 2;
+                    let cy = box.y + 14;
+                    if (box.h < 40) cy = box.y + box.h / 2; // Center vertically if box is a bit squashed
+                    
+                    ctx.font = (box.w < 60 || box.h < 60) ? '10px sans-serif' : '14px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    ctx.fillText(isAspectLocked ? '🔒' : '🔓', cx, cy);
+                }
 
                 if (!isVramPreviewMode) {
                     // Draw Dimensions
@@ -1625,6 +1764,14 @@
                     else if (dragMode === 'resize_bl') { pipX = box.x + box.w - pipW; pipY = box.y; }
                     else if (dragMode === 'resize_tr') { pipX = box.x; pipY = box.y + box.h - pipH; }
                     else if (dragMode === 'resize_tl') { pipX = box.x + box.w - pipW; pipY = box.y + box.h - pipH; }
+
+                    if (box.w < pipW || box.h < pipH) {
+                        const centerX = box.x + box.w / 2;
+                        const centerY = box.y + box.h / 2;
+                        pipX = (centerX < canvas.width / 2) ? canvas.width - pipW - 5 : 5;
+                        pipY = (centerY < canvas.height / 2) ? canvas.height - pipH - 5 : 5;
+                    }
+
                     pipX = Math.max(5, Math.min(canvas.width - pipW - 5, pipX));
                     pipY = Math.max(5, Math.min(canvas.height - pipH - 5, pipY));
 
@@ -1743,12 +1890,16 @@
                 'K': '#000000', 'W': '#FFFFFF', 'R': '#FF0000', 'G': '#00FF00', 'B': '#0000FF',
                 'C': '#00FFFF', 'M': '#FF00FF', 'Y': '#FFFF00', 'A': '#888888',
                 'k': '#000000', 'w': '#AAAAAA', 'r': '#880000', 'g': '#008800', 'b': '#000088',
-                'c': '#008888', 'm': '#880088', 'y': '#888800', 'a': '#444444'
+                'c': '#008888', 'm': '#880088', 'y': '#888800', 'a': '#444444',
+                '_K': '#000000', '_W': '#FFFFFF', '_R': '#FF0000', '_G': '#00FF00', '_B': '#0000FF',
+                '_C': '#00FFFF', '_M': '#FF00FF', '_Y': '#FFFF00', '_A': '#888888',
+                '_k': '#000000', '_w': '#AAAAAA', '_r': '#880000', '_g': '#008800', '_b': '#000088',
+                '_c': '#008888', '_m': '#880088', '_y': '#888800', '_a': '#444444'
             };
 
             function parseAnchorInput() {
                 const val = anchorInput.value;
-                const regex = /(#[0-9A-F]{6}|[KWRGBYMCAkwrgbymca])/gi;
+                const regex = /(#[0-9A-F]{6}|_[KWRGBYMCAkwrgbymca]|[KWRGBYMCAkwrgbymca])/gi;
                 let match;
                 const newAnchors = [];
                 const seen = new Set();
@@ -1758,8 +1909,8 @@
                     seen.add(code);
                     const existing = anchorColors.find(a => a.code === code);
                     const hex = shorthandColors[code] || code;
-                    // Default to 'locked' for text anchors, 'enabled' for hex
-                    let defaultState = (code.length === 1) ? "locked" : "enabled";
+                    // Default to 'locked' for shorthand anchors (1 or 2 char), 'enabled' for hex
+                    let defaultState = (code.length <= 2) ? "locked" : "enabled";
                     newAnchors.push({ code, hex, state: existing ? existing.state : defaultState });
                 }
                 anchorColors = newAnchors;
@@ -1808,7 +1959,7 @@
             }
 
             function syncAnchorInput() {
-                anchorInput.value = anchorColors.map(a => a.code).join('_');
+                anchorInput.value = anchorColors.map(a => a.code).join('');
                 renderAnchorSlots();
             }
 
@@ -1842,6 +1993,20 @@
                 if (isVramPreviewMode) renderPreview();
             };
 
+            document.getElementById('cfg_avgen64c').addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    ['c', 'y', 'm', 'r'].forEach(code => {
+                        if (!anchorColors.some(a => a.code === code)) {
+                            anchorColors.push({ code: code, hex: shorthandColors[code] || code, state: "locked" });
+                        }
+                    });
+                } else {
+                    anchorColors = anchorColors.filter(a => !['c', 'y', 'm', 'r'].includes(a.code));
+                }
+                syncAnchorInput();
+                if (isVramPreviewMode) renderPreview();
+            });
+
             timeStartInput.addEventListener('change', () => {
                 startTime = Math.max(0, Math.min(parseTimeInput(timeStartInput.value), endTime));
                 timeStartInput.value = formatTimeInput(startTime); updateSliderVisuals(); updateVideoTime();
@@ -1859,7 +2024,7 @@
                 const playTimeDuration = endTime - startTime;
                 const m = Math.floor(playTimeDuration / 60), s = Math.floor(playTimeDuration % 60), ms = Math.floor((playTimeDuration % 1) * 100);
                 const playTime = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
-                const activeAnchors = anchorColors.filter(a => a.state !== "disabled").map(a => a.code).join('_');
+                const activeAnchors = anchorColors.filter(a => a.state !== "disabled").map(a => a.code).join('');
                 const recipeMeta = {
                     encoder: "MV2 Web Encoder (WASM)", source: file.name, date: new Date().toISOString(),
                     duration_sec: sourceVideo.duration, play_time: playTime, total_frames: totalFrames,
@@ -1870,7 +2035,8 @@
                         vram_dither: parseFloat(document.getElementById('cfg_vram_dither').value),
                         anchor_colors: activeAnchors,
                         extra_colors: parseInt(document.getElementById('cfg_colors').value),
-                        metric: document.getElementById('cfg_metric').value
+                        metric: document.getElementById('cfg_metric').value,
+                        avgen64c: document.getElementById('cfg_avgen64c') ? document.getElementById('cfg_avgen64c').checked : false
                     }
                 };
                 interimHeader = new Uint8Array(16384);
@@ -2041,7 +2207,7 @@
                                 type: 'ENCODE_FRAME', 
                                 payload: { 
                                     rgbaBytes, origW: 256, origH: 192, 
-                                    mp3Chunk, pcmF32Slice, frameIdx, gamma, needsMonitor 
+                                    mp3Chunk, pcmF32Slice, frameIdx, gamma: 1.0, needsMonitor 
                                 } 
                             }, [rgbaBytes.buffer, mp3Chunk.buffer, pcmF32Slice.buffer]);
                         });
