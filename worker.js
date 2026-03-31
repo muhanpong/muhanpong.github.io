@@ -113,9 +113,7 @@ self.onmessage = async (e) => {
                 throw new Error("Encoder not initialized.");
             }
 
-            activeEncoder.add_frame(rgbaBytes, origW, origH, 4, null, pcmSlice, pcmF32Slice);
-
-            // 🔊 Streaming MP3 Encoding (Task 1)
+            // 🔊 Streaming MP3 Encoding (Task 1) - Must happen BEFORE add_frame for interleaving
             let returnedMp3Chunk = null;
             if (type === 'ENCODE_FRAME' && pcmF32Slice && mp3Encoder) {
                 // 🚀 Native WASM Audio Conversion (Performance Fix)
@@ -125,25 +123,22 @@ self.onmessage = async (e) => {
                 const mp3buf = new Uint8Array(mp3Encoder.encodeBuffer(pcmInt16));
                 
                 // 3. Handle 32-byte alignment and requested size
-                // We combine current residual with new encoded data
                 const combined = new Uint8Array(mp3ResidualBuffer.length + mp3buf.length);
                 combined.set(mp3ResidualBuffer, 0);
                 combined.set(mp3buf, mp3ResidualBuffer.length);
                 
-                // The frame block expects N * 32 bytes (except for the last frame)
-                // We'll return as much as possible in 32-byte multiples, or the specifically requested amount if known.
-                // Wait, if we return ONLY requested size, the rest stays in residual.
                 const requestedSize = payload.requestedMp3Size || 0; 
                 if (requestedSize > 0) {
                     returnedMp3Chunk = combined.slice(0, requestedSize);
                     mp3ResidualBuffer = combined.slice(requestedSize);
                 } else {
-                    // Fallback: return everything that's 32-byte aligned
                     const alignedLen = Math.floor(combined.length / 32) * 32;
                     returnedMp3Chunk = combined.slice(0, alignedLen);
                     mp3ResidualBuffer = combined.slice(alignedLen);
                 }
             }
+
+            activeEncoder.add_frame(rgbaBytes, origW, origH, 4, returnedMp3Chunk, pcmSlice, pcmF32Slice);
 
             const vBytes = activeEncoder.get_last_vram();
             const pBytes = activeEncoder.get_last_palette();
