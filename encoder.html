@@ -691,6 +691,10 @@
                             title="Force colorful anchors to mix into grays (Magic Mixture)">
                             <input type="checkbox" id="cfg_magic_mixture" style="margin-top: 0; width: auto;"> Magic
                         </label>
+                        <label style="display: flex; align-items: center; gap: 5px; font-size: 13px; color: #ccc; margin-top: 0; white-space: nowrap;"
+                            title="Lock anchor levels for 10 frames to prevent flickering">
+                            <input type="checkbox" id="cfg_temporal_lock" style="margin-top: 0; width: auto;" checked> Lock
+                        </label>
                     </div>
                     <div class="help-overlay">
                         <h4>Distance Metric <span class="tip">(색상 거리 계산 공식)</span></h4>
@@ -1522,7 +1526,8 @@
                     sample_rate: TARGET_SAMPLE_RATE, fps: TARGET_FPS,
                     metric: document.getElementById('cfg_metric').value,
                     avgen64c: document.getElementById('cfg_avgen64c') ? document.getElementById('cfg_avgen64c').checked : false,
-                    magic_mixture: document.getElementById('cfg_magic_mixture') ? document.getElementById('cfg_magic_mixture').checked : false
+                    magic_mixture: document.getElementById('cfg_magic_mixture') ? document.getElementById('cfg_magic_mixture').checked : false,
+                    temporal_lock: document.getElementById('cfg_temporal_lock') ? document.getElementById('cfg_temporal_lock').checked : false
                 };
                 config.metadata = JSON.stringify({ encoder: "MV2 Preview", settings: config });
                 return config;
@@ -2062,7 +2067,8 @@
                         extra_colors: parseInt(document.getElementById('cfg_colors').value),
                         metric: document.getElementById('cfg_metric').value,
                         avgen64c: document.getElementById('cfg_avgen64c') ? document.getElementById('cfg_avgen64c').checked : false,
-                        magic_mixture: document.getElementById('cfg_magic_mixture') ? document.getElementById('cfg_magic_mixture').checked : false
+                        magic_mixture: document.getElementById('cfg_magic_mixture') ? document.getElementById('cfg_magic_mixture').checked : false,
+                        temporal_lock: document.getElementById('cfg_temporal_lock') ? document.getElementById('cfg_temporal_lock').checked : false
                     }
                 };
                 interimHeader = new Uint8Array(16384);
