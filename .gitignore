@@ -7,4 +7,6 @@
 !.gemini/agents/
 .DS_Store
 
+devel/
+
 .gait/
