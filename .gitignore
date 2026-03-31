@@ -1,5 +1,8 @@
 .gemini
 !*md
+
+# submodule recursive
+devel/
     
 *mv2
 !README.md
@@ -10,3 +13,4 @@
 devel/
 
 .gait/
+

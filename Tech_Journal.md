@@ -474,3 +474,22 @@
   1. Updated `lib.rs` to mathematically snap all parsed anchors directly onto the strict AVGEN 64-color grid (`[0, 73, 146, 255]`) before quantization.
   2. Replaced the dull grayscale fallback seeds with vivid primary and secondary 64C colors (`[255,0,0]`, `[0,255,255]`, etc.).
 * **Result:** The WASM encoder now strictly enforces the 64-color subset (0 extraneous colors) while providing the dithering engine with the full gamut of primary mixing colors. This completely restores the rich, vivid "Python aesthetic" for low-color/dark scenes.
+
+## 2026-03-31 18:00:00 - Bug Fix: 15-Color Palette & EOF Alignment
+- **The Issue:** Exported `.mv2` files and snapshots exhibited "broken" colors or a one-slot palette shift, potentially causing visual corruption or EOF errors in strict players.
+- **Root Cause (Palette Size Mismatch):** The MV2 format version 2 specifies a 15-color palette block (MSX registers 1-15) starting at offset `12288`, followed immediately by an **EOF marker** at offset `12318`. 
+- **Corruption Mechanic:** Recent changes accidentally expanded the palette to 16 colors (32 bytes). This caused:
+    1. A **2-byte shift** in all subsequent data (EQ, MP3) for players expecting 15 colors.
+    2. The **EOF marker (0x00)** at `12318` to overwrite the 16th color (Register 15) in the memory block.
+- **The Fix:** 
+    - **WASM Side (`lib.rs`, `mv2_writer.rs`):** Restricted the palette export to 15 colors (`palette[1..16]`). Updated `write_frame` signature to enforce the 30-byte limit.
+    - **JS Side (`encoder.html`):** Reverted the snapshot assembly logic to skip Register 0 and write exactly 30 bytes to the frame block.
+- **Result:** Perfect color alignment and hardware-compliant file structures restored across all export paths.
+
+## 2026-03-31 18:15:00 - Performance: Streaming MP3 & UI Throttling
+- **Streaming MP3 Encoding (Task 1):** Removed the blocking sequential audio encoding phase. Encoding now happens frame-by-frame in the Web Worker.
+- **Lib-Level Fix (lamejs Shim):** Encountered `ReferenceError: MPEGMode` when importing `lamejs` via `esm.sh`. 
+    - **Resolution:** Replaced the ESM import with a manual `fetch + eval` shim in `worker.js`. This ensures the library executes in a controlled scope where its internal namespaces (like `MPEGMode`) are correctly initialized and bound to the `lamejs` factory function.
+- **UI Throttling (Task 4):** Implemented a `requestDraw` throttler in `encoder.html` using `requestAnimationFrame` and a `drawPending` lock. 
+    - **Benefit:** Prevents UI "frame piling" during rapid mouse interactions or heavy VRAM-preview processing, ensuring a smooth 60FPS experience even when the background worker is busy.
+- **Bug Fix (Audio Gain):** Fixed a `ReferenceError: gain` in the encoding loop by correctly calculating the decibel-to-linear factor from the UI slider.
