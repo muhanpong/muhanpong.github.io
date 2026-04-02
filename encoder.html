@@ -592,7 +592,10 @@
                         <option value="bluenoise">Blue Noise Void & Cluster</option>
                         <option value="bayer4">Bayer (4x4)</option>
                         <option value="bayer8">Bayer (8x8)</option>
-                        <option value="none">None (Posterized)</option>
+                        <option value="bayer1">Ordered (1x8 Dash)</option>
+                        <option value="bayer2">Ordered (2x8 Dash)</option>
+                        <option value="none">None (Posterize)</option>
+
                     </select>
                     <div class="help-overlay">
                         <h4>Dither Mode <span class="tip">(디더링 모드)</span></h4>
@@ -616,19 +619,12 @@
                 </div>
                 <div class="help-section">
                     <label>VRAM Local Dither (0.0-1.0)</label>
-                    <div style="display: flex; gap: 10px; align-items: center; margin-top: 4px;">
-                        <input type="number" id="cfg_vram_dither" value="0.0" min="0.0" max="1.0" step="0.1" style="flex: 1; margin-top: 0;">
-                        <label style="display: flex; align-items: center; gap: 5px; font-size: 13px; color: #ccc; margin-top: 0; white-space: nowrap;"
-                            title="Use fixed rhythmic patterns instead of 1D error diffusion (AVGEN Style)">
-                            <input type="checkbox" id="cfg_vram_ordered" style="margin-top: 0; width: auto;"> Ordered
-                        </label>
-                    </div>
+                    <input type="number" id="cfg_vram_dither" value="0.0" min="0.0" max="1.0" step="0.1">
                     <div class="help-overlay">
                         <h4>VRAM Local Dither <span class="tip">(블록 내부 오차 확산)</span></h4>
                         MSX2의 8x1 블록(가로 8픽셀) 제약 속에서 선택된 2가지 색상 내에서만 추가로 디더링을 수행합니다.<br><br>
                         <span class="hl">0.0</span>: 적용하지 않음 (가장 선명한 윤곽선).<br>
-                        <span class="hl">0.1~1.0</span>: 블록 내부의 그라데이션을 부드럽게 연결함.<br><br>
-                        <span class="hl">Ordered Mode</span>: 1D 오차 확산 대신 AVGEN에서 추출한 고정 리듬 패턴들을 사용하여 레트로한 '점선' 느낌을 극대화합니다.
+                        <span class="hl">0.1~1.0</span>: 블록 내부의 그라데이션을 부드럽게 연결함.
                     </div>
                 </div>
                 <div class="help-section">
@@ -687,14 +683,6 @@
                             title="Force 64-color posterization pre-filter (AVGEN mode)">
                             <input type="checkbox" id="cfg_avgen64c" style="margin-top: 0; width: auto;"> AVGEN 64C
                         </label>
-                        <label style="display: flex; align-items: center; gap: 5px; font-size: 13px; color: #ccc; margin-top: 0; white-space: nowrap;"
-                            title="Force colorful anchors to mix into grays (Magic Mixture)">
-                            <input type="checkbox" id="cfg_magic_mixture" style="margin-top: 0; width: auto;"> Magic
-                        </label>
-                        <label style="display: flex; align-items: center; gap: 5px; font-size: 13px; color: #ccc; margin-top: 0; white-space: nowrap;"
-                            title="Lock anchor levels for 10 frames to prevent flickering">
-                            <input type="checkbox" id="cfg_temporal_lock" style="margin-top: 0; width: auto;" checked> Lock
-                        </label>
                     </div>
                     <div class="help-overlay">
                         <h4>Distance Metric <span class="tip">(색상 거리 계산 공식)</span></h4>
@@ -708,7 +696,7 @@
                 </div>
                 <div class="help-section">
                     <label>Temporal Reuse Threshold</label>
-                    <input type="number" id="cfg_temporal_threshold" value="4.0" min="0.0" step="0.1">
+                    <input type="number" id="cfg_temporal_threshold" value="0.4" min="0.0" step="0.1">
                     <div class="help-overlay">
                         <h4>Temporal Reuse <span class="tip">(화면 정적 구역 유지)</span></h4>
                         이전 프레임과 비교해 변화가 적은 8x1 블록을 그대로 재사용할지 결정하는 임계값입니다.<br><br>
@@ -1516,7 +1504,6 @@
                     dither: document.getElementById('cfg_dither_mode').value,
                     dither_strength: parseInt(document.getElementById('cfg_dither').value),
                     vram_dither: parseFloat(document.getElementById('cfg_vram_dither').value),
-                    vram_ordered: document.getElementById('cfg_vram_ordered').checked,
                     anchor_colors: activeAnchors,
                     max_extra_colors: parseInt(document.getElementById('cfg_colors').value),
                     quant_iters_initial: parseInt(document.getElementById('cfg_iter_init').value),
@@ -1525,9 +1512,7 @@
                     aspect_mode: "force", crop_left: 0, crop_up: 0,
                     sample_rate: TARGET_SAMPLE_RATE, fps: TARGET_FPS,
                     metric: document.getElementById('cfg_metric').value,
-                    avgen64c: document.getElementById('cfg_avgen64c') ? document.getElementById('cfg_avgen64c').checked : false,
-                    magic_mixture: document.getElementById('cfg_magic_mixture') ? document.getElementById('cfg_magic_mixture').checked : false,
-                    temporal_lock: document.getElementById('cfg_temporal_lock') ? document.getElementById('cfg_temporal_lock').checked : false
+                    avgen64c: document.getElementById('cfg_avgen64c') ? document.getElementById('cfg_avgen64c').checked : false
                 };
                 config.metadata = JSON.stringify({ encoder: "MV2 Preview", settings: config });
                 return config;
@@ -2066,9 +2051,7 @@
                         anchor_colors: activeAnchors,
                         extra_colors: parseInt(document.getElementById('cfg_colors').value),
                         metric: document.getElementById('cfg_metric').value,
-                        avgen64c: document.getElementById('cfg_avgen64c') ? document.getElementById('cfg_avgen64c').checked : false,
-                        magic_mixture: document.getElementById('cfg_magic_mixture') ? document.getElementById('cfg_magic_mixture').checked : false,
-                        temporal_lock: document.getElementById('cfg_temporal_lock') ? document.getElementById('cfg_temporal_lock').checked : false
+                        avgen64c: document.getElementById('cfg_avgen64c') ? document.getElementById('cfg_avgen64c').checked : false
                     }
                 };
                 interimHeader = new Uint8Array(16384);
