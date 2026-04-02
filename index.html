@@ -251,6 +251,36 @@
             }
         }
 
+        /* ── Theater Mode (Full Browser Width) ── */
+        body.theater-mode #video-container {
+            max-width: none !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1000;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        body.theater-mode #canvas-area {
+            width: 100% !important;
+            height: 100% !important;
+            max-width: calc(100vh * 5 / 3) !important;
+            max-height: calc(100vw * 3 / 5) !important;
+            aspect-ratio: 5 / 3 !important;
+            margin: auto;
+        }
+
+        body.theater-mode.aspect-4-3 #canvas-area {
+            max-width: calc(100vh * 4 / 3) !important;
+            max-height: calc(100vw * 3 / 4) !important;
+            aspect-ratio: 4 / 3 !important;
+        }
+
         #msx-screen {
             width: 100%;
             height: 100%;
@@ -1287,6 +1317,7 @@
             <div id="canvas-area" class="empty">
                 <canvas id="msx-screen" width="256" height="192"></canvas>
                 <div id="grid-overlay"></div>
+                <div id="palette-bar" style="position: absolute; bottom: 0; left: 0; width: 100%; height: 8px; display: flex; z-index: 60; opacity: 0.8; pointer-events: none;"></div>
                 <div id="canvas-msg-overlay">📂 Drop .MV or .ZIP here</div>
 
                 <div id="eq-overlay">
@@ -2081,6 +2112,19 @@
 
                 this.ctx.putImageData(this.renderImg, 0, 0);
 
+                // 🎨 [추가] Palette Bar 업데이트
+                const pBar = document.getElementById('palette-bar');
+                if (pBar) {
+                    pBar.innerHTML = '';
+                    for (let i = 0; i < 16; i++) {
+                        const rgb = frame.palette[i];
+                        const slot = document.createElement('div');
+                        slot.style.flex = '1';
+                        slot.style.height = '100%';
+                        slot.style.backgroundColor = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+                        pBar.appendChild(slot);
+                    }
+                }
 
                 // 물리 엔진용 타겟 및 실제 수량 업데이트
                 for (let i = 0; i < 16; i++) {
@@ -2465,41 +2509,30 @@
             tooltip.style.display = 'block';
         };
 
-        const btnFs = document.getElementById('btn-fullscreen-toggle'), screenWrapper = document.getElementById('screen-wrapper');
-        const toggleFs = () => {
-            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement || screenWrapper.classList.contains('ios-fullscreen-fix'));
-            if (!isFs) {
-                const req = screenWrapper.requestFullscreen || screenWrapper.webkitRequestFullscreen || screenWrapper.mozRequestFullScreen || screenWrapper.msRequestFullscreen;
-                if (req) {
-                    req.call(screenWrapper).then(() => {
-                        if (screen.orientation && screen.orientation.lock) {
-                            screen.orientation.lock('landscape').catch(e => console.warn("Orientation lock ignored", e));
-                        }
-                    }).catch(() => {
-                        screenWrapper.classList.add('ios-fullscreen-fix'); updateFsUI();
-                    });
-                } else {
-                    screenWrapper.classList.add('ios-fullscreen-fix'); updateFsUI();
+        const btnFs = document.getElementById('btn-fullscreen-toggle');
+        const updateFsUI = () => {
+            const isTheater = document.body.classList.contains('theater-mode');
+            document.getElementById('icon-expand').style.display = isTheater ? 'none' : 'block'; 
+            document.getElementById('icon-compress').style.display = isTheater ? 'block' : 'none';
+        };
+
+        const toggleTheaterMode = () => {
+            document.body.classList.toggle('theater-mode');
+            updateFsUI();
+
+            // Add a listener to exit theater mode with Escape key
+            const escHandler = (event) => {
+                if (event.key === 'Escape' && document.body.classList.contains('theater-mode')) {
+                    document.body.classList.remove('theater-mode');
+                    updateFsUI();
+                    window.removeEventListener('keydown', escHandler);
                 }
-            } else {
-                const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
-                if (exit && (document.fullscreenElement || document.webkitExitFullscreen)) {
-                    exit.call(document).catch(() => { });
-                }
-                if (screen.orientation && screen.orientation.unlock) {
-                    screen.orientation.unlock();
-                }
-                screenWrapper.classList.remove('ios-fullscreen-fix');
-                updateFsUI();
+            };
+            if (document.body.classList.contains('theater-mode')) {
+                window.addEventListener('keydown', escHandler);
             }
         };
-        btnFs.onclick = toggleFs;
-        const updateFsUI = () => {
-            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement || screenWrapper.classList.contains('ios-fullscreen-fix'));
-            document.getElementById('icon-expand').style.display = isFs ? 'none' : 'block'; document.getElementById('icon-compress').style.display = isFs ? 'block' : 'none';
-        };
-        document.addEventListener('fullscreenchange', updateFsUI); document.addEventListener('webkitfullscreenchange', updateFsUI);
-        document.addEventListener('mozfullscreenchange', updateFsUI); document.addEventListener('MSFullscreenChange', updateFsUI);
+        btnFs.onclick = toggleTheaterMode;
 
         const showOSD = () => {
             canvasArea.classList.add('osd-visible');
