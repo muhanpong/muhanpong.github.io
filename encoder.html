@@ -798,7 +798,6 @@
                     <label>Dither Mode</label>
                     <select id="cfg_dither_mode">
                         <option value="fs" selected>Floyd-Steinberg (FS)</option>
-                        <option value="avgen">AVGEN Pattern (Hardware)</option>
                         <option value="sierra_lite">Sierra Lite</option>
                         <option value="dizzy">Dizzy (Error Diffusion)</option>
                         <option value="bluenoise">Blue Noise Void & Cluster</option>
@@ -832,7 +831,8 @@
                         <h4>Dither Strength <span class="tip">(디더링 강도)</span></h4>
                         MSX2의 부족한 색상(15색)을 보완하기 위해 픽셀을 패턴으로 섞어 인접색을 표현하는 강도입니다.<br><br>
                         <span class="hl">0</span>: 디더링 끄기 (선명하지만 밴딩/등고선 현상 발생 지점 생김)<br>
-                        <span class="hl">75~100</span>: 부드러운 음영 전환. (100에 가까울수록 모래알 같은 노이즈 질감이 강해짐)
+                        <span class="hl">75 (Sweet Spot)</span>: 대부분의 영상에 가장 적합한 값입니다. 오차 폭발(Boiling) 현상을 억제하면서 부드러운 음영을 만듭니다.<br>
+                        <span class="hl">100</span>: 수학적 오차를 100% 전달합니다. 정지 화면에서는 유리하나 영상에서는 자글거림이 심해질 수 있습니다.
                     </div>
                 </div>
                 <div class="help-section">
@@ -897,6 +897,13 @@
                             title="Force 64-color posterization pre-filter (AVGEN mode)">
                             <input type="checkbox" id="cfg_avgen64c" style="margin-top: 0; width: auto;"> AVGEN 64C
                         </label>
+                        <div class="help-overlay">
+                            <h4>AVGEN 64C Mode <span class="tip">(오리지널 하드웨어 복제)</span></h4>
+                            오리지널 1990년대 AVGEN 인코더의 수학적 로직을 100% 재현합니다.<br><br>
+                            - **64색 그리드**: 모든 색상을 [0, 83, 166, 249] 단계로 제한하여 하드웨어 특유의 색감을 만듭니다.<br>
+                            - **고정 앵커**: 사용자 입력을 무시하고 KWCYMR(검,흰,청,황,자,적) 색상을 강제로 고정합니다.<br>
+                            - **선거 조작(Election Rigging)**: 앵커 색상이 항상 팔레트의 같은 인덱스(0~5)를 유지하도록 수학적으로 보장하여 플래싱을 방지합니다.
+                        </div>
                     </div>
                     <select id="cfg_metric" style="margin-top: 0;">
                         <option value="redmean">Redmean (Skin/Natural)</option>
