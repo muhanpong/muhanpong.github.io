@@ -1,0 +1,22 @@
+{
+  "name": "muhanpong.github.io",
+  "version": "1.0.0",
+  "description": "MSX MMCSD MV Player",
+  "main": "814.ffmpeg.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/muhanpong/muhanpong.github.io.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/muhanpong/muhanpong.github.io/issues"
+  },
+  "homepage": "https://github.com/muhanpong/muhanpong.github.io#readme"
+}

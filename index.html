@@ -1510,6 +1510,12 @@
     <input type="file" id="file-input" accept=".mv,.mv2,.zip,application/octet-stream,application/zip" multiple
         style="display:none;" />
 
+    <!-- 🛸 Direct Path Loader (Developer/Automation Bypass) -->
+    <div id="direct-load-box" style="position:fixed; bottom:10px; right:45px; display:flex; gap:5px; z-index:2000; background:rgba(0,0,0,0.8); padding:4px 6px; border-radius:4px; border:1px solid #333; transition: opacity 0.3s; opacity: 0.4;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.4">
+        <input type="text" id="cfg_direct_path" placeholder="Paste local URL/Path..." style="background:#111; color:#fff; border:1px solid #444; padding:2px 6px; font-size:11px; width:140px; border-radius:2px; font-family: monospace;">
+        <button id="btn-direct-load" style="background:#222; color:#eee; border:1px solid #444; padding:2px 8px; cursor:pointer; font-size:10px; border-radius:2px; white-space:nowrap;">LOAD</button>
+    </div>
+
     <script>
         // ── 극한의 최적화: LUT (Look-Up Table) 사전 생성 (O(1) 연산) ──
         // 0 ~ 49152 개의 픽셀 수량에 대한 Log10 퍼센티지(0~100)를 메모리에 상주
@@ -2667,6 +2673,55 @@
                 window.focus();
             }
         };
+        // ── Direct Path Loading Logic ──
+        const btnDirectLoad = document.getElementById('btn-direct-load');
+        const inputDirectPath = document.getElementById('cfg_direct_path');
+
+        if (btnDirectLoad && inputDirectPath) {
+            btnDirectLoad.onclick = async () => {
+                const path = inputDirectPath.value.trim();
+                if (!path) return;
+                
+                document.getElementById('status').textContent = `Fetching: ${path.split('/').pop()}...`;
+                
+                try {
+                    const response = await fetch(path);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    
+                    const blob = await response.blob();
+                    const name = path.split('/').pop() || 'Remote-Media';
+                    const file = new File([blob], name, { type: blob.type || 'application/octet-stream' });
+                    
+                    // Add to Playlist & Load
+                    if (player.addToPlaylist) {
+                        player.addToPlaylist(file, true);
+                        player.playPlaylistItem(player.playlist.length - 1);
+                    } else {
+                        // Fallback for older player versions if addToPlaylist isn't present
+                        player.playlist = [file];
+                        player.currentPlayIndex = 0;
+                        player.loadAndPlay(file);
+                    }
+                    
+                    document.getElementById('status').textContent = `Loaded: ${name}`;
+                    document.getElementById('status').style.color = '#4CAF50';
+                    setTimeout(() => { document.getElementById('status').style.color = ''; }, 3000);
+                } catch (err) {
+                    console.error("[Direct Load]", err);
+                    document.getElementById('status').textContent = `Load Failed: ${err.message}`;
+                    document.getElementById('status').style.color = '#ff4444';
+                    setTimeout(() => {
+                        document.getElementById('status').style.color = '';
+                        document.getElementById('status').textContent = 'Ready';
+                    }, 5000);
+                }
+            };
+
+            // Enter key support
+            inputDirectPath.onkeydown = (e) => {
+                if (e.key === 'Enter') btnDirectLoad.click();
+            };
+        }
 
     </script>
 </body>
