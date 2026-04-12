@@ -1562,6 +1562,9 @@
                 markerStart.style.left = `${sPct}%`;
                 markerEnd.style.left = `${ePct}%`;
                 markerPlayhead.style.left = `${cPct}%`;
+                markerStart.title = `Start: ${Math.floor(startTime * TARGET_FPS) + 1}F`;
+                markerEnd.title = `End: ${Math.floor(endTime * TARGET_FPS) + 1}F`;
+                markerPlayhead.title = `Playhead: ${Math.floor(currentTime * TARGET_FPS) + 1}F`;
                 sliderFill.style.left = `${sPct}%`;
                 sliderFill.style.width = `${ePct - sPct}%`;
                 const selDur = endTime - startTime;
@@ -2055,10 +2058,13 @@
             function drawUIOverlays(box) {
                 if (!box) return;
 
-                // Draw FPS Overlay (Moved to HTML Layer)
+                // Draw FPS & Frame Overlay (Moved to HTML Layer)
                 if (currentFile && !isEncoding) {
                     const osdFps = document.getElementById('osd-fps');
-                    if (osdFps) osdFps.textContent = `${Math.round(fps)} FPS`;
+                    if (osdFps) {
+                        const curFrame = Math.floor(currentTime * TARGET_FPS) + 1;
+                        osdFps.textContent = `${curFrame}F | ${Math.round(fps)} FPS`;
+                    }
                 }
 
                 // In VRAM Preview mode, we hide ALL handlers for a clean WYSIWYG view

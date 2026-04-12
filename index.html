@@ -1932,7 +1932,9 @@
                 if (this.timeDisplayMode === 'time') {
                     return this.formatTime(cur);
                 } else {
-                    return `${Math.floor(cur * this.fps)}${suffix}`;
+                    if (!this.totalFrames) return `0${suffix}`;
+                    const frame = Math.floor(cur * this.fps);
+                    return `${Math.min(frame + 1, this.totalFrames)}${suffix}`;
                 }
             }
 
@@ -2491,7 +2493,7 @@
             document.getElementById('osd-time-cur').innerText = player.formatDisplayTime(t, 'F');
 
             const tooltip = document.getElementById('seek-frame-tooltip');
-            tooltip.innerText = `${curFrame}F`;
+            tooltip.innerText = `${curFrame + 1}F`;
             tooltip.style.display = 'block';
 
             if (player.frames.length > 0) player.renderFrame(curFrame);
@@ -2511,7 +2513,7 @@
             document.getElementById('osd-time-cur').innerText = player.formatTime(player.pauseTime); player.renderFrame(tar);
 
             const tooltip = document.getElementById('seek-frame-tooltip');
-            tooltip.innerText = `${tar}F`;
+            tooltip.innerText = `${tar + 1}F`;
             tooltip.style.display = 'block';
         };
 
